@@ -1,0 +1,9 @@
+Skydive Chicago (Ottawa, IL): 41.3997, -88.7939
+Skydive Deland (DeLand, FL): 29.067, -81.2837
+Skydive Elsinore (Elsinore, CA): 33.63, -117.3017
+Skydive Sebastian (Sebastian, FL): 27.8132, -80.4955
+Skydive City (Zephyrhills, FL): 28.219361, -82.151650
+Skydive Paraclete XP (Raeford, NC): 35.0210, -79.1891
+Skydive Pepperell (Pepperell, MA): 42.695420, -71.553076
+Jumptown (Orange, MA): 42.569102, -72.287524
+Skydive New England (Lebanon, ME): 43.371067, -70.924812

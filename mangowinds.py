@@ -271,7 +271,7 @@ label { color:#bbb; display:block; margin-top:10px; }
 <select id="dz"></select>
 
 <div id="timeLabel"></div>
-<input type="range" min="0" max="72" value="0" id="hour">
+<input type="range" min="0" max="71" value="0" id="hour">
 <div id="hourLabel">+0h</div>
 
 <div class="block" id="canopyBlock"></div>

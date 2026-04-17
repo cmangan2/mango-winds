@@ -21,7 +21,7 @@ def load_dropzones(path="Dropzone list.txt"):
                 lat, lon = coords.split(",")
                 dz[name.strip()] = (float(lat), float(lon))
     except:
-        dz = {"Default DZ": (43.3712, -70.9259)}
+        dz = {"default DZ": (43.3712, -70.9259)}
 
     return dz
 
@@ -33,7 +33,6 @@ DROPZONES = load_dropzones()
 # =====================================================
 
 def fetch_forecast(lat, lon):
-
     url = "https://api.open-meteo.com/v1/forecast"
 
     params = {
@@ -66,7 +65,6 @@ def fetch_forecast(lat, lon):
 def wind_arrow(d):
     return ["↑","↗","→","↘","↓","↙","←","↖","↑"][int((d % 360)/45)]
 
-
 def color(s):
     if s < 10: return "green"
     if s < 25: return "orange"
@@ -79,17 +77,16 @@ def interpolate(base, alt):
         a1,s1,d1 = base[i+1]
 
         if a0 <= alt <= a1:
-            t = (alt-a0)/(a1-a0)
+            t = (a0 - alt) / (a0 - a1) if a1 != a0 else 0
             return (
-                s0 + (s1-s0)*t,
-                d0 + (d1-d0)*t
+                s0 + (s1 - s0) * (1 - t),
+                d0 + (d1 - d0) * (1 - t)
             )
 
     return base[-1][1], base[-1][2]
 
 
 def format_winds(data, hour):
-
     if not data:
         return {}
 
@@ -107,12 +104,11 @@ def format_winds(data, hour):
     result = {}
 
     for alt in range(0, 15000, 1000):
-
         speed, direction = interpolate(base, alt)
 
         result[alt] = {
-            "speed": round(speed,1),
-            "direction": round(direction % 360,0),
+            "speed": round(speed, 1),
+            "direction": round(direction % 360, 0),
             "arrow": wind_arrow(direction),
             "color": color(speed)
         }
@@ -121,84 +117,65 @@ def format_winds(data, hour):
 
 
 # =====================================================
-# 🧠 VECTOR AVG
+# 🧠 SIMPLE AVERAGING
 # =====================================================
 
-def avg_vector(winds, low, high):
+def avg_wind_display(winds, low, high):
+    speeds = []
+    dirs = []
 
-    u = 0
-    v = 0
-    count = 0
-
-    for alt, w in winds.items():
-
+    for alt in sorted(winds.keys()):
         if low <= alt < high:
+            w = winds[alt]
+            speeds.append(w["speed"])
+            dirs.append(w["direction"])
 
-            r = math.radians(w["direction"])
-            u += w["speed"] * math.cos(r)
-            v += w["speed"] * math.sin(r)
-            count += 1
-
-    if count == 0:
+    if not speeds:
         return 0, 0
 
-    u /= count
-    v /= count
+    avg_speed = sum(speeds) / len(speeds)
 
-    speed = math.sqrt(u*u + v*v)
-    direction = (math.degrees(math.atan2(v, u)) + 360) % 360
+    avg_dir = math.degrees(
+        math.atan2(
+            sum(math.sin(math.radians(d)) for d in dirs),
+            sum(math.cos(math.radians(d)) for d in dirs)
+        )
+    ) % 360
 
-    return speed, direction
+    return avg_speed, avg_dir
 
 
 # =====================================================
-# 🚀 PHYSICS FIXED MODELS (TRUE VECTOR GLIDE)
+# 🚀 PHYSICS
 # =====================================================
 
 def canopy_distance(wind_speed, wind_dir):
-
     seconds = 180
-
-    # 2:1 glide ratio ~ forward airspeed ≈ 12 m/s, sink ≈ 6 m/s
-    air_forward = 12.0
-    sink_rate = 6.0
-
-    wind = wind_speed * 0.514
-
-    # glide direction assumed downwind adjusted
-    glide_dir = math.radians(wind_dir)
-
-    # canopy air vector
-    u_air = air_forward * math.cos(glide_dir)
-    v_air = air_forward * math.sin(glide_dir)
-
-    # wind vector
-    u_wind = wind * math.cos(glide_dir)
-    v_wind = wind * math.sin(glide_dir)
-
-    u = u_air + u_wind
-    v = v_air + v_wind
-
-    ground_speed = math.sqrt(u*u + v*v)
-
-    return ground_speed * seconds
-
-
-def freefall_distance(wind_speed, wind_dir):
-
-    seconds = 60
-
-    fall_speed = 120 * 0.44704
-    wind = wind_speed * 0.514
+    wind_ms = wind_speed * 0.514
 
     r = math.radians(wind_dir)
 
-    u = fall_speed + wind * math.cos(r)
-    v = wind * math.sin(r)
+    wx = wind_ms * math.cos(r)
+    wy = wind_ms * math.sin(r)
 
-    ground_speed = math.sqrt(u*u + v*v)
+    wind_strength = math.sqrt(wx*wx + wy*wy)
+    effective_speed = wind_strength * 1.25
 
-    return ground_speed * seconds
+    return effective_speed * seconds
+
+
+def freefall_distance(wind_speed, wind_dir):
+    seconds = 60
+    wind_ms = wind_speed * 0.514
+
+    r = math.radians(wind_dir)
+
+    wx = wind_ms * math.cos(r)
+    wy = wind_ms * math.sin(r)
+
+    drift_speed = math.sqrt(wx*wx + wy*wy)
+
+    return drift_speed * seconds
 
 
 # =====================================================
@@ -207,7 +184,6 @@ def freefall_distance(wind_speed, wind_dir):
 
 @app.route("/data")
 def data():
-
     lat = request.args.get("lat", type=float)
     lon = request.args.get("lon", type=float)
     hour = request.args.get("hour", 0, type=int)
@@ -215,8 +191,8 @@ def data():
     raw = fetch_forecast(lat, lon)
     winds = format_winds(raw, hour)
 
-    canopy_speed, canopy_dir = avg_vector(winds, 0, 4000)
-    free_speed, free_dir = avg_vector(winds, 4000, 14001)
+    canopy_speed, canopy_dir = avg_wind_display(winds, 0, 5000)
+    free_speed, free_dir = avg_wind_display(winds, 4000, 15000)
 
     return jsonify({
         "winds": winds,
@@ -239,7 +215,6 @@ def data():
 
 @app.route("/")
 def index():
-
     return render_template_string("""
 <!DOCTYPE html>
 <html>
@@ -255,7 +230,7 @@ body { margin:0; font-family:Arial; background:#0b0f14; color:white; }
 #map { flex:1; }
 
 #panel {
-    width:420px;
+    width:280px;
     background:#121a24;
     padding:12px;
     overflow:auto;
@@ -317,26 +292,20 @@ let marker;
 let lowLine;
 let highLine;
 
-function formatTime(){
-    const d = new Date();
-    let h = d.getHours();
-    let m = d.getMinutes();
-    let ampm = h >= 12 ? "PM" : "AM";
-    h = h % 12;
-    h = h ? h : 12;
-    m = m.toString().padStart(2, "0");
-    return `${h}:${m} ${ampm}`;
+let loadTimeout = null;
+
+// ==============================
+// 🧭 LIVE TIME LABEL
+// ==============================
+function renderTime(){
+    let hour = document.getElementById("hour").value;
+    document.getElementById("hourLabel").innerText = `+${hour}h`;
 }
 
-const pageLoadTime = formatTime();
-
-document.addEventListener("DOMContentLoaded", () => {
-    document.getElementById("timeLabel").innerText =
-        `Forecast Time: ${pageLoadTime}`;
-});
-
+// ==============================
+// 🌍 VECTOR
+// ==============================
 function vec(distance, dir, color){
-
     let r = dir * Math.PI/180;
     let len = Math.min(distance, 6000);
 
@@ -349,10 +318,32 @@ function vec(distance, dir, color){
     }).addTo(map);
 }
 
+// ==============================
+// 🗺️ 2 MILE ZOOM (NEW)
+// ==============================
+function fitTwoMileRadius(){
+    const miles = 2;
+    const meters = miles * 1609.344;
+
+    const earthRadius = 6378137;
+
+    const dLat = (meters / earthRadius) * (180 / Math.PI);
+    const dLon = dLat / Math.cos(lat * Math.PI / 180);
+
+    const bounds = L.latLngBounds(
+        [lat - dLat, lon - dLon],
+        [lat + dLat, lon + dLon]
+    );
+
+    map.fitBounds(bounds, { animate: true });
+}
+
+// ==============================
+// 🔄 LOAD
+// ==============================
 async function load(){
 
     let hour = document.getElementById("hour").value;
-    document.getElementById("hourLabel").innerText = `+${hour}h`;
 
     let r = await fetch(`/data?lat=${lat}&lon=${lon}&hour=${hour}`);
     let d = await r.json();
@@ -369,20 +360,23 @@ async function load(){
     document.getElementById("canopyBlock").innerHTML =
         `<b style="color:red">Canopy Wind 0ft-4Kft</b><br>
         Speed: ${d.canopy.speed.toFixed(1)} kt<br>
-        Direction: ${d.canopy.direction.toFixed(0)}°`;
+        Direction: ${d.canopy.direction.toFixed(0)}°<br>
+        Distance: ${(d.canopy.distance / 1609.344).toFixed(2)} mi`;
 
     document.getElementById("freefallBlock").innerHTML =
         `<b style="color:green">Freefall Wind 4Kft-14Kft</b><br>
         Speed: ${d.freefall.speed.toFixed(1)} kt<br>
-        Direction: ${d.freefall.direction.toFixed(0)}°`;
+        Direction: ${d.freefall.direction.toFixed(0)}°<br>
+        Distance: ${(d.freefall.distance / 1609.344).toFixed(2)} mi`;
 
     let html = "";
 
     for(let a in d.winds){
 
         let w = d.winds[a];
-        let pushDir = (w.direction + 180) % 360;
-        let arrowSymbol = ["↑","↗","→","↘","↓","↙","←","↖","↑"][Math.floor(pushDir/45)];
+
+        let flippedDir = (w.direction + 180) % 360;
+        let arrowSymbol = ["↑","↗","→","↘","↓","↙","←","↖","↑"][Math.floor(flippedDir / 45)];
 
         html += `<div class="card">
             ${a} ft<br>
@@ -394,45 +388,62 @@ async function load(){
     document.getElementById("cards").innerHTML = html;
 }
 
+// ==============================
+// 🗺️ INIT MAP
+// ==============================
 function initMap(){
     map = L.map('map').setView([lat,lon],9);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles © Esri'
+    }).addTo(map);
 }
 
+// ==============================
+// 🪂 INIT DZ
+// ==============================
 function initDZ(){
 
     let sel = document.getElementById("dz");
-    let defaultKey = null;
+    let keys = Object.keys(dz);
 
-    for(let k in dz){
+    let defaultDz =
+        keys.find(k => k.toLowerCase().includes("skydive new england"))
+        || keys[0];
+
+    for(let k of keys){
         let o = document.createElement("option");
         o.value = k;
         o.text = k;
         sel.appendChild(o);
-
-        if(k.toLowerCase().includes("skydive new england")){
-            defaultKey = k;
-        }
     }
 
-    let first = defaultKey || Object.keys(dz)[0];
-
-    sel.value = first;
-    lat = dz[first][0];
-    lon = dz[first][1];
+    sel.value = defaultDz;
+    lat = dz[defaultDz][0];
+    lon = dz[defaultDz][1];
 
     sel.onchange = ()=>{
         let v = sel.value;
         lat = dz[v][0];
         lon = dz[v][1];
+
+        fitTwoMileRadius();
         load();
     };
 
     initMap();
-
+    fitTwoMileRadius();
     load();
 
-    document.getElementById("hour").oninput = load;
+    document.getElementById("hour").oninput = () => {
+
+        renderTime();
+
+        clearTimeout(loadTimeout);
+        loadTimeout = setTimeout(load, 400);
+    };
+
+    renderTime();
 }
 
 initDZ();

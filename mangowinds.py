@@ -121,50 +121,56 @@ def format_winds(data, hour):
     using the 10 m current observation blended with the lowest pressure level.
     """
     if not data:
+        print("format_winds: data is None")
         return {}
 
-    h = data["hourly"]
+    try:
+        h = data["hourly"]
+        print(f"format_winds: hourly keys = {list(h.keys())}")
+        print(f"format_winds: hour={hour}, total hours={len(h.get('time', []))}")
 
-    # Approximate pressure-level altitudes in feet (standard atmosphere):
-    #   1000 hPa ≈  364 ft    925 hPa ≈ 2 500 ft
-    #    850 hPa ≈ 4 781 ft   700 hPa ≈ 9 843 ft
-    #    600 hPa ≈14 764 ft   500 hPa ≈18 289 ft
-    # We map them to round numbers that make sense for skydiving.
-    pressure_levels = [
-        (500,   h["windspeed_1000hPa"][hour], h["winddirection_1000hPa"][hour]),
-        (2500,  h["windspeed_925hPa"][hour],  h["winddirection_925hPa"][hour]),
-        (5000,  h["windspeed_850hPa"][hour],  h["winddirection_850hPa"][hour]),
-        (9000,  h["windspeed_700hPa"][hour],  h["winddirection_700hPa"][hour]),
-    ]
+        pressure_levels = [
+            (500,   h["windspeed_1000hPa"][hour], h["winddirection_1000hPa"][hour]),
+            (2500,  h["windspeed_925hPa"][hour],  h["winddirection_925hPa"][hour]),
+            (5000,  h["windspeed_850hPa"][hour],  h["winddirection_850hPa"][hour]),
+            (9000,  h["windspeed_700hPa"][hour],  h["winddirection_700hPa"][hour]),
+        ]
 
-    # Surface (10 m / ~33 ft) from hourly data at the requested hour
-    surf_speed = h["windspeed_10m"][hour]
-    surf_dir   = h["winddirection_10m"][hour]
+        # Surface (10 m / ~33 ft) from hourly data at the requested hour
+        surf_speed = h["windspeed_10m"][hour]
+        surf_dir   = h["winddirection_10m"][hour]
 
-    # Build full base including true surface anchor at 0 ft
-    base = [(0, surf_speed, surf_dir)] + pressure_levels
+        # Build full base including true surface anchor at 0 ft
+        base = [(0, surf_speed, surf_dir)] + pressure_levels
 
-    result = {}
+        result = {}
 
-    # Surface entry
-    result[0] = {
-        "speed":     round(surf_speed, 1),
-        "direction": round(surf_dir % 360, 0),
-        "arrow":     wind_arrow(surf_dir),
-        "color":     color(surf_speed),
-    }
-
-    # Interpolate every 1 000 ft from 1 000 to 18 000
-    for alt in range(1000, 15000, 1000):
-        speed, direction = interpolate(base, alt)
-        result[alt] = {
-            "speed":     round(speed, 1),
-            "direction": round(direction % 360, 0),
-            "arrow":     wind_arrow(direction),
-            "color":     color(speed),
+        # Surface entry
+        result[0] = {
+            "speed":     round(surf_speed, 1),
+            "direction": round(surf_dir % 360, 0),
+            "arrow":     wind_arrow(surf_dir),
+            "color":     color(surf_speed),
         }
 
-    return result
+        # Interpolate every 1 000 ft from 1 000 to 14 000
+        for alt in range(1000, 15000, 1000):
+            speed, direction = interpolate(base, alt)
+            result[alt] = {
+                "speed":     round(speed, 1),
+                "direction": round(direction % 360, 0),
+                "arrow":     wind_arrow(direction),
+                "color":     color(speed),
+            }
+
+        print(f"format_winds: OK, {len(result)} levels")
+        return result
+
+    except Exception as e:
+        import traceback
+        print(f"format_winds ERROR: {e}")
+        traceback.print_exc()
+        return {}
 
 
 # =====================================================

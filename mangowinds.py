@@ -36,11 +36,8 @@ def fetch_forecast(lat, lon):
     params = {
         "latitude": lat,
         "longitude": lon,
-        "current": [
-            "windspeed_10m",
-            "winddirection_10m",
-        ],
         "hourly": [
+            "windspeed_10m",     "winddirection_10m",
             "windspeed_1000hPa", "winddirection_1000hPa",
             "windspeed_925hPa",  "winddirection_925hPa",
             "windspeed_850hPa",  "winddirection_850hPa",
@@ -51,11 +48,16 @@ def fetch_forecast(lat, lon):
         "wind_speed_unit": "kn",
     }
     try:
-        r = requests.get(url, timeout=10, params=params)
+        r = requests.get(url, timeout=15, params=params)
         r.raise_for_status()
-        return r.json()
+        data = r.json()
+        print(f"Forecast fetched OK for {lat},{lon} — {len(data.get('hourly',{}).get('time',[]))} hours")
+        return data
     except requests.RequestException as e:
-        print(f"Forecast fetch error: {e}")
+        print(f"Forecast fetch ERROR: {e}")
+        return None
+    except Exception as e:
+        print(f"Forecast parse ERROR: {e}")
         return None
 
 
@@ -135,9 +137,9 @@ def format_winds(data, hour):
         (9000,  h["windspeed_700hPa"][hour],  h["winddirection_700hPa"][hour]),
     ]
 
-    # Surface (10 m / ~33 ft) comes from the current block
-    surf_speed = data["current"]["windspeed_10m"]
-    surf_dir   = data["current"]["winddirection_10m"]
+    # Surface (10 m / ~33 ft) from hourly data at the requested hour
+    surf_speed = h["windspeed_10m"][hour]
+    surf_dir   = h["winddirection_10m"][hour]
 
     # Build full base including true surface anchor at 0 ft
     base = [(0, surf_speed, surf_dir)] + pressure_levels
@@ -245,7 +247,9 @@ def data():
     winds = format_winds(raw, hour)
 
     if not winds:
-        return jsonify({"error": "Could not fetch forecast data"}), 503
+        msg = "Could not fetch forecast data — check server logs"
+        print(f"ERROR: winds empty for lat={lat} lon={lon} hour={hour}, raw={raw is not None}")
+        return jsonify({"error": msg}), 503
 
     # Layer averages
     canopy_speed,  canopy_dir  = avg_wind_display(winds, 0, 3000)    # SFC - 3K ft

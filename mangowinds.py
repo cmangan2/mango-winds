@@ -1,9 +1,17 @@
 from flask import Flask, render_template_string, jsonify, request
 import requests
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 app = Flask(__name__)
+
+# =====================================================
+# 🗄️ FORECAST CACHE
+# Caches per (lat, lon) for 10 minutes to avoid
+# hammering Open-Meteo and hitting 429 rate limits
+# =====================================================
+_forecast_cache = {}   # key: (lat, lon) → {"data": ..., "expires": datetime}
+CACHE_TTL = timedelta(minutes=10)
 
 # =====================================================
 # 🪂 DROPZONES
@@ -32,6 +40,15 @@ DROPZONES = load_dropzones()
 # =====================================================
 
 def fetch_forecast(lat, lon):
+    # Round coords to 3 dp (~100m) for cache key stability
+    key = (round(lat, 3), round(lon, 3))
+    now = datetime.now(timezone.utc)
+
+    cached = _forecast_cache.get(key)
+    if cached and cached["expires"] > now:
+        print(f"Forecast cache HIT for {key}")
+        return cached["data"]
+
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
         "latitude": lat,
@@ -51,10 +68,15 @@ def fetch_forecast(lat, lon):
         r = requests.get(url, timeout=15, params=params)
         r.raise_for_status()
         data = r.json()
-        print(f"Forecast fetched OK for {lat},{lon} — {len(data.get('hourly',{}).get('time',[]))} hours")
+        print(f"Forecast fetched OK for {key} — {len(data.get('hourly',{}).get('time',[]))} hours")
+        _forecast_cache[key] = {"data": data, "expires": now + CACHE_TTL}
         return data
     except requests.RequestException as e:
         print(f"Forecast fetch ERROR: {e}")
+        # Return stale cache if available rather than failing
+        if cached:
+            print("Returning stale cache due to fetch error")
+            return cached["data"]
         return None
     except Exception as e:
         print(f"Forecast parse ERROR: {e}")

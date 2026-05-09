@@ -64,23 +64,31 @@ def fetch_forecast(lat, lon):
         "timezone": "auto",
         "wind_speed_unit": "kn",
     }
-    try:
-        r = requests.get(url, timeout=15, params=params)
-        r.raise_for_status()
-        data = r.json()
-        print(f"Forecast fetched OK for {key} — {len(data.get('hourly',{}).get('time',[]))} hours")
-        _forecast_cache[key] = {"data": data, "expires": now + CACHE_TTL}
-        return data
-    except requests.RequestException as e:
-        print(f"Forecast fetch ERROR: {e}")
-        # Return stale cache if available rather than failing
-        if cached:
-            print("Returning stale cache due to fetch error")
-            return cached["data"]
-        return None
-    except Exception as e:
-        print(f"Forecast parse ERROR: {e}")
-        return None
+    import time as _time
+    for attempt in range(3):
+        try:
+            _time.sleep(attempt * 2)   # 0s, 2s, 4s between retries
+            r = requests.get(url, timeout=15, params=params)
+            if r.status_code == 429:
+                print(f"Open-Meteo 429 rate limit (attempt {attempt+1}/3)")
+                if cached:
+                    print("Returning stale cache due to 429")
+                    return cached["data"]
+                continue
+            r.raise_for_status()
+            data = r.json()
+            print(f"Forecast fetched OK for {key} — {len(data.get('hourly',{}).get('time',[]))} hours")
+            _forecast_cache[key] = {"data": data, "expires": now + CACHE_TTL}
+            return data
+        except requests.RequestException as e:
+            print(f"Forecast fetch ERROR (attempt {attempt+1}/3): {e}")
+            if cached:
+                print("Returning stale cache due to error")
+                return cached["data"]
+        except Exception as e:
+            print(f"Forecast parse ERROR: {e}")
+            return None
+    return None
 
 
 # =====================================================
@@ -275,9 +283,8 @@ def data():
     winds = format_winds(raw, hour)
 
     if not winds:
-        msg = "Could not fetch forecast data — check server logs"
         print(f"ERROR: winds empty for lat={lat} lon={lon} hour={hour}, raw={raw is not None}")
-        return jsonify({"error": msg}), 503
+        return jsonify({"error": "Could not fetch forecast — Open-Meteo may be rate limiting. Try again in 60 seconds."}), 503
 
     # Layer averages
     canopy_speed,  canopy_dir  = avg_wind_display(winds, 0, 3000)    # SFC - 3K ft

@@ -12,7 +12,7 @@ app = Flask(__name__)
 # hammering Open-Meteo and hitting 429 rate limits
 # =====================================================
 _forecast_cache = {}   # key: (lat, lon) → {"data": ..., "expires": datetime}
-CACHE_TTL = timedelta(minutes=10)
+CACHE_TTL = timedelta(minutes=60)
 
 # =====================================================
 # 🪂 DROPZONES
@@ -76,7 +76,7 @@ def fetch_forecast(lat, lon):
     for attempt in range(3):
         try:
             _time.sleep(attempt * 2)   # 0s, 2s, 4s between retries
-            r = requests.get(url, timeout=15, params=params)
+            r = requests.get(url, timeout=15, params=params, headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
             if r.status_code == 429:
                 print(f"Open-Meteo 429 rate limit (attempt {attempt+1}/3)")
                 if cached:

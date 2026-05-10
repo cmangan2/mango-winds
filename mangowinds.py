@@ -36,215 +36,10 @@ DROPZONES = load_dropzones()
 
 
 # =====================================================
-# 🌐 FORECAST  —  NWS api.weather.gov + aviationweather.gov
-#
-# No API key. No rate limits. Official US government data.
-#
-# Surface wind  → NWS gridded hourly forecast
-#                 api.weather.gov/points/{lat},{lon}  →  gridpoints URL
-#                 gridpoints URL/forecast/hourly      →  hourly wind speed/direction
-#
-# Upper winds   → aviationweather.gov windtemp text product
-#                 /api/data/windtemp?region=bos&level=low|high&fcst=06|12|24
-#                 Parsed into altitudes 3000-39000 ft
+# 🌐 FORECAST  —  Open-Meteo (hourly pressure-level winds)
 # =====================================================
 
-HEADERS = {"User-Agent": "MangoWindHub/1.0 contact@skydiveapp.example"}
-
-# Cache the NWS gridpoint URL per location (changes rarely)
-_nws_grid_cache = {}
-
-
-def get_nws_grid_url(lat, lon):
-    """Resolve lat/lon → NWS gridpoint forecast/hourly URL. Cached permanently."""
-    key = (round(lat, 3), round(lon, 3))
-    if key in _nws_grid_cache:
-        return _nws_grid_cache[key]
-    try:
-        r = requests.get(f"https://api.weather.gov/points/{lat},{lon}",
-                         timeout=10, headers=HEADERS)
-        r.raise_for_status()
-        url = r.json()["properties"]["forecastHourly"]
-        _nws_grid_cache[key] = url
-        print(f"NWS grid URL resolved for {key}: {url}")
-        return url
-    except Exception as e:
-        print(f"NWS points error: {e}")
-        return None
-
-
-def fetch_nws_surface(lat, lon):
-    """
-    Fetch hourly surface wind from NWS for the next 72 hours.
-    Returns list of dicts: [{time, speed_kts, direction}, ...]
-    """
-    url = get_nws_grid_url(lat, lon)
-    if not url:
-        return []
-    try:
-        r = requests.get(url, timeout=15, headers=HEADERS)
-        r.raise_for_status()
-        periods = r.json()["properties"]["periods"]
-        result = []
-        for p in periods[:72]:
-            spd = p.get("windSpeed", "0 mph")
-            # NWS returns "10 mph" or "10 to 20 mph" — take first number
-            spd_val = float(spd.split()[0]) * 0.868976   # mph → knots
-            dir_str = p.get("windDirection", "N")
-            dir_map = {"N":0,"NNE":22.5,"NE":45,"ENE":67.5,"E":90,"ESE":112.5,
-                       "SE":135,"SSE":157.5,"S":180,"SSW":202.5,"SW":225,
-                       "WSW":247.5,"W":270,"WNW":292.5,"NW":315,"NNW":337.5}
-            dir_val = dir_map.get(dir_str, 0)
-            result.append({
-                "time":      p["startTime"],
-                "speed_kts": round(spd_val, 1),
-                "direction": dir_val,
-            })
-        print(f"NWS surface: {len(result)} hours fetched")
-        return result
-    except Exception as e:
-        print(f"NWS surface fetch error: {e}")
-        return []
-
-
-# FD winds-aloft altitude columns in order
-FD_ALTS = [3000, 6000, 9000, 12000, 18000, 24000, 30000, 34000, 39000]
-
-
-def decode_fd_group(raw):
-    """
-    Decode a single FD wind group string into (direction_deg, speed_kts).
-    Formats:
-      4-char: DDSS          e.g. "2726" → 270°, 26kt
-      6-char: DDSSTT        e.g. "2726-09" stripped to "2726" then temp part
-      "9900" → light & variable → (0, 0)
-      "////" or blank → None
-    """
-    raw = raw.strip().lstrip("+").replace(" ", "")
-    # Strip temperature suffix (sign + 2 digits)
-    raw = re.split(r'[+-]\d{2}$', raw)[0]
-    if not raw or raw in ("9900", "////", "0000", ""):
-        return None
-    if len(raw) < 4:
-        return None
-    try:
-        dd = int(raw[0:2])
-        ss = int(raw[2:4])
-        # Speed ≥ 100kt encoded: dd > 36, subtract 50 from dd, add 100 to ss
-        if dd > 36:
-            dd -= 50
-            ss += 100
-        direction = (dd * 10) % 360
-        return direction, ss
-    except Exception:
-        return None
-
-
-def fetch_aviation_winds(lat, lon):
-    """
-    Fetch FAA winds-aloft text product from aviationweather.gov.
-    Parses the nearest station and returns {alt_ft: {speed_kts, direction}}.
-    """
-    # Pick region based on lon
-    if lon < -120:
-        region = "slc"
-    elif lon < -105:
-        region = "dfw"
-    elif lon < -90:
-        region = "chi"
-    elif lon < -75:
-        region = "pit"
-    else:
-        region = "bos"
-
-    for fcst in ["06", "12", "24"]:
-        for level in ["low", "high"]:
-            try:
-                url = "https://aviationweather.gov/api/data/windtemp"
-                params = {"region": region, "level": level, "fcst": fcst}
-                r = requests.get(url, timeout=10, headers=HEADERS, params=params)
-                if r.status_code != 200:
-                    continue
-                text = r.text
-                result = parse_fd_text(text, level)
-                if result:
-                    print(f"Aviation winds OK: {len(result)} levels from {region}/{level}/{fcst}")
-                    return result
-            except Exception as e:
-                print(f"Aviation winds error ({region}/{level}/{fcst}): {e}")
-
-    print("Aviation winds: all attempts failed")
-    return {}
-
-
-def parse_fd_text(text, level):
-    """
-    Parse the FD plain-text product and average all station values per altitude.
-    Returns {alt_ft: {speed_kts, direction}}.
-    
-    Example line:
-      BOS 2107 1908+08 1710+02 1809-04 2907-15 2809-25 341140 011349 011660
-    Columns after station ID map to FD_ALTS: 3000 6000 9000 12000 18000 24000 30000 34000 39000
-    """
-    # Alts included in low vs high products
-    if level == "low":
-        alts = [3000, 6000, 9000, 12000, 18000, 24000]
-        n_cols = 6
-    else:
-        alts = [24000, 30000, 34000, 39000]
-        n_cols = 4
-
-    # Accumulate sin/cos sums and speeds for averaging across stations
-    sums = {a: {"sin": 0.0, "cos": 0.0, "spd": 0.0, "n": 0} for a in alts}
-
-    lines = text.splitlines()
-    data_started = False
-    for line in lines:
-        line = line.strip()
-        # Header line marks start of data
-        if line.startswith("FT") or "3000" in line and "6000" in line:
-            data_started = True
-            continue
-        if not data_started:
-            continue
-        # Station data lines: 3-letter ID followed by wind groups
-        parts = line.split()
-        if len(parts) < 2:
-            continue
-        station_id = parts[0]
-        if not (len(station_id) == 3 and station_id.isalpha()):
-            continue
-        groups = parts[1:]
-        for i, alt in enumerate(alts):
-            if i >= len(groups):
-                break
-            decoded = decode_fd_group(groups[i])
-            if decoded is None:
-                continue
-            direction, speed = decoded
-            r = math.radians(direction)
-            sums[alt]["sin"] += math.sin(r)
-            sums[alt]["cos"] += math.cos(r)
-            sums[alt]["spd"] += speed
-            sums[alt]["n"]   += 1
-
-    result = {}
-    for alt, s in sums.items():
-        if s["n"] == 0:
-            continue
-        avg_dir = math.degrees(math.atan2(s["sin"], s["cos"])) % 360
-        avg_spd = s["spd"] / s["n"]
-        result[alt] = {"speed_kts": round(avg_spd, 1), "direction": round(avg_dir, 0)}
-
-    return result
-
-
 def fetch_forecast(lat, lon):
-    """
-    Main fetch: combines NWS surface winds + FAA upper winds into a unified
-    data structure that format_winds() can consume.
-    Returns {"surface": [...], "upper": {alt_ft: {speed_kts, direction}}, "time": [...]}
-    """
     key = (round(lat, 3), round(lon, 3))
     now = datetime.now(timezone.utc)
 
@@ -253,19 +48,40 @@ def fetch_forecast(lat, lon):
         print(f"Cache HIT for {key}")
         return cached["data"]
 
-    surface = fetch_nws_surface(lat, lon)
-    upper   = fetch_aviation_winds(lat, lon)
+    api_key = os.environ.get("OPENMETEO_API_KEY")
+    url     = "https://customer-api.open-meteo.com/v1/forecast" if api_key else "https://api.open-meteo.com/v1/forecast"
+    params  = {
+        "latitude":  lat,
+        "longitude": lon,
+        "hourly": [
+            "windspeed_10m",     "winddirection_10m",
+            "windspeed_1000hPa", "winddirection_1000hPa",
+            "windspeed_925hPa",  "winddirection_925hPa",
+            "windspeed_850hPa",  "winddirection_850hPa",
+            "windspeed_700hPa",  "winddirection_700hPa",
+        ],
+        "forecast_days": 3,
+        "timezone":      "auto",
+        "wind_speed_unit": "kn",
+    }
+    if api_key:
+        params["apikey"] = api_key
 
-    if not surface and not upper:
+    headers = {"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"}
+
+    try:
+        r = requests.get(url, timeout=15, params=params, headers=headers)
+        r.raise_for_status()
+        data = r.json()
+        print(f"Forecast fetched OK for {key} — {len(data.get('hourly',{}).get('time',[]))} hours")
+        _forecast_cache[key] = {"data": data, "expires": now + CACHE_TTL}
+        return data
+    except Exception as e:
+        print(f"Forecast fetch ERROR: {e}")
         if cached:
-            print("Fetch failed — returning stale cache")
+            print("Returning stale cache")
             return cached["data"]
         return None
-
-    data = {"surface": surface, "upper": upper}
-    _forecast_cache[key] = {"data": data, "expires": now + CACHE_TTL}
-    print(f"Forecast assembled: {len(surface)} surface hours, {len(upper)} upper levels")
-    return data
 
 
 # =====================================================
@@ -283,95 +99,53 @@ def color(s):
 
 
 def interpolate(base, alt):
-    """
-    Linear interpolation between the two bracketing pressure levels.
-
-    base: list of (altitude_ft, speed, direction) tuples, sorted ascending.
-    Returns (speed, direction) at `alt`.
-    """
-    # Below lowest level — return surface value
+    """Linear interpolation between bracketing pressure levels."""
     if alt <= base[0][0]:
         return base[0][1], base[0][2]
-
-    # Above highest level — return top value
     if alt >= base[-1][0]:
         return base[-1][1], base[-1][2]
-
-    # Find the bracketing pair
     for i in range(len(base) - 1):
         a0, s0, d0 = base[i]
         a1, s1, d1 = base[i + 1]
-
         if a0 <= alt <= a1:
-            # t = 0 → at a0, t = 1 → at a1
-            t = (alt - a0) / (a1 - a0)
-
-            # Interpolate speed linearly
+            t     = (alt - a0) / (a1 - a0)
             speed = s0 + (s1 - s0) * t
-
-            # Interpolate direction via unit-vector averaging to handle 0/360 wrap
-            r0 = math.radians(d0)
-            r1 = math.radians(d1)
+            r0    = math.radians(d0)
+            r1    = math.radians(d1)
             sin_avg = math.sin(r0) + (math.sin(r1) - math.sin(r0)) * t
             cos_avg = math.cos(r0) + (math.cos(r1) - math.cos(r0)) * t
             direction = math.degrees(math.atan2(sin_avg, cos_avg)) % 360
-
             return speed, direction
-
-    # Fallback (should not reach here)
     return base[-1][1], base[-1][2]
 
 
 def format_winds(data, hour):
-    """
-    Converts the NWS+aviation data structure into the altitude dict
-    that the rest of the app expects.
-    data = {"surface": [{time, speed_kts, direction}, ...],
-            "upper":   {alt_ft: {speed_kts, direction}}}
-    hour = index 0-71
-    """
+    """Returns {altitude_ft: wind_info} for 0–14 000 ft."""
     if not data:
         print("format_winds: data is None")
         return {}
-
     try:
-        surface_list = data.get("surface", [])
-        upper        = data.get("upper", {})
+        h = data["hourly"]
+        print(f"format_winds: hour={hour}, total={len(h.get('time',[]))}")
 
-        # Pick the surface hour (clamp to available)
-        idx = min(hour, len(surface_list) - 1) if surface_list else 0
-        if surface_list:
-            surf = surface_list[idx]
-            surf_speed = surf["speed_kts"]
-            surf_dir   = surf["direction"]
-        else:
-            surf_speed, surf_dir = 0, 0
+        pressure_levels = [
+            (500,   h["windspeed_1000hPa"][hour], h["winddirection_1000hPa"][hour]),
+            (2500,  h["windspeed_925hPa"][hour],  h["winddirection_925hPa"][hour]),
+            (5000,  h["windspeed_850hPa"][hour],  h["winddirection_850hPa"][hour]),
+            (9000,  h["windspeed_700hPa"][hour],  h["winddirection_700hPa"][hour]),
+        ]
 
-        print(f"format_winds: hour={hour}, surf={surf_speed}kt@{surf_dir}°, upper levels={list(upper.keys())}")
-
-        # Build interpolation base from surface + upper wind levels
-        # Upper winds are a snapshot (not time-indexed) — best available
-        base = [(0, surf_speed, surf_dir)]
-        for alt_ft in sorted(upper.keys()):
-            w = upper[alt_ft]
-            base.append((alt_ft, w["speed_kts"], w["direction"]))
-
-        if len(base) < 2:
-            # Fallback: flat wind profile from surface
-            for alt_ft in [3000, 6000, 9000, 12000]:
-                base.append((alt_ft, surf_speed, surf_dir))
+        surf_speed = h["windspeed_10m"][hour]
+        surf_dir   = h["winddirection_10m"][hour]
+        base = [(0, surf_speed, surf_dir)] + pressure_levels
 
         result = {}
-
-        # Surface entry at 0 ft
         result[0] = {
             "speed":     round(surf_speed, 1),
             "direction": round(surf_dir % 360, 0),
             "arrow":     wind_arrow(surf_dir),
             "color":     color(surf_speed),
         }
-
-        # Interpolate every 1000 ft from 1000 to 14000
         for alt in range(1000, 15000, 1000):
             speed, direction = interpolate(base, alt)
             result[alt] = {
@@ -380,15 +154,15 @@ def format_winds(data, hour):
                 "arrow":     wind_arrow(direction),
                 "color":     color(speed),
             }
-
         print(f"format_winds: OK, {len(result)} levels")
         return result
-
     except Exception as e:
         import traceback
         print(f"format_winds ERROR: {e}")
         traceback.print_exc()
         return {}
+
+
 
 
 # =====================================================
@@ -483,10 +257,9 @@ def data():
     # Time label — derive from NWS surface period time if available
     time_label = ""
     try:
-        surface_list = raw.get("surface", []) if raw else []
-        idx = min(hour, len(surface_list) - 1) if surface_list else -1
-        if idx >= 0:
-            time_label = surface_list[idx]["time"][:16].replace("T", " ") + " (local)"
+        times = raw["hourly"]["time"]
+        if hour < len(times):
+            time_label = times[hour] + " (local)"
     except Exception:
         pass
 

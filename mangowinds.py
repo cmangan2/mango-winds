@@ -1369,6 +1369,12 @@ async function load(){
         const r = await fetch(`/data?lat=${lat}&lon=${lon}&hour=${hour}`);
         const d = await r.json();
 
+        if (d.error) {
+            console.error("Data error:", d.error);
+            document.getElementById("loader").classList.add("hidden");
+            return;
+        }
+
         // map markers
         if (marker)              marker.remove();
         if (canopyCircle)        canopyCircle.remove();

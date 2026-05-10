@@ -40,8 +40,24 @@ DROPZONES = load_dropzones()
 # 🌐 FORECAST
 # =====================================================
 
+# Rotate through multiple endpoints — each has its own rate limit bucket
+_ENDPOINTS = [
+    "https://api.open-meteo.com/v1/gfs",
+    "https://api.open-meteo.com/v1/forecast",
+    "https://api.open-meteo.com/v1/ecmwf",
+    "https://api.open-meteo.com/v1/dwd-icon",
+]
+
+_HOURLY_PARAMS = [
+    "windspeed_10m",     "winddirection_10m",
+    "windspeed_1000hPa", "winddirection_1000hPa",
+    "windspeed_925hPa",  "winddirection_925hPa",
+    "windspeed_850hPa",  "winddirection_850hPa",
+    "windspeed_700hPa",  "winddirection_700hPa",
+]
+
+
 def fetch_forecast(lat, lon):
-    # Round coords to 3 dp (~100m) for cache key stability
     key = (round(lat, 3), round(lon, 3))
     now = datetime.now(timezone.utc)
 
@@ -50,54 +66,58 @@ def fetch_forecast(lat, lon):
         print(f"Forecast cache HIT for {key}")
         return cached["data"]
 
-    api_key = os.environ.get("OPENMETEO_API_KEY")
-    if api_key:
-        url = "https://customer-api.open-meteo.com/v1/forecast"
-    else:
-        # Use GFS endpoint — separate rate limit pool from the main forecast endpoint
-        url = "https://api.open-meteo.com/v1/gfs"
-
-    params = {
+    headers = {"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"}
+    params_base = {
         "latitude": lat,
         "longitude": lon,
-        "hourly": [
-            "windspeed_10m",     "winddirection_10m",
-            "windspeed_1000hPa", "winddirection_1000hPa",
-            "windspeed_925hPa",  "winddirection_925hPa",
-            "windspeed_850hPa",  "winddirection_850hPa",
-            "windspeed_700hPa",  "winddirection_700hPa",
-        ],
+        "hourly": _HOURLY_PARAMS,
         "forecast_days": 3,
         "timezone": "auto",
         "wind_speed_unit": "kn",
     }
+
+    # Use dedicated customer endpoint if API key provided
+    api_key = os.environ.get("OPENMETEO_API_KEY")
     if api_key:
-        params["apikey"] = api_key
-    import time as _time
-    for attempt in range(3):
         try:
-            _time.sleep(attempt * 2)   # 0s, 2s, 4s between retries
-            r = requests.get(url, timeout=15, params=params, headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
+            p = {**params_base, "apikey": api_key}
+            r = requests.get("https://customer-api.open-meteo.com/v1/forecast",
+                             timeout=15, params=p, headers=headers)
+            r.raise_for_status()
+            data = r.json()
+            _forecast_cache[key] = {"data": data, "expires": now + CACHE_TTL}
+            print(f"Forecast OK (customer key) for {key}")
+            return data
+        except Exception as e:
+            print(f"Customer API error: {e}")
+
+    # Try each free endpoint in rotation
+    for url in _ENDPOINTS:
+        try:
+            r = requests.get(url, timeout=15, params=params_base, headers=headers)
             if r.status_code == 429:
-                print(f"Open-Meteo 429 rate limit (attempt {attempt+1}/3)")
-                if cached:
-                    print("Returning stale cache due to 429")
-                    return cached["data"]
+                print(f"429 from {url} — trying next endpoint")
                 continue
             r.raise_for_status()
             data = r.json()
-            print(f"Forecast fetched OK for {key} — {len(data.get('hourly',{}).get('time',[]))} hours")
+            if "hourly" not in data:
+                print(f"No hourly data from {url} — trying next")
+                continue
+            print(f"Forecast OK from {url} for {key}")
             _forecast_cache[key] = {"data": data, "expires": now + CACHE_TTL}
             return data
-        except requests.RequestException as e:
-            print(f"Forecast fetch ERROR (attempt {attempt+1}/3): {e}")
-            if cached:
-                print("Returning stale cache due to error")
-                return cached["data"]
         except Exception as e:
-            print(f"Forecast parse ERROR: {e}")
-            return None
+            print(f"Error from {url}: {e}")
+            continue
+
+    # All endpoints failed — return stale cache if we have it
+    if cached:
+        print("All endpoints rate limited — returning stale cache")
+        return cached["data"]
+
+    print("All endpoints failed — no data")
     return None
+
 
 
 # =====================================================

@@ -899,6 +899,23 @@ select:focus { border-color: var(--accent); }
 }
 #replayBtn:hover, #replayBtn:active { background: var(--freefall); color: var(--bg); }
 
+#clearBtn {
+    margin-top: 6px;
+    width: 100%;
+    padding: 6px 10px;
+    background: var(--card-bg);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.95rem;
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    transition: background 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+#clearBtn:hover, #clearBtn:active { background: var(--border); color: var(--text); }
+
 #jumpRunInfo {
     margin-top: 6px;
     font-family: 'Share Tech Mono', monospace;
@@ -951,6 +968,7 @@ select:focus { border-color: var(--accent); }
 
                 <button id="drawBtn" onclick="toggleDrawMode()">✏️ Draw Jump Run</button>
                 <button id="replayBtn" onclick="startPlaneAnimation()" style="display:none">▶ Replay</button>
+                <button id="clearBtn" onclick="clearJumpRun()" style="display:none">✕ Clear</button>
                 <div id="jumpRunInfo" style="display:none"></div>
             </div>
 
@@ -1086,8 +1104,9 @@ function drawJumpRun(){
     drawFreefallParallel();
     startPlaneAnimation();
 
-    // Show replay button
+    // Show replay + clear buttons
     document.getElementById("replayBtn").style.display = "block";
+    document.getElementById("clearBtn").style.display  = "block";
 }
 
 function makeArrowhead(tip, hdg){
@@ -1270,6 +1289,17 @@ function bearing(a, b){
     const x    = Math.cos(a[0]*Math.PI/180)*Math.sin(b[0]*Math.PI/180) -
                  Math.sin(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.cos(dLon);
     return (Math.atan2(y, x) * 180/Math.PI + 360) % 360;
+}
+
+// ── CLEAR JUMP RUN ──
+function clearJumpRun(){
+    if (jumpRunLine)  { jumpRunLine.forEach(l => l.remove());  jumpRunLine = null; }
+    if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
+    stopPlane();
+    jrStart = null; jrEnd = null;
+    document.getElementById("jumpRunInfo").style.display = "none";
+    document.getElementById("replayBtn").style.display   = "none";
+    document.getElementById("clearBtn").style.display    = "none";
 }
 
 // ── DRAW MODE TOGGLE ──
@@ -1521,6 +1551,7 @@ function initDZ(){
         jrStart = null; jrEnd = null;
         document.getElementById("jumpRunInfo").style.display = "none";
         document.getElementById("replayBtn").style.display  = "none";
+        document.getElementById("clearBtn").style.display   = "none";
         clearTimeout(loadTimeout);
         loadTimeout = setTimeout(load, 3400);
     };

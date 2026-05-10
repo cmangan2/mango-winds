@@ -1,6 +1,7 @@
 from flask import Flask, render_template_string, jsonify, request
 import requests
 import math
+import os
 from datetime import datetime, timezone, timedelta
 
 app = Flask(__name__)
@@ -49,7 +50,12 @@ def fetch_forecast(lat, lon):
         print(f"Forecast cache HIT for {key}")
         return cached["data"]
 
-    url = "https://api.open-meteo.com/v1/forecast"
+    api_key = os.environ.get("OPENMETEO_API_KEY")
+    if api_key:
+        url = "https://customer-api.open-meteo.com/v1/forecast"
+    else:
+        url = "https://api.open-meteo.com/v1/forecast"
+
     params = {
         "latitude": lat,
         "longitude": lon,
@@ -64,6 +70,8 @@ def fetch_forecast(lat, lon):
         "timezone": "auto",
         "wind_speed_unit": "kn",
     }
+    if api_key:
+        params["apikey"] = api_key
     import time as _time
     for attempt in range(3):
         try:
@@ -284,7 +292,9 @@ def data():
 
     if not winds:
         print(f"ERROR: winds empty for lat={lat} lon={lon} hour={hour}, raw={raw is not None}")
-        return jsonify({"error": "Could not fetch forecast — Open-Meteo may be rate limiting. Try again in 60 seconds."}), 503
+        resp = jsonify({"error": "Could not fetch forecast — Open-Meteo may be rate limiting. Try again in 60 seconds."})
+        resp.headers["Cache-Control"] = "no-store"
+        return resp, 503
 
     # Layer averages
     canopy_speed,  canopy_dir  = avg_wind_display(winds, 0, 3000)    # SFC - 3K ft
@@ -300,7 +310,7 @@ def data():
         except Exception:
             pass
 
-    return jsonify({
+    response = jsonify({
         "winds": winds,
         "canopy": {
             "speed":       canopy_speed,
@@ -320,6 +330,8 @@ def data():
         },
         "time_label": time_label,
     })
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    return response
 
 
 # =====================================================

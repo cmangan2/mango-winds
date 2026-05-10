@@ -1,6 +1,7 @@
 from flask import Flask, render_template_string, jsonify, request
 import requests
 import math
+import re
 import os
 from datetime import datetime, timezone, timedelta
 
@@ -106,13 +107,45 @@ def fetch_nws_surface(lat, lon):
         return []
 
 
+# FD winds-aloft altitude columns in order
+FD_ALTS = [3000, 6000, 9000, 12000, 18000, 24000, 30000, 34000, 39000]
+
+
+def decode_fd_group(raw):
+    """
+    Decode a single FD wind group string into (direction_deg, speed_kts).
+    Formats:
+      4-char: DDSS          e.g. "2726" → 270°, 26kt
+      6-char: DDSSTT        e.g. "2726-09" stripped to "2726" then temp part
+      "9900" → light & variable → (0, 0)
+      "////" or blank → None
+    """
+    raw = raw.strip().lstrip("+").replace(" ", "")
+    # Strip temperature suffix (sign + 2 digits)
+    raw = re.split(r'[+-]\d{2}$', raw)[0]
+    if not raw or raw in ("9900", "////", "0000", ""):
+        return None
+    if len(raw) < 4:
+        return None
+    try:
+        dd = int(raw[0:2])
+        ss = int(raw[2:4])
+        # Speed ≥ 100kt encoded: dd > 36, subtract 50 from dd, add 100 to ss
+        if dd > 36:
+            dd -= 50
+            ss += 100
+        direction = (dd * 10) % 360
+        return direction, ss
+    except Exception:
+        return None
+
+
 def fetch_aviation_winds(lat, lon):
     """
-    Fetch FAA winds-aloft from aviationweather.gov for the nearest region.
-    Returns dict: {altitude_ft: {speed_kts, direction}} for 3000-39000 ft.
-    Fetches all forecast cycles and returns combined data.
+    Fetch FAA winds-aloft text product from aviationweather.gov.
+    Parses the nearest station and returns {alt_ft: {speed_kts, direction}}.
     """
-    # Pick region based on rough lat/lon (US Northeast default: bos)
+    # Pick region based on lon
     if lon < -120:
         region = "slc"
     elif lon < -105:
@@ -124,56 +157,86 @@ def fetch_aviation_winds(lat, lon):
     else:
         region = "bos"
 
-    results = {}
-    for level in ["low", "high"]:
-        for fcst in ["06", "12", "24"]:
+    for fcst in ["06", "12", "24"]:
+        for level in ["low", "high"]:
             try:
-                url = f"https://aviationweather.gov/api/data/windtemp"
-                params = {"region": region, "level": level, "fcst": fcst, "format": "json"}
+                url = "https://aviationweather.gov/api/data/windtemp"
+                params = {"region": region, "level": level, "fcst": fcst}
                 r = requests.get(url, timeout=10, headers=HEADERS, params=params)
                 if r.status_code != 200:
                     continue
-                data = r.json()
-                if isinstance(data, list):
-                    for station in data:
-                        parse_windtemp_station(station, results)
-                    if results:
-                        print(f"Aviation winds: {len(results)} levels from {region}/{level}/{fcst}")
-                        return results
+                text = r.text
+                result = parse_fd_text(text, level)
+                if result:
+                    print(f"Aviation winds OK: {len(result)} levels from {region}/{level}/{fcst}")
+                    return result
             except Exception as e:
-                print(f"Aviation winds error ({level}/{fcst}): {e}")
-    return results
+                print(f"Aviation winds error ({region}/{level}/{fcst}): {e}")
+
+    print("Aviation winds: all attempts failed")
+    return {}
 
 
-def parse_windtemp_station(station, out):
+def parse_fd_text(text, level):
     """
-    Parse a single windtemp station record into altitude→wind dict.
-    NWS windtemp JSON format: station has fields like w3000, w6000, w9000...
-    Encoded as DDSSTT where DD=direction/10, SS=speed, TT=temp (we ignore temp).
+    Parse the FD plain-text product and average all station values per altitude.
+    Returns {alt_ft: {speed_kts, direction}}.
+    
+    Example line:
+      BOS 2107 1908+08 1710+02 1809-04 2907-15 2809-25 341140 011349 011660
+    Columns after station ID map to FD_ALTS: 3000 6000 9000 12000 18000 24000 30000 34000 39000
     """
-    # Altitude field names used by aviationweather.gov windtemp JSON
-    alt_fields = {
-        "w3000": 3000, "w6000": 6000, "w9000": 9000,
-        "w12000": 12000, "w18000": 18000, "w24000": 24000,
-        "w30000": 30000, "w34000": 34000, "w39000": 39000,
-    }
-    for field, alt_ft in alt_fields.items():
-        raw = station.get(field, "")
-        if not raw or raw.strip() in ("", "9900", "////", "0000"):
+    # Alts included in low vs high products
+    if level == "low":
+        alts = [3000, 6000, 9000, 12000, 18000, 24000]
+        n_cols = 6
+    else:
+        alts = [24000, 30000, 34000, 39000]
+        n_cols = 4
+
+    # Accumulate sin/cos sums and speeds for averaging across stations
+    sums = {a: {"sin": 0.0, "cos": 0.0, "spd": 0.0, "n": 0} for a in alts}
+
+    lines = text.splitlines()
+    data_started = False
+    for line in lines:
+        line = line.strip()
+        # Header line marks start of data
+        if line.startswith("FT") or "3000" in line and "6000" in line:
+            data_started = True
             continue
-        raw = raw.strip()
-        try:
-            if len(raw) >= 6:
-                dd  = int(raw[0:2]) * 10   # direction in degrees
-                ss  = int(raw[2:4])         # speed in knots
-                # If dd > 360 it encodes speed > 100 kt: dd -= 50, ss += 100
-                if dd > 360:
-                    dd -= 500
-                    ss += 100
-                if alt_ft not in out:
-                    out[alt_ft] = {"speed_kts": ss, "direction": dd % 360}
-        except Exception:
-            pass
+        if not data_started:
+            continue
+        # Station data lines: 3-letter ID followed by wind groups
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        station_id = parts[0]
+        if not (len(station_id) == 3 and station_id.isalpha()):
+            continue
+        groups = parts[1:]
+        for i, alt in enumerate(alts):
+            if i >= len(groups):
+                break
+            decoded = decode_fd_group(groups[i])
+            if decoded is None:
+                continue
+            direction, speed = decoded
+            r = math.radians(direction)
+            sums[alt]["sin"] += math.sin(r)
+            sums[alt]["cos"] += math.cos(r)
+            sums[alt]["spd"] += speed
+            sums[alt]["n"]   += 1
+
+    result = {}
+    for alt, s in sums.items():
+        if s["n"] == 0:
+            continue
+        avg_dir = math.degrees(math.atan2(s["sin"], s["cos"])) % 360
+        avg_spd = s["spd"] / s["n"]
+        result[alt] = {"speed_kts": round(avg_spd, 1), "direction": round(avg_dir, 0)}
+
+    return result
 
 
 def fetch_forecast(lat, lon):

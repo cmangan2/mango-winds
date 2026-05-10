@@ -1407,13 +1407,14 @@ async function load(){
                 <div style="font-size:1.2rem">${arrow(d.canopy.direction)}</div>
             </div>`;
 
+        const ffFromDir = (d.freefall.direction + 180) % 360;  // convert back to wind-from for display
         document.getElementById("freefallBlock").innerHTML =
             `<div class="sc-label">Freefall &nbsp;•&nbsp; 4 000 – 14 000 ft</div>
             <div class="sc-data">
                 <div><span>SPD</span>${d.freefall.speed.toFixed(1)} kt</div>
-                <div><span>DIR</span>${d.freefall.direction.toFixed(0)}°</div>
+                <div><span>DIR</span>${ffFromDir.toFixed(0)}°</div>
                 <div><span>DRIFT</span>${(d.freefall.distance / 1609.344).toFixed(2)} mi</div>
-                <div style="font-size:1.2rem">${arrow(d.freefall.direction)}</div>
+                <div style="font-size:1.2rem">${arrow(ffFromDir)}</div>
             </div>`;
 
         // wind cards

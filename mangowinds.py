@@ -54,7 +54,8 @@ def fetch_forecast(lat, lon):
     if api_key:
         url = "https://customer-api.open-meteo.com/v1/forecast"
     else:
-        url = "https://api.open-meteo.com/v1/forecast"
+        # Use GFS endpoint — separate rate limit pool from the main forecast endpoint
+        url = "https://api.open-meteo.com/v1/gfs"
 
     params = {
         "latitude": lat,

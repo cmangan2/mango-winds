@@ -501,7 +501,7 @@ def data():
         },
         "freefall": {
             "speed":     free_speed,
-            "direction": free_dir,
+            "direction": (free_dir + 180) % 360,   # convert met "from" → drift "to" direction
             "distance":  freefall_distance(free_speed, free_dir),
         },
         "wind_14k": {

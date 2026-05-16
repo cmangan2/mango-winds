@@ -1251,7 +1251,12 @@ async function load(){
         updateHandleSummary(d.canopy.speed, d.canopy.direction,
             document.getElementById("timeLabel").innerText);
 
-        function arrow(dir){ return ["↑","↗","→","↘","↓","↙","←","↖","↑"][Math.round(((dir + 180) % 360) / 45)]; }
+        function arrow(dir, color='var(--text)'){
+            const blowTo = (dir + 180) % 360;
+            return `<svg width="18" height="18" viewBox="0 0 16 16" style="display:inline-block;vertical-align:middle;transform:rotate(${blowTo}deg)">
+                <polygon points="8,1 11,13 8,11 5,13" fill="${color}"/>
+            </svg>`;
+        }
 
         document.getElementById("canopyBlock").innerHTML =
             `<div class="sc-label">Canopy &nbsp;•&nbsp; SFC – 3 000 ft</div>
@@ -1259,7 +1264,7 @@ async function load(){
                 <div><span>SPD</span>${d.canopy.speed.toFixed(1)} kt</div>
                 <div><span>DIR</span>${d.canopy.direction.toFixed(0)}°</div>
                 <div><span>RADIUS</span>${(d.canopy.glide_radius / 1609.344).toFixed(2)} mi</div>
-                <div style="font-size:1.2rem">${arrow(d.canopy.direction)}</div>
+                <div>${arrow(d.canopy.direction, 'var(--canopy)')}</div>
             </div>`;
 
         const ffFromDir = (d.freefall.direction + 180) % 360;
@@ -1269,7 +1274,7 @@ async function load(){
                 <div><span>SPD</span>${d.freefall.speed.toFixed(1)} kt</div>
                 <div><span>DIR</span>${ffFromDir.toFixed(0)}°</div>
                 <div><span>DRIFT</span>${(d.freefall.distance / 1609.344).toFixed(2)} mi</div>
-                <div style="font-size:1.2rem">${arrow(ffFromDir)}</div>
+                <div>${arrow(ffFromDir, 'var(--freefall)')}</div>
             </div>`;
 
         let html = '';
@@ -1284,12 +1289,16 @@ async function load(){
                 html += `<div class="alt-section-title upper">Upper Winds</div>`;
                 lastGroup = 'high';
             }
-            const arrow2 = ["↑","↗","→","↘","↓","↙","←","↖","↑"][Math.floor(((w.direction + 180) % 360) / 45)];
+            const blowTo = (w.direction + 180) % 360;
             const cls = colorClass(w.speed);
             const altLabel = a === 0 ? 'SFC' : `${a.toLocaleString()} ft`;
+            const clsColor = cls === 'dot-green' ? 'var(--green)' : cls === 'dot-orange' ? 'var(--orange)' : 'var(--red)';
+            const svgArrow = `<svg width="16" height="16" viewBox="0 0 16 16" style="display:inline-block;vertical-align:middle;transform:rotate(${blowTo}deg)">
+                <polygon points="8,1 11,13 8,11 5,13" fill="${clsColor}"/>
+            </svg>`;
             html += `<div class="wind-card ${group === 'high' ? 'upper' : ''}">
                 <span class="alt">${altLabel}</span>
-                <span class="arrow ${cls}">${arrow2}</span>
+                <span class="arrow">${svgArrow}</span>
                 <span class="speed ${cls}">${w.speed.toFixed(1)} kt</span>
                 <span class="dir">${w.direction.toFixed(0)}°</span>
             </div>`;

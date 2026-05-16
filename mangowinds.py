@@ -827,7 +827,7 @@ select:focus { border-color: var(--accent); }
                 <div class="wc-icon" style="color:var(--red)">◎</div>
                 <div>
                     <div class="wc-title">Jumper Breakoff Diameter</div>
-                    <div class="wc-text">When each jumper opens, a <b>translucent red circle</b> (500 ft radius) representing the <b>maximum tracking distance</b> a jumper can cover at breakoff.</div>
+                    <div class="wc-text">When each jumper group opens, a <b>translucent red circle</b> (500 ft radius) appears, representing the <b>maximum tracking distance</b> a jumper can cover at breakoff.</div>
                 </div>
             </div>
 

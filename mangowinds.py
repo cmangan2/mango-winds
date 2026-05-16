@@ -637,6 +637,103 @@ select:focus { border-color: var(--accent); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── BUTTONS ── */
+/* ── WELCOME MODAL ── */
+#welcomeModal {
+    position: fixed;
+    inset: 0;
+    background: rgba(7,11,16,0.88);
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+    padding: 16px;
+}
+#welcomeBox {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    max-width: 480px;
+    width: 100%;
+    max-height: 90dvh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    overflow: hidden;
+}
+#welcomeHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 700;
+    font-size: 1.1rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+    flex-shrink: 0;
+}
+#welcomeVersion {
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    font-weight: 400;
+}
+#welcomeBody {
+    overflow-y: auto;
+    padding: 14px 20px;
+    flex: 1;
+    -webkit-overflow-scrolling: touch;
+}
+.wc-section {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+}
+.wc-section:last-child { border-bottom: none; }
+.wc-icon {
+    font-size: 1.4rem;
+    flex-shrink: 0;
+    width: 28px;
+    text-align: center;
+    margin-top: 2px;
+}
+.wc-title {
+    font-weight: 700;
+    font-size: 0.85rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text);
+    margin-bottom: 4px;
+}
+.wc-text {
+    font-size: 0.82rem;
+    color: var(--muted);
+    line-height: 1.55;
+    font-family: 'Barlow Condensed', sans-serif;
+}
+.wc-text b { color: var(--text); font-weight: 600; }
+#welcomeClose {
+    margin: 14px 20px 16px;
+    padding: 12px;
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    border-radius: 8px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: opacity 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+#welcomeClose:hover { opacity: 0.85; }
+
 #drawBtn {
     margin-top: 10px;
     width: 100%;
@@ -701,6 +798,60 @@ select:focus { border-color: var(--accent); }
 
 <body>
 
+<!-- ── WELCOME MODAL ── -->
+<div id="welcomeModal">
+    <div id="welcomeBox">
+        <div id="welcomeHeader">
+            <span>🪂 Mango Wind Hub</span>
+            <span id="welcomeVersion">Quick Start Guide</span>
+        </div>
+        <div id="welcomeBody">
+
+            <div class="wc-section">
+                <div class="wc-icon" style="color:var(--canopy)">◉</div>
+                <div>
+                    <div class="wc-title">Canopy Circles</div>
+                    <div class="wc-text">Two green circles show your canopy reach from directly above the DZ at 4,000 ft. The <b>dashed circle</b> is your maximum glide distance in <b>zero wind</b>. The <b>solid circle</b> shifts downwind to show your <b>real wind-adjusted reach</b> — anywhere inside it is a safe landing area.</div>
+                </div>
+            </div>
+
+            <div class="wc-section">
+                <div class="wc-icon" style="color:#fff">✏️</div>
+                <div>
+                    <div class="wc-title">Draw Jump Run</div>
+                    <div class="wc-text">Click <b>Draw Jump Run</b>, then click two points on the map to draw the aircraft's flight path. An <b>orange parallel line</b> appears showing where jumpers will land after freefall drift. A <b>red plane</b> animates the run, dropping parachute symbols at your chosen separation interval.</div>
+                </div>
+            </div>
+
+            <div class="wc-section">
+                <div class="wc-icon" style="color:var(--red)">◎</div>
+                <div>
+                    <div class="wc-title">Jumper Landing Circles</div>
+                    <div class="wc-text">When each jumper lands, a <b>translucent red circle</b> (500 ft radius) marks their landing area — representing the <b>maximum tracking distance</b> a jumper can cover under canopy from that point.</div>
+                </div>
+            </div>
+
+            <div class="wc-section">
+                <div class="wc-icon" style="color:var(--accent)">⏱</div>
+                <div>
+                    <div class="wc-title">Forecast Scroll</div>
+                    <div class="wc-text">Use the <b>Forecast Offset</b> slider to scroll up to <b>72 hours</b> into the future. Wind circles, drift lines, and all wind cards update automatically — great for planning a jump day in advance.</div>
+                </div>
+            </div>
+
+            <div class="wc-section">
+                <div class="wc-icon" style="color:var(--muted)">📍</div>
+                <div>
+                    <div class="wc-title">Dropzone Selector</div>
+                    <div class="wc-text">Switch between dropzones using the <b>Dropzone</b> dropdown. The map recenters and all wind data updates for the new location.</div>
+                </div>
+            </div>
+
+        </div>
+        <button id="welcomeClose" onclick="closeWelcome()">Got it — Let's Jump! 🪂</button>
+    </div>
+</div>
+
 <div id="loader"><div class="spinner"></div></div>
 
 <div id="wrap">
@@ -742,6 +893,18 @@ select:focus { border-color: var(--accent); }
                 <button id="drawBtn" onclick="toggleDrawMode()">✏️ Draw Jump Run</button>
                 <button id="replayBtn" onclick="startPlaneAnimation()" style="display:none">▶ Replay</button>
                 <button id="clearBtn" onclick="clearJumpRun()" style="display:none">✕ Clear</button>
+                <div id="sepRow" style="display:none;margin-top:8px">
+                    <label style="margin-bottom:3px">Jumper Separation</label>
+                    <select id="sepSelect">
+                        <option value="8">8 sec</option>
+                        <option value="10">10 sec</option>
+                        <option value="12">12 sec</option>
+                        <option value="14">14 sec</option>
+                        <option value="16">16 sec</option>
+                        <option value="18">18 sec</option>
+                        <option value="20">20 sec</option>
+                    </select>
+                </div>
                 <div id="jumpRunInfo" style="display:none"></div>
             </div>
 
@@ -877,9 +1040,10 @@ function drawJumpRun(){
     drawFreefallParallel();
     startPlaneAnimation();
 
-    // Show replay + clear buttons
+    // Show replay + clear buttons + separation selector
     document.getElementById("replayBtn").style.display = "block";
     document.getElementById("clearBtn").style.display  = "block";
+    document.getElementById("sepRow").style.display    = "block";
 }
 
 function makeArrowhead(tip, hdg){
@@ -972,8 +1136,9 @@ function startPlaneAnimation(){
     const cosLat0 = Math.cos(jrStart[0] * Math.PI / 180);
 
     // Schedule jumper drops: first at 2 s, then every 8 s while plane is still flying
+    const sepSec = +(document.getElementById("sepSelect")?.value || 8);
     const dropTimes = [];
-    for (let t = 2000; t < duration; t += 8000) dropTimes.push(t);
+    for (let t = 2000; t < duration; t += sepSec * 1000) dropTimes.push(t);
 
     dropTimes.forEach(dropMs => {
         const tid = setTimeout(() => {
@@ -1073,6 +1238,7 @@ function clearJumpRun(){
     document.getElementById("jumpRunInfo").style.display = "none";
     document.getElementById("replayBtn").style.display   = "none";
     document.getElementById("clearBtn").style.display    = "none";
+    document.getElementById("sepRow").style.display      = "none";
 }
 
 // ── DRAW MODE TOGGLE ──
@@ -1278,11 +1444,16 @@ function updateHandleSummary(canopySpd, canopyDir, timeStr){
 
 // ── MAP INIT ──
 function initMap(){
-    map = L.map('map').setView([lat, lon], 9);
+    map = L.map('map', { zoomSnap: 0.25, zoomDelta: 0.25, wheelPxPerZoomLevel: 120 }).setView([lat, lon], 9);
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Tiles © Esri'
     }).addTo(map);
     map.on('click', onMapClick);
+}
+
+// ── WELCOME MODAL ──
+function closeWelcome(){
+    document.getElementById("welcomeModal").style.display = "none";
 }
 
 // ── DZ INIT ──
@@ -1331,6 +1502,7 @@ function initDZ(){
         document.getElementById("jumpRunInfo").style.display = "none";
         document.getElementById("replayBtn").style.display  = "none";
         document.getElementById("clearBtn").style.display   = "none";
+        document.getElementById("sepRow").style.display     = "none";
         clearTimeout(loadTimeout);
         loadTimeout = setTimeout(load, 3400);
     };

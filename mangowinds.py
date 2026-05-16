@@ -11,7 +11,7 @@ app = Flask(__name__)
 # 🗄️ CACHE
 # =====================================================
 _forecast_cache = {}
-CACHE_TTL = timedelta(minutes=60)
+CACHE_TTL = timedelta(minutes=15)
 
 # =====================================================
 # 🪂 DROPZONES
@@ -255,7 +255,7 @@ def data():
             "direction": canopy_dir,
             "glide_radius": canopy_data(canopy_speed, canopy_dir)[0],
             "wind_drift": canopy_data(canopy_speed, canopy_dir)[1],
-            "wind_dir": (canopy_dir + 180) % 360,
+            "wind_dir": canopy_dir,  # send wind-from direction; JS offsets circle upwind
         },
         "freefall": {
             "speed": free_speed,

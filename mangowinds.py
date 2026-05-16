@@ -36,7 +36,7 @@ DROPZONES = load_dropzones()
 
 
 # =====================================================
-# 🌐 FORECAST  —  Open-Meteo (hourly pressure-level winds)
+# 🌐 FORECAST — Open-Meteo (hourly pressure-level winds)
 # =====================================================
 
 def fetch_forecast(lat, lon):
@@ -49,19 +49,19 @@ def fetch_forecast(lat, lon):
         return cached["data"]
 
     api_key = os.environ.get("OPENMETEO_API_KEY")
-    url     = "https://customer-api.open-meteo.com/v1/forecast" if api_key else "https://api.open-meteo.com/v1/forecast"
-    params  = {
-        "latitude":  lat,
+    url = "https://customer-api.open-meteo.com/v1/forecast" if api_key else "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": lat,
         "longitude": lon,
         "hourly": [
-            "windspeed_10m",     "winddirection_10m",
+            "windspeed_10m", "winddirection_10m",
             "windspeed_1000hPa", "winddirection_1000hPa",
-            "windspeed_925hPa",  "winddirection_925hPa",
-            "windspeed_850hPa",  "winddirection_850hPa",
-            "windspeed_700hPa",  "winddirection_700hPa",
+            "windspeed_925hPa", "winddirection_925hPa",
+            "windspeed_850hPa", "winddirection_850hPa",
+            "windspeed_700hPa", "winddirection_700hPa",
         ],
         "forecast_days": 3,
-        "timezone":      "auto",
+        "timezone": "auto",
         "wind_speed_unit": "kn",
     }
     if api_key:
@@ -93,8 +93,8 @@ def wind_arrow(d):
 
 
 def color(s):
-    if s < 10:  return "green"
-    if s < 25:  return "orange"
+    if s < 10: return "green"
+    if s < 25: return "orange"
     return "red"
 
 
@@ -108,10 +108,10 @@ def interpolate(base, alt):
         a0, s0, d0 = base[i]
         a1, s1, d1 = base[i + 1]
         if a0 <= alt <= a1:
-            t     = (alt - a0) / (a1 - a0)
+            t = (alt - a0) / (a1 - a0)
             speed = s0 + (s1 - s0) * t
-            r0    = math.radians(d0)
-            r1    = math.radians(d1)
+            r0 = math.radians(d0)
+            r1 = math.radians(d1)
             sin_avg = math.sin(r0) + (math.sin(r1) - math.sin(r0)) * t
             cos_avg = math.cos(r0) + (math.cos(r1) - math.cos(r0)) * t
             direction = math.degrees(math.atan2(sin_avg, cos_avg)) % 360
@@ -120,7 +120,7 @@ def interpolate(base, alt):
 
 
 def format_winds(data, hour):
-    """Returns {altitude_ft: wind_info} for 0–14 000 ft."""
+    """Returns {altitude_ft: wind_info} for 0-14000 ft."""
     if not data:
         print("format_winds: data is None")
         return {}
@@ -129,30 +129,30 @@ def format_winds(data, hour):
         print(f"format_winds: hour={hour}, total={len(h.get('time',[]))}")
 
         pressure_levels = [
-            (500,   h["windspeed_1000hPa"][hour], h["winddirection_1000hPa"][hour]),
-            (2500,  h["windspeed_925hPa"][hour],  h["winddirection_925hPa"][hour]),
-            (5000,  h["windspeed_850hPa"][hour],  h["winddirection_850hPa"][hour]),
-            (9000,  h["windspeed_700hPa"][hour],  h["winddirection_700hPa"][hour]),
+            (500, h["windspeed_1000hPa"][hour], h["winddirection_1000hPa"][hour]),
+            (2500, h["windspeed_925hPa"][hour], h["winddirection_925hPa"][hour]),
+            (5000, h["windspeed_850hPa"][hour], h["winddirection_850hPa"][hour]),
+            (9000, h["windspeed_700hPa"][hour], h["winddirection_700hPa"][hour]),
         ]
 
         surf_speed = h["windspeed_10m"][hour]
-        surf_dir   = h["winddirection_10m"][hour]
+        surf_dir = h["winddirection_10m"][hour]
         base = [(0, surf_speed, surf_dir)] + pressure_levels
 
         result = {}
         result[0] = {
-            "speed":     round(surf_speed, 1),
+            "speed": round(surf_speed, 1),
             "direction": round(surf_dir % 360, 0),
-            "arrow":     wind_arrow(surf_dir),
-            "color":     color(surf_speed),
+            "arrow": wind_arrow(surf_dir),
+            "color": color(surf_speed),
         }
         for alt in range(1000, 15000, 1000):
             speed, direction = interpolate(base, alt)
             result[alt] = {
-                "speed":     round(speed, 1),
+                "speed": round(speed, 1),
                 "direction": round(direction % 360, 0),
-                "arrow":     wind_arrow(direction),
-                "color":     color(speed),
+                "arrow": wind_arrow(direction),
+                "color": color(speed),
             }
         print(f"format_winds: OK, {len(result)} levels")
         return result
@@ -161,8 +161,6 @@ def format_winds(data, hour):
         print(f"format_winds ERROR: {e}")
         traceback.print_exc()
         return {}
-
-
 
 
 # =====================================================
@@ -186,7 +184,7 @@ def avg_wind_display(winds, low, high):
         return 0, 0
 
     avg_speed = sum(speeds) / len(speeds)
-    avg_dir   = math.degrees(math.atan2(sin_sum, cos_sum)) % 360
+    avg_dir = math.degrees(math.atan2(sin_sum, cos_sum)) % 360
 
     return avg_speed, avg_dir
 
@@ -196,36 +194,25 @@ def avg_wind_display(winds, low, high):
 # =====================================================
 
 def canopy_data(wind_speed_kts, wind_dir):
-    """
-    Canopy reach model (2:1 glide ratio, ~1500 ft/min descent from deployment at ~4000 ft):
-      - Descent time  ≈ 120 s  (3000 ft at 1500 fpm: 4000 ft deployment down to 1000 ft)
-      - Canopy airspeed ≈ 22 kt forward speed → glide radius = airspeed × time
-      - Wind drift = wind vector × descent time, shifts the circle center
-    Returns glide_radius_m, wind_drift_m, wind_dir_deg
-    """
-    descent_time   = 120          # seconds (3000ft at 1500fpm: deployment at 4000ft down to 1000ft)
-    canopy_kts     = 22           # canopy forward airspeed in knots
-    canopy_ms      = canopy_kts * 0.514444
-    glide_radius   = canopy_ms * descent_time   # metres — pure canopy reach
-
-    wind_ms        = wind_speed_kts * 0.514444
-    wind_drift     = wind_ms * descent_time     # metres — wind pushes the circle
-
+    descent_time = 120
+    canopy_kts = 22
+    canopy_ms = canopy_kts * 0.514444
+    glide_radius = canopy_ms * descent_time
+    wind_ms = wind_speed_kts * 0.514444
+    wind_drift = wind_ms * descent_time
     return glide_radius, wind_drift, wind_dir
 
 
 def freefall_distance(wind_speed_kts, wind_dir):
-    """Estimated drift in freefall (≈60 s, 10 000 ft jump)."""
     seconds = 60
     wind_ms = wind_speed_kts * 0.514444
-    return wind_ms * seconds     # metres
+    return wind_ms * seconds
 
 
 def surface_drift(wind_speed_kts, wind_dir):
-    """Estimated surface drift during landing roll / run-out (15 s)."""
     seconds = 15
     wind_ms = wind_speed_kts * 0.514444
-    return wind_ms * seconds     # metres
+    return wind_ms * seconds
 
 
 # =====================================================
@@ -234,14 +221,14 @@ def surface_drift(wind_speed_kts, wind_dir):
 
 @app.route("/data")
 def data():
-    lat  = request.args.get("lat",  type=float)
-    lon  = request.args.get("lon",  type=float)
+    lat = request.args.get("lat", type=float)
+    lon = request.args.get("lon", type=float)
     hour = request.args.get("hour", 0, type=int)
 
     if lat is None or lon is None:
         return jsonify({"error": "lat and lon are required"}), 400
 
-    raw   = fetch_forecast(lat, lon)
+    raw = fetch_forecast(lat, lon)
     winds = format_winds(raw, hour)
 
     if not winds:
@@ -250,11 +237,9 @@ def data():
         resp.headers["Cache-Control"] = "no-store"
         return resp, 503
 
-    # Layer averages
-    canopy_speed,  canopy_dir  = avg_wind_display(winds, 0, 3000)    # SFC - 3K ft
-    free_speed,    free_dir    = avg_wind_display(winds, 4000, 14000) # 4K - 14K ft
+    canopy_speed, canopy_dir = avg_wind_display(winds, 0, 3000)
+    free_speed, free_dir = avg_wind_display(winds, 4000, 14000)
 
-    # Time label — derive from NWS surface period time if available
     time_label = ""
     try:
         times = raw["hourly"]["time"]
@@ -266,19 +251,19 @@ def data():
     response = jsonify({
         "winds": winds,
         "canopy": {
-            "speed":       canopy_speed,
-            "direction":   canopy_dir,
+            "speed": canopy_speed,
+            "direction": canopy_dir,
             "glide_radius": canopy_data(canopy_speed, canopy_dir)[0],
-            "wind_drift":   canopy_data(canopy_speed, canopy_dir)[1],
-            "wind_dir":     canopy_data(canopy_speed, canopy_dir)[2],
+            "wind_drift": canopy_data(canopy_speed, canopy_dir)[1],
+            "wind_dir": (canopy_dir + 180) % 360,
         },
         "freefall": {
-            "speed":     free_speed,
-            "direction": (free_dir + 180) % 360,   # convert met "from" → drift "to" direction
-            "distance":  freefall_distance(free_speed, free_dir),
+            "speed": free_speed,
+            "direction": (free_dir + 180) % 360,
+            "distance": freefall_distance(free_speed, free_dir),
         },
         "wind_14k": {
-            "speed":     winds.get(14000, {}).get("speed", 0),
+            "speed": winds.get(14000, {}).get("speed", 0),
             "direction": winds.get(14000, {}).get("direction", 0),
         },
         "time_label": time_label,
@@ -306,22 +291,22 @@ HTML = r"""
 
 <style>
 :root {
-    --bg:        #070b10;
-    --panel-bg:  #0d1520;
-    --card-bg:   #111d2b;
-    --card-alt:  #0c1825;
-    --border:    #1e3045;
-    --text:      #c8daea;
-    --muted:     #5a7a96;
-    --accent:    #00d4ff;
-    --canopy:    #39ff89;
-    --freefall:  #ffaa00;
-    --surface:   #ffd166;
-    --green:     #39ff89;
-    --orange:    #ffaa00;
-    --red:       #ff4f4f;
-    --panel-w:   290px;
-    --drawer-h:  56px;   /* collapsed handle height on mobile */
+    --bg: #070b10;
+    --panel-bg: #0d1520;
+    --card-bg: #111d2b;
+    --card-alt: #0c1825;
+    --border: #1e3045;
+    --text: #c8daea;
+    --muted: #5a7a96;
+    --accent: #00d4ff;
+    --canopy: #39ff89;
+    --freefall: #ffaa00;
+    --surface: #ffd166;
+    --green: #39ff89;
+    --orange: #ffaa00;
+    --red: #ff4f4f;
+    --panel-w: 290px;
+    --drawer-h: 56px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -336,15 +321,7 @@ body {
     -webkit-tap-highlight-color: transparent;
 }
 
-/* ═══════════════════════════════════════
-   DESKTOP  (≥ 600 px wide)
-   Panel on the right, map fills the rest
-═══════════════════════════════════════ */
-#wrap {
-    display: flex;
-    height: 100vh;
-    height: 100dvh;
-}
+#wrap { display: flex; height: 100vh; height: 100dvh; }
 #map { flex: 1; min-width: 0; }
 
 #panel {
@@ -357,14 +334,9 @@ body {
     transition: transform 0.3s ease;
 }
 
-/* ═══════════════════════════════════════
-   MOBILE  (< 600 px wide)
-   Map full-screen, panel slides up from bottom
-═══════════════════════════════════════ */
 @media (max-width: 599px) {
     #wrap { flex-direction: column; position: relative; }
-    #map  { position: absolute; inset: 0; z-index: 1; }
-
+    #map { position: absolute; inset: 0; z-index: 1; }
     #panel {
         position: absolute;
         bottom: 0; left: 0; right: 0;
@@ -378,12 +350,7 @@ body {
         transition: transform 0.35s cubic-bezier(.4,0,.2,1);
         box-shadow: 0 -8px 32px rgba(0,0,0,0.6);
     }
-
-    #panel.open {
-        transform: translateY(0);
-    }
-
-    /* Drag handle */
+    #panel.open { transform: translateY(0); }
     #panel-handle {
         display: flex;
         align-items: center;
@@ -419,20 +386,14 @@ body {
         align-items: center;
         width: 100%;
     }
-
-    /* Hide normal header on mobile — info shown in handle */
     #panel-header { display: none; }
-
-    /* Scrollable body on mobile */
     #panel-body {
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
         flex: 1;
     }
-
-    /* Larger touch targets */
     select { padding: 10px 12px; font-size: 1rem; }
-    #hour  { height: 28px; }
+    #hour { height: 28px; }
     #drawBtn, #replayBtn { padding: 12px 10px; font-size: 1.05rem; }
     .wind-card { padding: 8px 10px; }
     .summary-card { padding: 10px 14px; }
@@ -441,10 +402,9 @@ body {
 
 @media (min-width: 600px) {
     #panel-handle { display: none; }
-    #panel-body   { display: contents; }
+    #panel-body { display: contents; }
 }
 
-/* ── PANEL HEADER (desktop) ── */
 #panel-header {
     padding: 14px 16px 10px;
     border-bottom: 1px solid var(--border);
@@ -464,7 +424,6 @@ body {
     margin-top: 2px;
 }
 
-/* ── CONTROLS ── */
 #controls {
     padding: 12px 14px;
     border-bottom: 1px solid var(--border);
@@ -522,7 +481,6 @@ select:focus { border-color: var(--accent); }
     border-radius: 3px;
 }
 
-/* ── SUMMARY CARDS ── */
 #summaries {
     padding: 10px 14px;
     border-bottom: 1px solid var(--border);
@@ -546,7 +504,7 @@ select:focus { border-color: var(--accent); }
     left: 0; top: 0; bottom: 0;
     width: 3px;
 }
-.summary-card.canopy::before   { background: var(--canopy); }
+.summary-card.canopy::before { background: var(--canopy); }
 .summary-card.freefall::before { background: var(--freefall); }
 .summary-card .sc-label {
     font-size: 0.68rem;
@@ -554,7 +512,7 @@ select:focus { border-color: var(--accent); }
     text-transform: uppercase;
     margin-bottom: 5px;
 }
-.summary-card.canopy   .sc-label { color: var(--canopy); }
+.summary-card.canopy .sc-label { color: var(--canopy); }
 .summary-card.freefall .sc-label { color: var(--freefall); }
 .summary-card .sc-data {
     display: flex;
@@ -566,7 +524,6 @@ select:focus { border-color: var(--accent); }
 }
 .summary-card .sc-data span { color: var(--muted); font-size: 0.7rem; margin-right: 2px; }
 
-/* ── WIND TABLE ── */
 #cards-wrap {
     flex: 1;
     overflow-y: auto;
@@ -608,13 +565,12 @@ select:focus { border-color: var(--accent); }
 .wind-card:not(.upper) .alt { color: var(--canopy); opacity: 0.85; }
 .wind-card .arrow { font-size: 1rem; }
 .wind-card .speed { text-align: right; font-weight: bold; }
-.wind-card .dir   { color: var(--muted); font-size: 0.72rem; text-align: right; }
+.wind-card .dir { color: var(--muted); font-size: 0.72rem; text-align: right; }
 
-.dot-green  { color: var(--green); }
+.dot-green { color: var(--green); }
 .dot-orange { color: var(--orange); }
-.dot-red    { color: var(--red); }
+.dot-red { color: var(--red); }
 
-/* ── LOADING OVERLAY ── */
 #loader {
     position: fixed;
     inset: 0;
@@ -636,8 +592,6 @@ select:focus { border-color: var(--accent); }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── BUTTONS ── */
-/* ── WELCOME MODAL ── */
 #welcomeModal {
     position: fixed;
     inset: 0;
@@ -860,7 +814,6 @@ select:focus { border-color: var(--accent); }
 
     <div id="panel">
 
-        <!-- Mobile drag handle (hidden on desktop) -->
         <div id="panel-handle" onclick="togglePanel()">
             <div id="panel-handle-inner">
                 <div class="handle-bar"></div>
@@ -871,13 +824,11 @@ select:focus { border-color: var(--accent); }
             </div>
         </div>
 
-        <!-- Desktop header (hidden on mobile) -->
         <div id="panel-header">
             <h1>🪂 Mango Wind Hub</h1>
             <p id="utcLabel">Fetching forecast...</p>
         </div>
 
-        <!-- panel-body wraps scrollable content on mobile -->
         <div id="panel-body">
 
             <div id="controls">
@@ -923,7 +874,7 @@ select:focus { border-color: var(--accent); }
                 <div id="cards"></div>
             </div>
 
-        </div><!-- /panel-body -->
+        </div>
 
     </div>
 </div>
@@ -933,39 +884,35 @@ let dz = {{ dz | tojson }};
 let lat, lon;
 let map, marker, canopyCircle, canopyCircleShifted, highLine;
 let loadTimeout = null;
-let firstLoad    = true;
+let firstLoad = true;
 
-// ── JUMP RUN STATE ──
-let drawMode      = false;
-let jumpRunLine   = null;   // drawn line on map
-let freefallLine  = null;   // parallel freefall drift line
-let jrStart       = null;
-let jrEnd         = null;
-let lastFreefall  = null;   // {distance, direction} from most recent load()
-let lastWind14k   = null;   // {speed, direction} at 14 000 ft
-let planeMarker   = null;   // animated plane SVG marker
-let planeAnimId   = null;   // requestAnimationFrame id
+let drawMode = false;
+let jumpRunLine = null;
+let freefallLine = null;
+let jrStart = null;
+let jrEnd = null;
+let lastFreefall = null;
+let lastWind14k = null;
+let planeMarker = null;
+let planeAnimId = null;
 
-// ── TIME LABEL ──
 function renderTime(){
-    const h      = +document.getElementById("hour").value;
-    const now    = new Date();
+    const h = +document.getElementById("hour").value;
+    const now = new Date();
     const future = new Date(now.getTime() + h * 3600 * 1000);
-    // Round base time to nearest hour
     future.setMinutes(0, 0, 0);
-    const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-    const day    = days[future.getDay()];
-    const raw    = future.getHours();
-    const ampm   = raw >= 12 ? 'pm' : 'am';
-    const h12    = raw % 12 === 0 ? 12 : raw % 12;
-    const label  = h === 0 ? `${day} ${h12}${ampm} (now)` : `${day} ${h12}${ampm} (+${h}h)`;
+    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const day = days[future.getDay()];
+    const raw = future.getHours();
+    const ampm = raw >= 12 ? 'pm' : 'am';
+    const h12 = raw % 12 === 0 ? 12 : raw % 12;
+    const label = h === 0 ? `${day} ${h12}${ampm} (now)` : `${day} ${h12}${ampm} (+${h}h)`;
     document.getElementById("timeLabel").innerText = label;
 }
 
-// ── VECTOR from arbitrary origin ──
 function vecFrom(originLat, originLon, distance, dir, color, opts={}){
-    const r    = dir * Math.PI / 180;
-    const len  = distance;
+    const r = dir * Math.PI / 180;
+    const len = distance;
     const dlat = Math.cos(r) * len / 111000;
     const dlon = Math.sin(r) * len / (111000 * Math.cos(originLat * Math.PI / 180));
     return L.polyline(
@@ -974,47 +921,34 @@ function vecFrom(originLat, originLon, distance, dir, color, opts={}){
     ).addTo(map);
 }
 
-// ── ORIGINAL DZ-ANCHORED VECTOR (canopy line) ──
 function vec(distance, dir, color){
     return vecFrom(lat, lon, Math.min(distance, 8000), dir, color);
 }
 
-// ── JUMP RUN: draw freefall parallel line ──
-// The jump run line defines where the plane flies.
-// The freefall line shows where jumpers will land relative to exit,
-// drawn as a parallel line offset by the freefall drift vector,
-// with the same length as the jump run line.
 function drawFreefallParallel(){
     if (!jrStart || !jrEnd || !lastFreefall) return;
     if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
 
-    const ff      = lastFreefall;
-    const ffDist  = Math.min(ff.distance, 8000);   // capped same as canopy vec
-    const ffRad   = ff.direction * Math.PI / 180;
+    const ff = lastFreefall;
+    const ffDist = Math.min(ff.distance, 8000);
+    const ffRad = ff.direction * Math.PI / 180;
+    const cosLat = Math.cos(jrStart[0] * Math.PI / 180);
+    const dlatFF = Math.cos(ffRad) * ffDist / 111000;
+    const dlonFF = Math.sin(ffRad) * ffDist / (111000 * cosLat);
 
-    // Offset vector in degrees
-    const cosLat  = Math.cos(jrStart[0] * Math.PI / 180);
-    const dlatFF  = Math.cos(ffRad) * ffDist / 111000;
-    const dlonFF  = Math.sin(ffRad) * ffDist / (111000 * cosLat);
+    const pStart = [jrStart[0] + dlatFF, jrStart[1] + dlonFF];
+    const pEnd = [jrEnd[0] + dlatFF, jrEnd[1] + dlonFF];
 
-    // Parallel line = jump run shifted by freefall drift
-    const pStart  = [jrStart[0] + dlatFF, jrStart[1] + dlonFF];
-    const pEnd    = [jrEnd[0]   + dlatFF, jrEnd[1]   + dlonFF];
-
-    // Draw: dashed connector from JR start → parallel start, then the parallel line
     const connector = L.polyline([jrStart, pStart], {
         color: '#ffaa00', weight: 2, opacity: 0.45, dashArray: '5,6'
     }).addTo(map);
-
     const parallel = L.polyline([pStart, pEnd], {
         color: '#ffaa00', weight: 4, opacity: 0.9
     }).addTo(map);
-
     freefallLine = [connector, parallel];
 
-    // Info panel
     const jrLenM = distMeters(jrStart, jrEnd);
-    const bear   = bearing(jrStart, jrEnd);
+    const bear = bearing(jrStart, jrEnd);
     document.getElementById("jumpRunInfo").style.display = "block";
     document.getElementById("jumpRunInfo").innerHTML =
         `JR heading: ${bear.toFixed(0)}°<br>` +
@@ -1022,7 +956,6 @@ function drawFreefallParallel(){
         `FF drift:   ${(ffDist / 1609.344).toFixed(2)} mi @ ${ff.direction.toFixed(0)}°`;
 }
 
-// ── DRAW JUMP RUN (line + arrowhead + animation) ──
 function drawJumpRun(){
     if (jumpRunLine) jumpRunLine.forEach(l => l.remove());
     stopPlane();
@@ -1031,45 +964,36 @@ function drawJumpRun(){
         color: '#fff', weight: 3, opacity: 0.85, dashArray: '8,5'
     }).addTo(map);
 
-    // Arrowhead at jrEnd
-    const bear  = bearing(jrStart, jrEnd);
-    const arrow = makeArrowhead(jrEnd, bear);
-
-    jumpRunLine = [jrLine, arrow];
+    const bear = bearing(jrStart, jrEnd);
+    const arrowHead = makeArrowhead(jrEnd, bear);
+    jumpRunLine = [jrLine, arrowHead];
 
     drawFreefallParallel();
     startPlaneAnimation();
 
-    // Show replay + clear buttons + separation selector
     document.getElementById("replayBtn").style.display = "block";
-    document.getElementById("clearBtn").style.display  = "block";
-    document.getElementById("sepRow").style.display    = "block";
+    document.getElementById("clearBtn").style.display = "block";
+    document.getElementById("sepRow").style.display = "block";
 }
 
 function makeArrowhead(tip, hdg){
-    // Draw a small filled triangle at `tip` pointing in direction `hdg`
-    const size  = 14;  // metres approximate — we'll use pixel offset via map project/unproject
     const tipPx = map.latLngToLayerPoint(L.latLng(tip));
-    const r     = (hdg - 90) * Math.PI / 180;  // rotate so 0° = north
-
+    const r = (hdg - 90) * Math.PI / 180;
     function pt(dist, ang){
         return map.layerPointToLatLng(L.point(
             tipPx.x + dist * Math.cos(r + ang),
             tipPx.y + dist * Math.sin(r + ang)
         ));
     }
-
-    const left  = pt(14,  2.5);
+    const left = pt(14, 2.5);
     const right = pt(14, -2.5);
-    const poly  = L.polygon([tip, left, right], {
+    return L.polygon([tip, left, right], {
         color: '#fff', fillColor: '#fff', fillOpacity: 1, weight: 0
     }).addTo(map);
-    return poly;
 }
 
-// ── PLANE ANIMATION ──
-let jumperMarkers = [];   // active parachute markers on map
-let jumperTimers  = [];   // setTimeout ids for scheduling jumpers
+let jumperMarkers = [];
+let jumperTimers = [];
 
 function planeIcon(hdg){
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="-18 -18 36 36"
@@ -1088,26 +1012,22 @@ function planeIcon(hdg){
 
 function parachuteIcon(){
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="28" viewBox="0 0 24 28">
-      <!-- canopy dome -->
       <path d="M2,13 Q2,2 12,2 Q22,2 22,13 Z" fill="#ff4f4f" stroke="#cc2222" stroke-width="0.8"/>
-      <!-- canopy panels -->
       <line x1="12" y1="2"  x2="12" y2="13" stroke="#cc2222" stroke-width="0.5"/>
       <line x1="7"  y1="3"  x2="10" y2="13" stroke="#cc2222" stroke-width="0.5"/>
       <line x1="17" y1="3"  x2="14" y2="13" stroke="#cc2222" stroke-width="0.5"/>
       <line x1="3"  y1="7"  x2="8"  y2="13" stroke="#cc2222" stroke-width="0.5"/>
       <line x1="21" y1="7"  x2="16" y2="13" stroke="#cc2222" stroke-width="0.5"/>
-      <!-- risers -->
       <line x1="8"  y1="13" x2="11" y2="22" stroke="#cc2222" stroke-width="0.7"/>
       <line x1="16" y1="13" x2="13" y2="22" stroke="#cc2222" stroke-width="0.7"/>
-      <!-- jumper body -->
       <ellipse cx="12" cy="24" rx="2" ry="3" fill="#cc2222"/>
     </svg>`;
     return L.divIcon({ html: svg, className: '', iconSize: [24,28], iconAnchor: [12,28] });
 }
 
 function stopPlane(){
-    if (planeAnimId)  { cancelAnimationFrame(planeAnimId); planeAnimId = null; }
-    if (planeMarker)  { planeMarker.remove(); planeMarker = null; }
+    if (planeAnimId) { cancelAnimationFrame(planeAnimId); planeAnimId = null; }
+    if (planeMarker) { planeMarker.remove(); planeMarker = null; }
     jumperTimers.forEach(t => clearTimeout(t));
     jumperTimers = [];
     jumperMarkers.forEach(m => m.remove());
@@ -1118,48 +1038,39 @@ function startPlaneAnimation(){
     stopPlane();
     if (!jrStart || !jrEnd || !lastWind14k || !lastFreefall) return;
 
-    const hdg      = bearing(jrStart, jrEnd);
-    const jrDist   = distMeters(jrStart, jrEnd);
-
-    // Ground speed with 14k wind headwind/tailwind component
-    const airspeed  = 110 * 0.514444;                      // m/s
-    const wSpd      = lastWind14k.speed * 0.514444;
-    const wDir      = lastWind14k.direction;
+    const hdg = bearing(jrStart, jrEnd);
+    const jrDist = distMeters(jrStart, jrEnd);
+    const airspeed = 110 * 0.514444;
+    const wSpd = lastWind14k.speed * 0.514444;
+    const wDir = lastWind14k.direction;
     const angleDiff = ((wDir - hdg + 180 + 360) % 360) - 180;
-    const headwind  = wSpd * Math.cos(angleDiff * Math.PI / 180);
-    const gndSpeed  = Math.max(airspeed - headwind, airspeed * 0.4);
-    const duration  = (jrDist / gndSpeed) * 1000;          // ms total flight time
+    const headwind = wSpd * Math.cos(angleDiff * Math.PI / 180);
+    const gndSpeed = Math.max(airspeed - headwind, airspeed * 0.4);
+    const duration = (jrDist / gndSpeed) * 1000;
 
-    // Freefall drift vector (from lastFreefall)
     const ffDist = lastFreefall.distance;
-    const ffRad  = lastFreefall.direction * Math.PI / 180;
-    const cosLat0 = Math.cos(jrStart[0] * Math.PI / 180);
+    const ffRad = lastFreefall.direction * Math.PI / 180;
 
-    // Schedule jumper drops: first at 2 s, then every 8 s while plane is still flying
     const sepSec = +(document.getElementById("sepSelect")?.value || 8);
     const dropTimes = [];
     for (let t = 2000; t < duration; t += sepSec * 1000) dropTimes.push(t);
 
     dropTimes.forEach(dropMs => {
         const tid = setTimeout(() => {
-            // Where is the plane at dropMs?
-            const frac    = dropMs / duration;
+            const frac = dropMs / duration;
             const exitLat = jrStart[0] + (jrEnd[0] - jrStart[0]) * frac;
             const exitLon = jrStart[1] + (jrEnd[1] - jrStart[1]) * frac;
-
-            // Landing point = exit point + freefall drift
-            const dlatFF  = Math.cos(ffRad) * ffDist / 111000;
-            const dlonFF  = Math.sin(ffRad) * ffDist / (111000 * Math.cos(exitLat * Math.PI / 180));
+            const dlatFF = Math.cos(ffRad) * ffDist / 111000;
+            const dlonFF = Math.sin(ffRad) * ffDist / (111000 * Math.cos(exitLat * Math.PI / 180));
             const landLat = exitLat + dlatFF;
             const landLon = exitLon + dlonFF;
 
-            // Animate parachute drifting from exit → landing over ~30 s (visual)
             const jumper = L.marker([exitLat, exitLon], {
                 icon: parachuteIcon(), zIndexOffset: 900
             }).addTo(map);
             jumperMarkers.push(jumper);
 
-            const animDuration = 8000;  // 8 s visual drift
+            const animDuration = 8000;
             const jStart = performance.now();
 
             function driftAnimate(now){
@@ -1171,26 +1082,23 @@ function startPlaneAnimation(){
                 if (jt < 1){
                     requestAnimationFrame(driftAnimate);
                 } else {
-                    // Landed — draw 100 ft translucent red circle
                     const landingCircle = L.circle([landLat, landLon], {
-                        radius:      152.4,   // 500 ft in metres
-                        color:       '#ff4f4f',
-                        weight:      1,
-                        opacity:     0.7,
-                        fill:        true,
-                        fillColor:   '#ff4f4f',
+                        radius: 152.4,
+                        color: '#ff4f4f',
+                        weight: 1,
+                        opacity: 0.7,
+                        fill: true,
+                        fillColor: '#ff4f4f',
                         fillOpacity: 0.18
                     }).addTo(map);
                     jumperMarkers.push(landingCircle);
                 }
             }
             requestAnimationFrame(driftAnimate);
-
         }, dropMs);
         jumperTimers.push(tid);
     });
 
-    // Animate the plane
     planeMarker = L.marker(jrStart, { icon: planeIcon(hdg), zIndexOffset: 1000 }).addTo(map);
     const startTime = performance.now();
 
@@ -1210,26 +1118,24 @@ function startPlaneAnimation(){
     planeAnimId = requestAnimationFrame(animate);
 }
 
-// ── GEOMETRY HELPERS ──
 function distMeters(a, b){
-    const R   = 6378137;
+    const R = 6378137;
     const dLat = (b[0]-a[0]) * Math.PI/180;
     const dLon = (b[1]-a[1]) * Math.PI/180;
-    const s   = Math.sin(dLat/2)*Math.sin(dLat/2) +
-                Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*
-                Math.sin(dLon/2)*Math.sin(dLon/2);
+    const s = Math.sin(dLat/2)*Math.sin(dLat/2) +
+              Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*
+              Math.sin(dLon/2)*Math.sin(dLon/2);
     return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
 }
 
 function bearing(a, b){
     const dLon = (b[1]-a[1]) * Math.PI/180;
-    const y    = Math.sin(dLon) * Math.cos(b[0]*Math.PI/180);
-    const x    = Math.cos(a[0]*Math.PI/180)*Math.sin(b[0]*Math.PI/180) -
-                 Math.sin(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.cos(dLon);
+    const y = Math.sin(dLon) * Math.cos(b[0]*Math.PI/180);
+    const x = Math.cos(a[0]*Math.PI/180)*Math.sin(b[0]*Math.PI/180) -
+               Math.sin(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.cos(dLon);
     return (Math.atan2(y, x) * 180/Math.PI + 360) % 360;
 }
 
-// ── CLEAR JUMP RUN ──
 function clearJumpRun(){
     if (jumpRunLine)  { jumpRunLine.forEach(l => l.remove());  jumpRunLine = null; }
     if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
@@ -1241,7 +1147,6 @@ function clearJumpRun(){
     document.getElementById("sepRow").style.display      = "none";
 }
 
-// ── DRAW MODE TOGGLE ──
 function toggleDrawMode(){
     drawMode = !drawMode;
     const btn = document.getElementById("drawBtn");
@@ -1257,32 +1162,24 @@ function toggleDrawMode(){
     }
 }
 
-// ── MAP CLICK HANDLER ──
 function onMapClick(e){
     if (!drawMode) return;
     const pt = [e.latlng.lat, e.latlng.lng];
-
     if (!jrStart){
         jrStart = pt;
-        // show temp marker
         if (jumpRunLine) { jumpRunLine.forEach(l => l.remove()); jumpRunLine = null; }
         if (freefallLine){ freefallLine.forEach(l => l.remove()); freefallLine = null; }
         document.getElementById("jumpRunInfo").style.display = "none";
     } else {
         jrEnd = pt;
-
         drawJumpRun();
-
-        // Exit draw mode
         toggleDrawMode();
     }
 }
 
-// ── FIT VIEW ──
 function fitToCanopy(radiusMeters){
-    // Fit map to a circle of given radius centred on DZ
-    const er   = 6378137;
-    const pad  = 1.15;   // 15% padding so circles aren't clipped
+    const er = 6378137;
+    const pad = 1.15;
     const dLat = (radiusMeters * pad / er) * (180 / Math.PI);
     const dLon = dLat / Math.cos(lat * Math.PI / 180);
     map.fitBounds(
@@ -1291,17 +1188,14 @@ function fitToCanopy(radiusMeters){
     );
 }
 
-// ── COLOR CLASS ──
 function colorClass(s){
     if (s < 10) return 'dot-green';
     if (s < 25) return 'dot-orange';
     return 'dot-red';
 }
 
-// ── LOAD ──
 async function load(){
     document.getElementById("loader").classList.remove("hidden");
-
     const hour = document.getElementById("hour").value;
 
     try {
@@ -1314,7 +1208,6 @@ async function load(){
             return;
         }
 
-        // map markers
         if (marker)              marker.remove();
         if (canopyCircle)        canopyCircle.remove();
         if (canopyCircleShifted) canopyCircleShifted.remove();
@@ -1322,55 +1215,36 @@ async function load(){
 
         marker = L.marker([lat, lon]).addTo(map);
 
-        // ── CANOPY REACH CIRCLE ──
-        // Center circle: glide radius from DZ (how far canopy can fly in any direction)
         const glideR = d.canopy.glide_radius;
-
-        // Wind shifts the effective reach: offset center by wind drift vector
-        const wRad   = d.canopy.wind_dir * Math.PI / 180;
+        const wRad = d.canopy.wind_dir * Math.PI / 180;
         const wDrift = d.canopy.wind_drift;
         const cosLat = Math.cos(lat * Math.PI / 180);
         const driftLat = Math.cos(wRad) * wDrift / 111000;
         const driftLon = Math.sin(wRad) * wDrift / (111000 * cosLat);
         const shiftedCenter = [lat + driftLat, lon + driftLon];
 
-        // Fit map to canopy circles on first load or DZ change
         if (firstLoad){ fitToCanopy(glideR); firstLoad = false; }
 
-        // Dashed base circle (pure glide reach, no wind)
         canopyCircle = L.circle([lat, lon], {
-            radius:    glideR,
-            color:     '#39ff89',
-            weight:    2,
-            opacity:   0.4,
-            fill:      false,
-            dashArray: '6,5'
+            radius: glideR, color: '#39ff89', weight: 2,
+            opacity: 0.4, fill: false, dashArray: '6,5'
         }).addTo(map);
 
-        // Solid shifted circle (wind-adjusted reach — where you can actually land)
         canopyCircleShifted = L.circle(shiftedCenter, {
-            radius:  glideR,
-            color:   '#39ff89',
-            weight:  3,
-            opacity: 0.85,
-            fill:    true,
-            fillColor:   '#39ff89',
-            fillOpacity: 0.06
+            radius: glideR, color: '#39ff89', weight: 3,
+            opacity: 0.85, fill: true, fillColor: '#39ff89', fillOpacity: 0.06
         }).addTo(map);
 
-        // Store freefall + 14k wind; redraw parallel if jump run already drawn
         lastFreefall = { distance: d.freefall.distance, direction: d.freefall.direction };
-        lastWind14k  = d.wind_14k;
+        lastWind14k = d.wind_14k;
         if (jrStart && jrEnd) drawFreefallParallel();
 
-        // UTC label + mobile handle summary
         if (d.time_label) {
             document.getElementById("utcLabel").innerText = d.time_label;
         }
         updateHandleSummary(d.canopy.speed, d.canopy.direction,
             document.getElementById("timeLabel").innerText);
 
-        // summary helpers
         function arrow(dir){ return ["↑","↗","→","↘","↓","↙","←","↖","↑"][Math.round(((dir + 180) % 360) / 45)]; }
 
         document.getElementById("canopyBlock").innerHTML =
@@ -1382,7 +1256,7 @@ async function load(){
                 <div style="font-size:1.2rem">${arrow(d.canopy.direction)}</div>
             </div>`;
 
-        const ffFromDir = (d.freefall.direction + 180) % 360;  // convert back to wind-from for display
+        const ffFromDir = (d.freefall.direction + 180) % 360;
         document.getElementById("freefallBlock").innerHTML =
             `<div class="sc-label">Freefall &nbsp;•&nbsp; 4 000 – 14 000 ft</div>
             <div class="sc-data">
@@ -1392,34 +1266,28 @@ async function load(){
                 <div style="font-size:1.2rem">${arrow(ffFromDir)}</div>
             </div>`;
 
-        // wind cards
         let html = '';
         const alts = Object.keys(d.winds).map(Number).sort((a,b)=>a-b);
-
         html += `<div class="alt-section-title lower">Surface & Low</div>`;
         let lastGroup = 'low';
 
         for (const a of alts){
             const w = d.winds[a];
             const group = a < 4000 ? 'low' : 'high';
-
             if (group === 'high' && lastGroup === 'low'){
                 html += `<div class="alt-section-title upper">Upper Winds</div>`;
                 lastGroup = 'high';
             }
-
-            const arrow   = ["↑","↗","→","↘","↓","↙","←","↖","↑"][Math.floor(((w.direction + 180) % 360) / 45)];
-            const cls     = colorClass(w.speed);
+            const arrow2 = ["↑","↗","→","↘","↓","↙","←","↖","↑"][Math.floor(((w.direction + 180) % 360) / 45)];
+            const cls = colorClass(w.speed);
             const altLabel = a === 0 ? 'SFC' : `${a.toLocaleString()} ft`;
-
             html += `<div class="wind-card ${group === 'high' ? 'upper' : ''}">
                 <span class="alt">${altLabel}</span>
-                <span class="arrow ${cls}">${arrow}</span>
+                <span class="arrow ${cls}">${arrow2}</span>
                 <span class="speed ${cls}">${w.speed.toFixed(1)} kt</span>
                 <span class="dir">${w.direction.toFixed(0)}°</span>
             </div>`;
         }
-
         document.getElementById("cards").innerHTML = html;
 
     } catch(e) {
@@ -1429,7 +1297,6 @@ async function load(){
     }
 }
 
-// ── MOBILE PANEL TOGGLE ──
 let panelOpen = false;
 function togglePanel(){
     panelOpen = !panelOpen;
@@ -1441,7 +1308,10 @@ function updateHandleSummary(canopySpd, canopyDir, timeStr){
     if (el) el.textContent = `${timeStr}  •  ${canopySpd.toFixed(0)}kt ${canopyDir.toFixed(0)}°`;
 }
 
-// ── MAP INIT ──
+function closeWelcome(){
+    document.getElementById("welcomeModal").style.display = "none";
+}
+
 function initMap(){
     map = L.map('map', { zoomSnap: 0.25, zoomDelta: 0.25, wheelPxPerZoomLevel: 120 }).setView([lat, lon], 9);
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
@@ -1450,18 +1320,10 @@ function initMap(){
     map.on('click', onMapClick);
 }
 
-// ── WELCOME MODAL ──
-function closeWelcome(){
-    document.getElementById("welcomeModal").style.display = "none";
-}
-
-// ── DZ INIT ──
 function initDZ(){
-    const sel  = document.getElementById("dz");
+    const sel = document.getElementById("dz");
     const keys = Object.keys(dz);
-
-    const defaultDz =
-        keys.find(k => k.toLowerCase().includes("skydive new england")) || keys[0];
+    const defaultDz = keys.find(k => k.toLowerCase().includes("skydive new england")) || keys[0];
 
     for (const k of keys){
         const o = document.createElement("option");
@@ -1477,14 +1339,15 @@ function initDZ(){
         const v = sel.value;
         lat = dz[v][0];
         lon = dz[v][1];
-        // Clear jump run when switching DZ
         if (jumpRunLine)  { jumpRunLine.forEach(l => l.remove());  jumpRunLine = null; }
         if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
         stopPlane();
         jrStart = null; jrEnd = null;
         document.getElementById("jumpRunInfo").style.display = "none";
         document.getElementById("replayBtn").style.display  = "none";
-        firstLoad = true;   // re-fit zoom for new DZ
+        document.getElementById("clearBtn").style.display   = "none";
+        document.getElementById("sepRow").style.display     = "none";
+        firstLoad = true;
         load();
     };
 
@@ -1493,7 +1356,6 @@ function initDZ(){
 
     document.getElementById("hour").oninput = () => {
         renderTime();
-        // Clear jump run and jumpers immediately on scroll
         if (jumpRunLine)  { jumpRunLine.forEach(l => l.remove());  jumpRunLine = null; }
         if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
         stopPlane();
@@ -1521,10 +1383,6 @@ initDZ();
 def index():
     return render_template_string(HTML, dz=DROPZONES)
 
-
-# =====================================================
-# RUN
-# =====================================================
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)

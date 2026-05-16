@@ -219,6 +219,12 @@ def surface_drift(wind_speed_kts, wind_dir):
 # API
 # =====================================================
 
+@app.route("/clearcache")
+def clearcache():
+    _forecast_cache.clear()
+    return jsonify({"status": "cache cleared"})
+
+
 @app.route("/data")
 def data():
     lat = request.args.get("lat", type=float)

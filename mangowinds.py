@@ -1408,8 +1408,7 @@ async function load(){
                 lastGroup = 'high';
             }
 
-            const flipped = (w.direction + 180) % 360;
-            const arrow   = ["↑","↗","→","↘","↓","↙","←","↖","↑"][Math.floor(flipped / 45)];
+            const arrow   = ["↑","↗","→","↘","↓","↙","←","↖","↑"][Math.floor(((w.direction + 180) % 360) / 45)];
             const cls     = colorClass(w.speed);
             const altLabel = a === 0 ? 'SFC' : `${a.toLocaleString()} ft`;
 

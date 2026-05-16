@@ -850,7 +850,7 @@ select:focus { border-color: var(--accent); }
                 <button id="drawBtn" onclick="toggleDrawMode()">✏️ Draw Jump Run</button>
                 <button id="replayBtn" onclick="startPlaneAnimation()" style="display:none">▶ Replay</button>
                 <button id="clearBtn" onclick="clearJumpRun()" style="display:none">✕ Clear</button>
-                <div id="sepRow" style="display:none;margin-top:8px">
+                <div id="sepRow" style="margin-top:8px">
                     <label style="margin-bottom:3px">Jumper Separation</label>
                     <select id="sepSelect">
                         <option value="8">8 sec</option>
@@ -979,7 +979,6 @@ function drawJumpRun(){
 
     document.getElementById("replayBtn").style.display = "block";
     document.getElementById("clearBtn").style.display = "block";
-    document.getElementById("sepRow").style.display = "block";
 }
 
 function makeArrowhead(tip, hdg){
@@ -1036,7 +1035,10 @@ function stopPlane(){
     if (planeMarker) { planeMarker.remove(); planeMarker = null; }
     jumperTimers.forEach(t => clearTimeout(t));
     jumperTimers = [];
-    jumperMarkers.forEach(m => m.remove());
+    jumperMarkers.forEach(m => {
+        if (m._animActive) m._animActive = () => false;  // cancel drift animation
+        m.remove();
+    });
     jumperMarkers = [];
 }
 
@@ -1079,7 +1081,11 @@ function startPlaneAnimation(){
             const animDuration = 8000;
             const jStart = performance.now();
 
+            let animActive = true;
+            jumper._animActive = () => animActive;
+
             function driftAnimate(now){
+                if (!animActive) return;
                 const jt = Math.min((now - jStart) / animDuration, 1);
                 jumper.setLatLng([
                     exitLat + (landLat - exitLat) * jt,
@@ -1088,6 +1094,7 @@ function startPlaneAnimation(){
                 if (jt < 1){
                     requestAnimationFrame(driftAnimate);
                 } else {
+                    if (!animActive) return;
                     const landingCircle = L.circle([landLat, landLon], {
                         radius: 152.4,
                         color: '#ff4f4f',
@@ -1150,7 +1157,6 @@ function clearJumpRun(){
     document.getElementById("jumpRunInfo").style.display = "none";
     document.getElementById("replayBtn").style.display   = "none";
     document.getElementById("clearBtn").style.display    = "none";
-    document.getElementById("sepRow").style.display      = "none";
 }
 
 function toggleDrawMode(){
@@ -1361,7 +1367,6 @@ function initDZ(){
         document.getElementById("jumpRunInfo").style.display = "none";
         document.getElementById("replayBtn").style.display  = "none";
         document.getElementById("clearBtn").style.display   = "none";
-        document.getElementById("sepRow").style.display     = "none";
         firstLoad = true;
         load();
     };
@@ -1378,7 +1383,6 @@ function initDZ(){
         document.getElementById("jumpRunInfo").style.display = "none";
         document.getElementById("replayBtn").style.display  = "none";
         document.getElementById("clearBtn").style.display   = "none";
-        document.getElementById("sepRow").style.display     = "none";
         clearTimeout(loadTimeout);
         loadTimeout = setTimeout(load, 3400);
     };

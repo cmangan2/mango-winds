@@ -811,7 +811,7 @@ select:focus { border-color: var(--accent); }
                 <div class="wc-icon" style="color:var(--canopy)">◉</div>
                 <div>
                     <div class="wc-title">Canopy Circles</div>
-                    <div class="wc-text">Two green circles show your canopy reach from directly above the DZ at 4,000 ft. The <b>dashed circle</b> is your maximum glide distance in <b>zero wind</b>. The <b>solid circle</b> shifts downwind to show your <b>real wind-adjusted reach</b> — anywhere inside it is a safe landing area.</div>
+                    <div class="wc-text">The <b>dashed circle</b> is your maximum glide distance in <b>zero wind</b>. The <b>solid circle</b> shifts upwind to show your <b>real wind-adjusted reach</b> — if you open in the circle you should make it back for a landing pattern!</div>
                 </div>
             </div>
 
@@ -826,8 +826,8 @@ select:focus { border-color: var(--accent); }
             <div class="wc-section">
                 <div class="wc-icon" style="color:var(--red)">◎</div>
                 <div>
-                    <div class="wc-title">Jumper Landing Circles</div>
-                    <div class="wc-text">When each jumper lands, a <b>translucent red circle</b> (500 ft radius) marks their landing area — representing the <b>maximum tracking distance</b> a jumper can cover under canopy from that point.</div>
+                    <div class="wc-title">Jumper Breakoff Diameter</div>
+                    <div class="wc-text">When each jumper opens, a <b>translucent red circle</b> (500 ft radius) representing the <b>maximum tracking distance</b> a jumper can cover at breakoff.</div>
                 </div>
             </div>
 

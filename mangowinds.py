@@ -171,7 +171,16 @@ def format_winds(data, hour):
                     "arrow":     wind_arrow(dirn),
                     "color":     color(spd),
                 }
-            print(f"format_winds (schulze): {len(result)} levels")
+            # Override SFC with Schulze's ground observation (METAR-based)
+            gspd = float(d.get("groundSpd", speeds.get("0", 0)))
+            gdir = float(d.get("groundDir", directions.get("0", 0)))
+            result[0] = {
+                "speed":     round(gspd, 1),
+                "direction": round(gdir % 360, 0),
+                "arrow":     wind_arrow(gdir),
+                "color":     color(gspd),
+            }
+            print(f"format_winds (schulze): {len(result)} levels, ground={gspd}kt/{gdir}°")
             return result
 
         # Open-Meteo fallback

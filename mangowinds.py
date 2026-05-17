@@ -1314,8 +1314,8 @@ async function load(){
         //
         const cosLatC = Math.cos(lat * Math.PI / 180);
         const wFromRad = windDir * Math.PI / 180;  // wind FROM direction
-        const wVx = -windSpd * Math.sin(wFromRad); // wind vector east component
-        const wVy = -windSpd * Math.cos(wFromRad); // wind vector north component
+        const wVx = windSpd * Math.sin(wFromRad); // wind vector east component (FROM = blows opposite)
+        const wVy = windSpd * Math.cos(wFromRad); // wind vector north component
 
         const polyPoints = [];
         const steps = 72; // every 5 degrees

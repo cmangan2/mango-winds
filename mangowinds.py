@@ -54,7 +54,6 @@ def fetch_forecast(lat, lon):
         "latitude": lat,
         "longitude": lon,
         "hourly": [
-            "windspeed_10m", "winddirection_10m",
             "windspeed_1000hPa", "winddirection_1000hPa",
             "windspeed_925hPa", "winddirection_925hPa",
             "windspeed_850hPa", "winddirection_850hPa",
@@ -129,14 +128,16 @@ def format_winds(data, hour):
         print(f"format_winds: hour={hour}, total={len(h.get('time',[]))}")
 
         pressure_levels = [
-            (500, h["windspeed_1000hPa"][hour], h["winddirection_1000hPa"][hour]),
-            (2500, h["windspeed_925hPa"][hour], h["winddirection_925hPa"][hour]),
-            (5000, h["windspeed_850hPa"][hour], h["winddirection_850hPa"][hour]),
-            (9000, h["windspeed_700hPa"][hour], h["winddirection_700hPa"][hour]),
+            (364,   h["windspeed_1000hPa"][hour], h["winddirection_1000hPa"][hour]),
+            (2500,  h["windspeed_925hPa"][hour],  h["winddirection_925hPa"][hour]),
+            (4800,  h["windspeed_850hPa"][hour],  h["winddirection_850hPa"][hour]),
+            (9843,  h["windspeed_700hPa"][hour],  h["winddirection_700hPa"][hour]),
         ]
 
-        surf_speed = h["windspeed_10m"][hour]
-        surf_dir = h["winddirection_10m"][hour]
+        # Use 1000hPa as surface anchor (matches Schulze/Open-Meteo convention)
+        # windspeed_10m is too close to ground and unrepresentative for skydiving
+        surf_speed = h["windspeed_1000hPa"][hour]
+        surf_dir   = h["winddirection_1000hPa"][hour]
         base = [(0, surf_speed, surf_dir)] + pressure_levels
 
         result = {}
@@ -219,6 +220,12 @@ def surface_drift(wind_speed_kts, wind_dir):
 # API
 # =====================================================
 
+@app.route("/clearcache")
+def clearcache():
+    _forecast_cache.clear()
+    return jsonify({"status": "cache cleared"})
+
+
 @app.route("/data")
 def data():
     lat = request.args.get("lat", type=float)
@@ -255,7 +262,7 @@ def data():
             "direction": canopy_dir,
             "glide_radius": canopy_data(canopy_speed, canopy_dir)[0],
             "wind_drift": canopy_data(canopy_speed, canopy_dir)[1],
-            "wind_dir": (canopy_dir + 180) % 360,
+            "wind_dir": canopy_dir,
         },
         "freefall": {
             "speed": free_speed,
@@ -844,7 +851,7 @@ select:focus { border-color: var(--accent); }
                 <button id="drawBtn" onclick="toggleDrawMode()">✏️ Draw Jump Run</button>
                 <button id="replayBtn" onclick="startPlaneAnimation()" style="display:none">▶ Replay</button>
                 <button id="clearBtn" onclick="clearJumpRun()" style="display:none">✕ Clear</button>
-                <div id="sepRow" style="display:none;margin-top:8px">
+                <div id="sepRow" style="margin-top:8px">
                     <label style="margin-bottom:3px">Jumper Separation</label>
                     <select id="sepSelect">
                         <option value="8">8 sec</option>
@@ -973,7 +980,6 @@ function drawJumpRun(){
 
     document.getElementById("replayBtn").style.display = "block";
     document.getElementById("clearBtn").style.display = "block";
-    document.getElementById("sepRow").style.display = "block";
 }
 
 function makeArrowhead(tip, hdg){
@@ -1030,7 +1036,10 @@ function stopPlane(){
     if (planeMarker) { planeMarker.remove(); planeMarker = null; }
     jumperTimers.forEach(t => clearTimeout(t));
     jumperTimers = [];
-    jumperMarkers.forEach(m => m.remove());
+    jumperMarkers.forEach(m => {
+        if (m._animActive) m._animActive = () => false;
+        m.remove();
+    });
     jumperMarkers = [];
 }
 
@@ -1072,8 +1081,11 @@ function startPlaneAnimation(){
 
             const animDuration = 8000;
             const jStart = performance.now();
+            let animActive = true;
+            jumper._animActive = () => animActive;
 
             function driftAnimate(now){
+                if (!animActive) return;
                 const jt = Math.min((now - jStart) / animDuration, 1);
                 jumper.setLatLng([
                     exitLat + (landLat - exitLat) * jt,
@@ -1082,6 +1094,7 @@ function startPlaneAnimation(){
                 if (jt < 1){
                     requestAnimationFrame(driftAnimate);
                 } else {
+                    if (!animActive) return;
                     const landingCircle = L.circle([landLat, landLon], {
                         radius: 152.4,
                         color: '#ff4f4f',
@@ -1144,7 +1157,6 @@ function clearJumpRun(){
     document.getElementById("jumpRunInfo").style.display = "none";
     document.getElementById("replayBtn").style.display   = "none";
     document.getElementById("clearBtn").style.display    = "none";
-    document.getElementById("sepRow").style.display      = "none";
 }
 
 function toggleDrawMode(){
@@ -1245,7 +1257,12 @@ async function load(){
         updateHandleSummary(d.canopy.speed, d.canopy.direction,
             document.getElementById("timeLabel").innerText);
 
-        function arrow(dir){ return ["↑","↗","→","↘","↓","↙","←","↖","↑"][Math.round(((dir + 180) % 360) / 45)]; }
+        function arrow(dir, color='var(--text)'){
+            const blowTo = (dir + 180) % 360;
+            return `<svg width="18" height="18" viewBox="0 0 16 16" style="display:inline-block;vertical-align:middle;transform:rotate(${blowTo}deg)">
+                <polygon points="8,1 11,13 8,11 5,13" fill="${color}"/>
+            </svg>`;
+        }
 
         document.getElementById("canopyBlock").innerHTML =
             `<div class="sc-label">Canopy &nbsp;•&nbsp; SFC – 3 000 ft</div>
@@ -1253,7 +1270,7 @@ async function load(){
                 <div><span>SPD</span>${d.canopy.speed.toFixed(1)} kt</div>
                 <div><span>DIR</span>${d.canopy.direction.toFixed(0)}°</div>
                 <div><span>RADIUS</span>${(d.canopy.glide_radius / 1609.344).toFixed(2)} mi</div>
-                <div style="font-size:1.2rem">${arrow(d.canopy.direction)}</div>
+                <div>${arrow(d.canopy.direction, 'var(--canopy)')}</div>
             </div>`;
 
         const ffFromDir = (d.freefall.direction + 180) % 360;
@@ -1263,7 +1280,7 @@ async function load(){
                 <div><span>SPD</span>${d.freefall.speed.toFixed(1)} kt</div>
                 <div><span>DIR</span>${ffFromDir.toFixed(0)}°</div>
                 <div><span>DRIFT</span>${(d.freefall.distance / 1609.344).toFixed(2)} mi</div>
-                <div style="font-size:1.2rem">${arrow(ffFromDir)}</div>
+                <div>${arrow(ffFromDir, 'var(--freefall)')}</div>
             </div>`;
 
         let html = '';
@@ -1278,12 +1295,16 @@ async function load(){
                 html += `<div class="alt-section-title upper">Upper Winds</div>`;
                 lastGroup = 'high';
             }
-            const arrow2 = ["↑","↗","→","↘","↓","↙","←","↖","↑"][Math.floor(((w.direction + 180) % 360) / 45)];
+            const blowTo = (w.direction + 180) % 360;
             const cls = colorClass(w.speed);
+            const clsColor = cls === 'dot-green' ? 'var(--green)' : cls === 'dot-orange' ? 'var(--orange)' : 'var(--red)';
+            const svgArrow = `<svg width="16" height="16" viewBox="0 0 16 16" style="display:inline-block;vertical-align:middle;transform:rotate(${blowTo}deg)">
+                <polygon points="8,1 11,13 8,11 5,13" fill="${clsColor}"/>
+            </svg>`;
             const altLabel = a === 0 ? 'SFC' : `${a.toLocaleString()} ft`;
             html += `<div class="wind-card ${group === 'high' ? 'upper' : ''}">
                 <span class="alt">${altLabel}</span>
-                <span class="arrow ${cls}">${arrow2}</span>
+                <span class="arrow">${svgArrow}</span>
                 <span class="speed ${cls}">${w.speed.toFixed(1)} kt</span>
                 <span class="dir">${w.direction.toFixed(0)}°</span>
             </div>`;
@@ -1346,7 +1367,6 @@ function initDZ(){
         document.getElementById("jumpRunInfo").style.display = "none";
         document.getElementById("replayBtn").style.display  = "none";
         document.getElementById("clearBtn").style.display   = "none";
-        document.getElementById("sepRow").style.display     = "none";
         firstLoad = true;
         load();
     };
@@ -1363,7 +1383,6 @@ function initDZ(){
         document.getElementById("jumpRunInfo").style.display = "none";
         document.getElementById("replayBtn").style.display  = "none";
         document.getElementById("clearBtn").style.display   = "none";
-        document.getElementById("sepRow").style.display     = "none";
         clearTimeout(loadTimeout);
         loadTimeout = setTimeout(load, 3400);
     };
@@ -1382,6 +1401,12 @@ initDZ();
 @app.route("/")
 def index():
     return render_template_string(HTML, dz=DROPZONES)
+
+
+@app.route("/clearcache")
+def clearcache():
+    _forecast_cache.clear()
+    return jsonify({"status": "cache cleared"})
 
 
 if __name__ == "__main__":

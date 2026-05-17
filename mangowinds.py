@@ -54,10 +54,11 @@ def fetch_forecast(lat, lon):
         "latitude": lat,
         "longitude": lon,
         "hourly": [
-            "windspeed_1000hPa", "winddirection_1000hPa",
-            "windspeed_925hPa", "winddirection_925hPa",
-            "windspeed_850hPa", "winddirection_850hPa",
-            "windspeed_700hPa", "winddirection_700hPa",
+            "windspeed_10m",     "winddirection_10m",
+            "windspeed_925hPa",  "winddirection_925hPa",
+            "windspeed_850hPa",  "winddirection_850hPa",
+            "windspeed_700hPa",  "winddirection_700hPa",
+            "windspeed_600hPa",  "winddirection_600hPa",
         ],
         "forecast_days": 3,
         "timezone": "auto",
@@ -127,17 +128,17 @@ def format_winds(data, hour):
         h = data["hourly"]
         print(f"format_winds: hour={hour}, total={len(h.get('time',[]))}")
 
+        # Pressure levels MSL; 925hPa used as surface anchor separately
         pressure_levels = [
-            (364,   h["windspeed_1000hPa"][hour], h["winddirection_1000hPa"][hour]),
             (2500,  h["windspeed_925hPa"][hour],  h["winddirection_925hPa"][hour]),
             (4800,  h["windspeed_850hPa"][hour],  h["winddirection_850hPa"][hour]),
             (9843,  h["windspeed_700hPa"][hour],  h["winddirection_700hPa"][hour]),
+            (14764, h["windspeed_600hPa"][hour],  h["winddirection_600hPa"][hour]),
         ]
 
-        # Use 1000hPa as surface anchor (matches Schulze/Open-Meteo convention)
-        # windspeed_10m is too close to ground and unrepresentative for skydiving
-        surf_speed = h["windspeed_1000hPa"][hour]
-        surf_dir   = h["winddirection_1000hPa"][hour]
+        # Use 925hPa as surface anchor — 1000hPa is often below ground at elevated DZs
+        surf_speed = h["windspeed_925hPa"][hour]
+        surf_dir   = h["winddirection_925hPa"][hour]
         base = [(0, surf_speed, surf_dir)] + pressure_levels
 
         result = {}

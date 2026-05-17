@@ -1289,24 +1289,56 @@ async function load(){
 
         marker = L.marker([lat, lon]).addTo(map);
 
-        const glideR = d.canopy.glide_radius;
-        const wRad = d.canopy.wind_dir * Math.PI / 180;
-        const wDrift = d.canopy.wind_drift;
-        const cosLat = Math.cos(lat * Math.PI / 180);
-        const driftLat = Math.cos(wRad) * wDrift / 111000;
-        const driftLon = Math.sin(wRad) * wDrift / (111000 * cosLat);
-        const shiftedCenter = [lat + driftLat, lon + driftLon];
+        const glideR  = d.canopy.glide_radius;   // metres — no-wind reach
+        const windSpd = d.canopy.speed * 0.514444; // m/s canopy layer wind
+        const windDir = d.canopy.wind_dir;          // met FROM direction (degrees)
+        const descentTime = 120;                    // seconds under canopy
+        const canopyAirspeed = 22 * 0.514444;       // m/s
 
         if (firstLoad){ fitToCanopy(glideR); firstLoad = false; }
 
+        // ── DASHED CIRCLE: pure 2:1 glide, no wind ──
         canopyCircle = L.circle([lat, lon], {
             radius: glideR, color: '#39ff89', weight: 2,
             opacity: 0.4, fill: false, dashArray: '6,5'
         }).addTo(map);
 
-        canopyCircleShifted = L.circle(shiftedCenter, {
-            radius: glideR, color: '#39ff89', weight: 3,
-            opacity: 0.85, fill: true, fillColor: '#39ff89', fillOpacity: 0.06
+        // ── SOLID SHAPE: wind-adjusted reachability polygon ──
+        // For each bearing θ (0-359°), calculate how far the canopy
+        // can reach in that direction given the wind vector.
+        //
+        // Canopy flies heading θ at airspeed Va into a wind vector W.
+        // Ground velocity in direction θ = Va + W·cos(θ - windFrom + 180)
+        // (wind FROM direction means it pushes canopy in windFrom+180 direction)
+        // Reach in direction θ = groundspeed × descentTime
+        //
+        const cosLatC = Math.cos(lat * Math.PI / 180);
+        const wFromRad = windDir * Math.PI / 180;  // wind FROM direction
+        const wVx = -windSpd * Math.sin(wFromRad); // wind vector east component
+        const wVy = -windSpd * Math.cos(wFromRad); // wind vector north component
+
+        const polyPoints = [];
+        const steps = 72; // every 5 degrees
+        for (let i = 0; i < steps; i++) {
+            const theta = (i / steps) * 2 * Math.PI; // bearing in radians
+            // Unit vector in direction theta (north=0, east=90)
+            const ux = Math.sin(theta);
+            const uy = Math.cos(theta);
+            // Ground speed component in direction theta
+            // = canopy airspeed + wind tailwind component
+            const groundSpd = canopyAirspeed + (wVx * ux + wVy * uy);
+            // Reach = groundspeed × time (floor at 10% of glideR to avoid inversion)
+            const reach = Math.max(groundSpd * descentTime, glideR * 0.1);
+            // Convert reach (metres) to lat/lon offset
+            const pLat = lat + (uy * reach) / 111000;
+            const pLon = lon + (ux * reach) / (111000 * cosLatC);
+            polyPoints.push([pLat, pLon]);
+        }
+        polyPoints.push(polyPoints[0]); // close polygon
+
+        canopyCircleShifted = L.polygon(polyPoints, {
+            color: '#39ff89', weight: 3, opacity: 0.85,
+            fill: true, fillColor: '#39ff89', fillOpacity: 0.08
         }).addTo(map);
 
         lastFreefall = { distance: d.freefall.distance, direction: d.freefall.direction };

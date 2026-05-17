@@ -136,9 +136,9 @@ def format_winds(data, hour):
             (14764, h["windspeed_600hPa"][hour],  h["winddirection_600hPa"][hour]),
         ]
 
-        # Use 925hPa as surface anchor — 1000hPa is often below ground at elevated DZs
-        surf_speed = h["windspeed_925hPa"][hour]
-        surf_dir   = h["winddirection_925hPa"][hour]
+        # True surface from 10m wind; pressure levels at their correct MSL altitudes
+        surf_speed = h["windspeed_10m"][hour]
+        surf_dir   = h["winddirection_10m"][hour]
         base = [(0, surf_speed, surf_dir)] + pressure_levels
 
         result = {}

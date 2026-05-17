@@ -65,6 +65,16 @@ def fetch_forecast(lat, lon):
             "windspeed_700hPa",  "winddirection_700hPa",
             "windspeed_600hPa",  "winddirection_600hPa",
             "windspeed_500hPa",  "winddirection_500hPa",
+            "geopotential_height_1000hPa",
+            "geopotential_height_975hPa",
+            "geopotential_height_950hPa",
+            "geopotential_height_925hPa",
+            "geopotential_height_900hPa",
+            "geopotential_height_850hPa",
+            "geopotential_height_800hPa",
+            "geopotential_height_700hPa",
+            "geopotential_height_600hPa",
+            "geopotential_height_500hPa",
         ],
         "forecast_days": 3,
         "timezone": "auto",
@@ -137,20 +147,25 @@ def format_winds(data, hour):
 
         # Pressure level altitudes MSL (standard atmosphere)
         # Match Schulze's raw data levels exactly
-        pressure_levels = [
-            (364,   h["windspeed_1000hPa"][hour], h["winddirection_1000hPa"][hour]),
-            (820,   h["windspeed_975hPa"][hour],  h["winddirection_975hPa"][hour]),
-            (1555,  h["windspeed_950hPa"][hour],  h["winddirection_950hPa"][hour]),
-            (2500,  h["windspeed_925hPa"][hour],  h["winddirection_925hPa"][hour]),
-            (3281,  h["windspeed_900hPa"][hour],  h["winddirection_900hPa"][hour]),
-            (4780,  h["windspeed_850hPa"][hour],  h["winddirection_850hPa"][hour]),
-            (6562,  h["windspeed_800hPa"][hour],  h["winddirection_800hPa"][hour]),
-            (9843,  h["windspeed_700hPa"][hour],  h["winddirection_700hPa"][hour]),
-            (14764, h["windspeed_600hPa"][hour],  h["winddirection_600hPa"][hour]),
-            (18289, h["windspeed_500hPa"][hour],  h["winddirection_500hPa"][hour]),
-        ]
+        # Use actual geopotential heights (metres→feet) from Open-Meteo
+        def gh(lvl):
+            return h[f"geopotential_height_{lvl}hPa"][hour] * 3.28084
 
-        # True surface from 10m wind (~33ft)
+        pressure_levels = [
+            (gh(1000), h["windspeed_1000hPa"][hour], h["winddirection_1000hPa"][hour]),
+            (gh(975),  h["windspeed_975hPa"][hour],  h["winddirection_975hPa"][hour]),
+            (gh(950),  h["windspeed_950hPa"][hour],  h["winddirection_950hPa"][hour]),
+            (gh(925),  h["windspeed_925hPa"][hour],  h["winddirection_925hPa"][hour]),
+            (gh(900),  h["windspeed_900hPa"][hour],  h["winddirection_900hPa"][hour]),
+            (gh(850),  h["windspeed_850hPa"][hour],  h["winddirection_850hPa"][hour]),
+            (gh(800),  h["windspeed_800hPa"][hour],  h["winddirection_800hPa"][hour]),
+            (gh(700),  h["windspeed_700hPa"][hour],  h["winddirection_700hPa"][hour]),
+            (gh(600),  h["windspeed_600hPa"][hour],  h["winddirection_600hPa"][hour]),
+            (gh(500),  h["windspeed_500hPa"][hour],  h["winddirection_500hPa"][hour]),
+        ]
+        print(f"Geopot heights (ft): {[int(p[0]) for p in pressure_levels[:5]]}")
+
+        # Surface: 10m wind at 33ft
         surf_speed = h["windspeed_10m"][hour]
         surf_dir   = h["winddirection_10m"][hour]
         base = [(33, surf_speed, surf_dir)] + pressure_levels

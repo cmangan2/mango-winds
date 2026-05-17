@@ -36,11 +36,36 @@ DROPZONES = load_dropzones()
 
 
 # =====================================================
-# 🌐 FORECAST — Open-Meteo (hourly pressure-level winds)
+# 🌐 FORECAST — Mark Schulze winds_openmeteo.php proxy
+# Falls back to Open-Meteo if unavailable
 # =====================================================
 
-def fetch_forecast(lat, lon):
-    key = (round(lat, 3), round(lon, 3))
+def fetch_schulze(lat, lon, hour_offset=0):
+    """Fetch winds from Schulze's parsed Open-Meteo endpoint."""
+    try:
+        url = "https://www.markschulze.net/winds/winds_openmeteo.php"
+        params = {
+            "lat": round(lat, 4),
+            "lon": round(lon, 4),
+            "hourOffset": hour_offset,
+            "referrer": "MangoWindHub"
+        }
+        headers = {"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"}
+        r = requests.get(url, timeout=15, params=params, headers=headers)
+        r.raise_for_status()
+        data = r.json()
+        if "direction" in data and "speed" in data:
+            print(f"Schulze fetch OK: validtime={data.get('validtime')}")
+            return {"source": "schulze", "data": data}
+        print(f"Schulze response missing fields: {list(data.keys())[:5]}")
+        return None
+    except Exception as e:
+        print(f"Schulze fetch error: {e}")
+        return None
+
+
+def fetch_forecast(lat, lon, hour_offset=0):
+    key = (round(lat, 3), round(lon, 3), hour_offset)
     now = datetime.now(timezone.utc)
 
     cached = _forecast_cache.get(key)
@@ -48,55 +73,41 @@ def fetch_forecast(lat, lon):
         print(f"Cache HIT for {key}")
         return cached["data"]
 
-    api_key = os.environ.get("OPENMETEO_API_KEY")
-    url = "https://customer-api.open-meteo.com/v1/forecast" if api_key else "https://api.open-meteo.com/v1/forecast"
-    params = {
-        "latitude": lat,
-        "longitude": lon,
-        "hourly": [
-            "windspeed_10m",     "winddirection_10m",
-            "windspeed_1000hPa", "winddirection_1000hPa",
-            "windspeed_975hPa",  "winddirection_975hPa",
-            "windspeed_950hPa",  "winddirection_950hPa",
-            "windspeed_925hPa",  "winddirection_925hPa",
-            "windspeed_900hPa",  "winddirection_900hPa",
-            "windspeed_850hPa",  "winddirection_850hPa",
-            "windspeed_800hPa",  "winddirection_800hPa",
-            "windspeed_700hPa",  "winddirection_700hPa",
-            "windspeed_600hPa",  "winddirection_600hPa",
-            "windspeed_500hPa",  "winddirection_500hPa",
-            "geopotential_height_1000hPa",
-            "geopotential_height_975hPa",
-            "geopotential_height_950hPa",
-            "geopotential_height_925hPa",
-            "geopotential_height_900hPa",
-            "geopotential_height_850hPa",
-            "geopotential_height_800hPa",
-            "geopotential_height_700hPa",
-            "geopotential_height_600hPa",
-            "geopotential_height_500hPa",
-        ],
-        "forecast_days": 3,
-        "timezone": "auto",
-        "wind_speed_unit": "kn",
-        "models": "best_match",
-    }
-    if api_key:
-        params["apikey"] = api_key
+    # Try Schulze first — his PHP already does the hard work
+    result = fetch_schulze(lat, lon, hour_offset)
+    if result:
+        _forecast_cache[key] = {"data": result, "expires": now + CACHE_TTL}
+        return result
 
-    headers = {"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"}
-
+    print("Schulze unavailable — falling back to Open-Meteo")
+    # Open-Meteo fallback
     try:
-        r = requests.get(url, timeout=15, params=params, headers=headers)
+        api_key = os.environ.get("OPENMETEO_API_KEY")
+        url = "https://customer-api.open-meteo.com/v1/forecast" if api_key else "https://api.open-meteo.com/v1/forecast"
+        params = {
+            "latitude": lat, "longitude": lon,
+            "hourly": [
+                "windspeed_10m", "winddirection_10m",
+                "windspeed_925hPa", "winddirection_925hPa",
+                "windspeed_850hPa", "winddirection_850hPa",
+                "windspeed_700hPa", "winddirection_700hPa",
+                "windspeed_600hPa", "winddirection_600hPa",
+            ],
+            "forecast_days": 3, "timezone": "auto", "wind_speed_unit": "kn",
+        }
+        if api_key:
+            params["apikey"] = api_key
+        r = requests.get(url, timeout=15, params=params,
+                         headers={"User-Agent": "MangoWindHub/1.0"})
         r.raise_for_status()
         data = r.json()
-        print(f"Forecast fetched OK for {key} — {len(data.get('hourly',{}).get('time',[]))} hours")
-        _forecast_cache[key] = {"data": data, "expires": now + CACHE_TTL}
-        return data
+        result = {"source": "openmeteo", "data": data}
+        _forecast_cache[key] = {"data": result, "expires": now + CACHE_TTL}
+        print(f"Open-Meteo fallback OK for {key}")
+        return result
     except Exception as e:
-        print(f"Forecast fetch ERROR: {e}")
+        print(f"Open-Meteo fallback error: {e}")
         if cached:
-            print("Returning stale cache")
             return cached["data"]
         return None
 
@@ -142,51 +153,57 @@ def format_winds(data, hour):
         print("format_winds: data is None")
         return {}
     try:
-        h = data["hourly"]
-        print(f"format_winds: hour={hour}, total={len(h.get('time',[]))}")
+        source = data.get("source", "openmeteo")
 
-        # Pressure level altitudes MSL (standard atmosphere)
-        # Match Schulze's raw data levels exactly
-        # Use actual geopotential heights (metres→feet) from Open-Meteo
-        def gh(lvl):
-            return h[f"geopotential_height_{lvl}hPa"][hour] * 3.28084
+        if source == "schulze":
+            # Schulze already interpolated every 1000ft — use directly
+            d = data["data"]
+            directions = d.get("direction", {})
+            speeds     = d.get("speed", {})
+            result = {}
+            for alt in [0] + list(range(1000, 15000, 1000)):
+                key = str(alt)
+                spd  = float(speeds.get(key, 0))
+                dirn = float(directions.get(key, 0))
+                result[alt] = {
+                    "speed":     round(spd, 1),
+                    "direction": round(dirn % 360, 0),
+                    "arrow":     wind_arrow(dirn),
+                    "color":     color(spd),
+                }
+            print(f"format_winds (schulze): {len(result)} levels")
+            return result
 
+        # Open-Meteo fallback
+        h = data["data"]["hourly"]
+        print(f"format_winds (openmeteo): hour={hour}")
         pressure_levels = [
-            (gh(1000), h["windspeed_1000hPa"][hour], h["winddirection_1000hPa"][hour]),
-            (gh(975),  h["windspeed_975hPa"][hour],  h["winddirection_975hPa"][hour]),
-            (gh(950),  h["windspeed_950hPa"][hour],  h["winddirection_950hPa"][hour]),
-            (gh(925),  h["windspeed_925hPa"][hour],  h["winddirection_925hPa"][hour]),
-            (gh(900),  h["windspeed_900hPa"][hour],  h["winddirection_900hPa"][hour]),
-            (gh(850),  h["windspeed_850hPa"][hour],  h["winddirection_850hPa"][hour]),
-            (gh(800),  h["windspeed_800hPa"][hour],  h["winddirection_800hPa"][hour]),
-            (gh(700),  h["windspeed_700hPa"][hour],  h["winddirection_700hPa"][hour]),
-            (gh(600),  h["windspeed_600hPa"][hour],  h["winddirection_600hPa"][hour]),
-            (gh(500),  h["windspeed_500hPa"][hour],  h["winddirection_500hPa"][hour]),
+            (2500,  h["windspeed_925hPa"][hour],  h["winddirection_925hPa"][hour]),
+            (4800,  h["windspeed_850hPa"][hour],  h["winddirection_850hPa"][hour]),
+            (9843,  h["windspeed_700hPa"][hour],  h["winddirection_700hPa"][hour]),
+            (14764, h["windspeed_600hPa"][hour],  h["winddirection_600hPa"][hour]),
         ]
-        print(f"Geopot heights (ft): {[int(p[0]) for p in pressure_levels[:5]]}")
-
-        # Surface: 10m wind at 33ft
         surf_speed = h["windspeed_10m"][hour]
         surf_dir   = h["winddirection_10m"][hour]
-        base = [(33, surf_speed, surf_dir)] + pressure_levels
-
+        base = [(0, surf_speed, surf_dir)] + pressure_levels
         result = {}
         result[0] = {
-            "speed": round(surf_speed, 1),
+            "speed":     round(surf_speed, 1),
             "direction": round(surf_dir % 360, 0),
-            "arrow": wind_arrow(surf_dir),
-            "color": color(surf_speed),
+            "arrow":     wind_arrow(surf_dir),
+            "color":     color(surf_speed),
         }
         for alt in range(1000, 15000, 1000):
             speed, direction = interpolate(base, alt)
             result[alt] = {
-                "speed": round(speed, 1),
+                "speed":     round(speed, 1),
                 "direction": round(direction % 360, 0),
-                "arrow": wind_arrow(direction),
-                "color": color(speed),
+                "arrow":     wind_arrow(direction),
+                "color":     color(speed),
             }
-        print(f"format_winds: OK, {len(result)} levels")
+        print(f"format_winds (openmeteo): {len(result)} levels")
         return result
+
     except Exception as e:
         import traceback
         print(f"format_winds ERROR: {e}")
@@ -265,7 +282,7 @@ def data():
     if lat is None or lon is None:
         return jsonify({"error": "lat and lon are required"}), 400
 
-    raw = fetch_forecast(lat, lon)
+    raw = fetch_forecast(lat, lon, hour)
     winds = format_winds(raw, hour)
 
     if not winds:
@@ -279,9 +296,15 @@ def data():
 
     time_label = ""
     try:
-        times = raw["hourly"]["time"]
-        if hour < len(times):
-            time_label = times[hour] + " (local)"
+        source = raw.get("source", "openmeteo") if raw else "openmeteo"
+        if source == "schulze":
+            vt = raw["data"].get("validtime", "")
+            if vt:
+                time_label = f"Valid at {vt}:00Z (local)"
+        else:
+            times = raw["data"]["hourly"]["time"]
+            if hour < len(times):
+                time_label = times[hour] + " (local)"
     except Exception:
         pass
 

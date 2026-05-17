@@ -1403,11 +1403,5 @@ def index():
     return render_template_string(HTML, dz=DROPZONES)
 
 
-@app.route("/clearcache")
-def clearcache():
-    _forecast_cache.clear()
-    return jsonify({"status": "cache cleared"})
-
-
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)

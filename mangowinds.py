@@ -1261,36 +1261,66 @@ function toggleDrawMode(){
 let dragLine  = null;
 let isDragging = false;
 
+// ── LATLNG HELPER (works for both mouse and touch events) ──
+function getLatLng(e){
+    if (e.latlng) return e.latlng;
+    // Touch event — convert container point to latlng
+    if (e.originalEvent && e.originalEvent.touches && e.originalEvent.touches.length > 0) {
+        const touch = e.originalEvent.touches[0];
+        const rect  = map.getContainer().getBoundingClientRect();
+        const pt    = L.point(touch.clientX - rect.left, touch.clientY - rect.top);
+        return map.containerPointToLatLng(pt);
+    }
+    if (e.originalEvent && e.originalEvent.changedTouches && e.originalEvent.changedTouches.length > 0) {
+        const touch = e.originalEvent.changedTouches[0];
+        const rect  = map.getContainer().getBoundingClientRect();
+        const pt    = L.point(touch.clientX - rect.left, touch.clientY - rect.top);
+        return map.containerPointToLatLng(pt);
+    }
+    return null;
+}
+
 function onMapMouseDown(e){
     if (!drawMode) return;
+    const ll = getLatLng(e);
+    if (!ll) return;
+    // Prevent map pan/zoom on touch
+    if (e.originalEvent) e.originalEvent.preventDefault();
     isDragging = true;
-    jrStart = [e.latlng.lat, e.latlng.lng];
+    jrStart = [ll.lat, ll.lng];
     if (jumpRunLine)  { jumpRunLine.forEach(l => l.remove());  jumpRunLine = null; }
     if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
     if (dragLine)     { dragLine.remove(); dragLine = null; }
     document.getElementById("jumpRunInfo").style.display = "none";
     map.dragging.disable();
+    map.touchZoom.disable();
 }
 
 function onMapMouseMove(e){
     if (!drawMode || !isDragging || !jrStart) return;
-    const cur = [e.latlng.lat, e.latlng.lng];
+    if (e.originalEvent) e.originalEvent.preventDefault();
+    const ll = getLatLng(e);
+    if (!ll) return;
     if (dragLine) dragLine.remove();
-    dragLine = L.polyline([jrStart, cur], {
+    dragLine = L.polyline([jrStart, [ll.lat, ll.lng]], {
         color: '#fff', weight: 3, opacity: 0.6, dashArray: '8,5'
     }).addTo(map);
 }
 
 function onMapMouseUp(e){
     if (!drawMode || !isDragging || !jrStart) return;
+    if (e.originalEvent) e.originalEvent.preventDefault();
     isDragging = false;
     map.dragging.enable();
+    map.touchZoom.enable();
     if (dragLine) { dragLine.remove(); dragLine = null; }
-    const endPt = [e.latlng.lat, e.latlng.lng];
+    const ll = getLatLng(e);
+    if (!ll) return;
+    const endPt = [ll.lat, ll.lng];
     const startPx = map.latLngToContainerPoint(L.latLng(jrStart));
     const endPx   = map.latLngToContainerPoint(L.latLng(endPt));
     const dist = Math.sqrt(Math.pow(startPx.x-endPx.x,2)+Math.pow(startPx.y-endPx.y,2));
-    if (dist < 20) { jrStart = null; return; }
+    if (dist < 15) { jrStart = null; return; }
     jrEnd = endPt;
     drawJumpRun();
     toggleDrawMode();

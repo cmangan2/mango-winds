@@ -834,7 +834,7 @@ select:focus { border-color: var(--accent); }
                 <div class="wc-icon" style="color:var(--canopy)">◉</div>
                 <div>
                     <div class="wc-title">Canopy Circles</div>
-                    <div class="wc-text">The <b>dashed circle</b> is your maximum glide distance in <b>zero wind</b>. The <b>solid circle</b> shifts upwind to show your <b>real wind-adjusted reach</b> — if you open in the circle you should make it back for a landing pattern!</div>
+                    <div class="wc-text">The <b>dashed circle</b> is your maximum canopy reach in <b>zero wind</b>. The <b>solid shape</b> shifts upwind to show your <b>real wind-adjusted reach</b> — we display max upwind reach and min downwind reach. If you open in the shape you should make it back for a landing pattern!</div>
                 </div>
             </div>
 

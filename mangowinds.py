@@ -1116,7 +1116,7 @@ function startPlaneAnimation(){
     const angleDiff = ((wDir - hdg + 180 + 360) % 360) - 180;
     const headwind = wSpd * Math.cos(angleDiff * Math.PI / 180);
     const gndSpeed = Math.max(airspeed - headwind, airspeed * 0.4);
-    const duration = (jrDist / gndSpeed) * 1000;
+    const duration = 10000;  // fixed 10 second animation
 
     const ffDist = lastFreefall.distance;
     const ffRad = lastFreefall.direction * Math.PI / 180;
@@ -1140,7 +1140,7 @@ function startPlaneAnimation(){
             }).addTo(map);
             jumperMarkers.push(jumper);
 
-            const animDuration = 8000;
+            const animDuration = 3000;  // 3 second drift
             const jStart = performance.now();
             const myGen = animGeneration;  // capture generation at spawn time
 

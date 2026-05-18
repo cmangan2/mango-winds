@@ -1261,31 +1261,14 @@ function toggleDrawMode(){
 let dragLine  = null;
 let isDragging = false;
 
-// ── LATLNG HELPER (works for both mouse and touch events) ──
-function getLatLng(e){
-    if (e.latlng) return e.latlng;
-    // Touch event — convert container point to latlng
-    if (e.originalEvent && e.originalEvent.touches && e.originalEvent.touches.length > 0) {
-        const touch = e.originalEvent.touches[0];
-        const rect  = map.getContainer().getBoundingClientRect();
-        const pt    = L.point(touch.clientX - rect.left, touch.clientY - rect.top);
-        return map.containerPointToLatLng(pt);
-    }
-    if (e.originalEvent && e.originalEvent.changedTouches && e.originalEvent.changedTouches.length > 0) {
-        const touch = e.originalEvent.changedTouches[0];
-        const rect  = map.getContainer().getBoundingClientRect();
-        const pt    = L.point(touch.clientX - rect.left, touch.clientY - rect.top);
-        return map.containerPointToLatLng(pt);
-    }
-    return null;
+// ── MOUSE HANDLERS ──
+function touchToLatLng(touch){
+    const rect = map.getContainer().getBoundingClientRect();
+    const pt   = L.point(touch.clientX - rect.left, touch.clientY - rect.top);
+    return map.containerPointToLatLng(pt);
 }
 
-function onMapMouseDown(e){
-    if (!drawMode) return;
-    const ll = getLatLng(e);
-    if (!ll) return;
-    // Prevent map pan/zoom on touch
-    if (e.originalEvent) e.originalEvent.preventDefault();
+function startDraw(ll){
     isDragging = true;
     jrStart = [ll.lat, ll.lng];
     if (jumpRunLine)  { jumpRunLine.forEach(l => l.remove());  jumpRunLine = null; }
@@ -1296,38 +1279,54 @@ function onMapMouseDown(e){
     map.touchZoom.disable();
 }
 
-function onMapMouseMove(e){
-    if (!drawMode || !isDragging || !jrStart) return;
-    if (e.originalEvent) e.originalEvent.preventDefault();
-    const ll = getLatLng(e);
-    if (!ll) return;
+function moveDraw(ll){
+    if (!isDragging || !jrStart) return;
     if (dragLine) dragLine.remove();
     dragLine = L.polyline([jrStart, [ll.lat, ll.lng]], {
         color: '#fff', weight: 3, opacity: 0.6, dashArray: '8,5'
     }).addTo(map);
 }
 
-function onMapMouseUp(e){
-    if (!drawMode || !isDragging || !jrStart) return;
-    if (e.originalEvent) e.originalEvent.preventDefault();
+function endDraw(ll){
+    if (!isDragging || !jrStart) return;
     isDragging = false;
     map.dragging.enable();
     map.touchZoom.enable();
     if (dragLine) { dragLine.remove(); dragLine = null; }
-    const ll = getLatLng(e);
-    if (!ll) return;
-    const endPt = [ll.lat, ll.lng];
+    const endPt   = [ll.lat, ll.lng];
     const startPx = map.latLngToContainerPoint(L.latLng(jrStart));
     const endPx   = map.latLngToContainerPoint(L.latLng(endPt));
-    const dist = Math.sqrt(Math.pow(startPx.x-endPx.x,2)+Math.pow(startPx.y-endPx.y,2));
+    const dist    = Math.sqrt(Math.pow(startPx.x-endPx.x,2)+Math.pow(startPx.y-endPx.y,2));
     if (dist < 15) { jrStart = null; return; }
     jrEnd = endPt;
     drawJumpRun();
     toggleDrawMode();
 }
 
-function onMapClick(e){
-    if (!drawMode || isDragging) return;
+// Mouse
+function onMapMouseDown(e){ if (!drawMode) return; startDraw(e.latlng); }
+function onMapMouseMove(e){ if (!drawMode) return; moveDraw(e.latlng); }
+function onMapMouseUp(e){   if (!drawMode) return; endDraw(e.latlng); }
+function onMapClick(e){     if (!drawMode || isDragging) return; }
+
+// Touch — attached directly to DOM to bypass Leaflet interception
+function onTouchStart(e){
+    if (!drawMode) return;
+    e.preventDefault();
+    const ll = touchToLatLng(e.touches[0]);
+    startDraw(ll);
+}
+function onTouchMove(e){
+    if (!drawMode || !isDragging) return;
+    e.preventDefault();
+    const ll = touchToLatLng(e.touches[0]);
+    moveDraw(ll);
+}
+function onTouchEnd(e){
+    if (!drawMode || !isDragging) return;
+    e.preventDefault();
+    const ll = touchToLatLng(e.changedTouches[0]);
+    endDraw(ll);
 }
 
 function fitToCanopy(glideR, polyPoints){
@@ -1573,13 +1572,16 @@ function initMap(){
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Tiles © Esri'
     }).addTo(map);
-    map.on('mousedown',  onMapMouseDown);
-    map.on('mousemove',  onMapMouseMove);
-    map.on('mouseup',    onMapMouseUp);
-    map.on('click',      onMapClick);
-    map.on('touchstart', onMapMouseDown);
-    map.on('touchmove',  onMapMouseMove);
-    map.on('touchend',   onMapMouseUp);
+    map.on('mousedown', onMapMouseDown);
+    map.on('mousemove', onMapMouseMove);
+    map.on('mouseup',   onMapMouseUp);
+    map.on('click',     onMapClick);
+
+    // Attach touch events directly to DOM container — Leaflet intercepts them otherwise
+    const mapEl = map.getContainer();
+    mapEl.addEventListener('touchstart', onTouchStart, { passive: false });
+    mapEl.addEventListener('touchmove',  onTouchMove,  { passive: false });
+    mapEl.addEventListener('touchend',   onTouchEnd,   { passive: false });
 }
 
 function initDZ(){

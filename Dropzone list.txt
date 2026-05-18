@@ -8,3 +8,4 @@ Skydive Pepperell (Pepperell, MA): 42.695420, -71.553076
 Jumptown (Orange, MA): 42.569102, -72.287524
 Skydive New England (Lebanon, ME): 43.371067, -70.924812
 Skydive Cross Keys (Monroe, NJ): 39.707255, -75.036002
+Skydive Danielson (Danielson, CT): 41.822770,-71.900823

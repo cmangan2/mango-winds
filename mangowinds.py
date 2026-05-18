@@ -1251,15 +1251,45 @@ function onMapClick(e){
     }
 }
 
-function fitToCanopy(radiusMeters){
-    const er = 6378137;
-    const pad = 1.15;
-    const dLat = (radiusMeters * pad / er) * (180 / Math.PI);
-    const dLon = dLat / Math.cos(lat * Math.PI / 180);
-    map.fitBounds(
-        [[lat - dLat, lon - dLon],[lat + dLat, lon + dLon]],
-        { animate: true }
-    );
+function fitToCanopy(glideR, polyPoints){
+    // Fit to whichever is larger: the dashed circle or the wind polygon
+    const er  = 6378137;
+    const pad = 1.18;
+
+    if (polyPoints && polyPoints.length > 1) {
+        // Use actual polygon bounds + dashed circle combined
+        let minLat =  90, maxLat = -90, minLon =  180, maxLon = -180;
+        // Include dashed circle extent
+        const dLat = (glideR / er) * (180 / Math.PI);
+        const dLon = dLat / Math.cos(lat * Math.PI / 180);
+        minLat = Math.min(minLat, lat - dLat);
+        maxLat = Math.max(maxLat, lat + dLat);
+        minLon = Math.min(minLon, lon - dLon);
+        maxLon = Math.max(maxLon, lon + dLon);
+        // Include polygon points
+        for (const [pLat, pLon] of polyPoints) {
+            minLat = Math.min(minLat, pLat);
+            maxLat = Math.max(maxLat, pLat);
+            minLon = Math.min(minLon, pLon);
+            maxLon = Math.max(maxLon, pLon);
+        }
+        // Add padding and center on DZ
+        const latPad = (maxLat - minLat) * (pad - 1);
+        const lonPad = (maxLon - minLon) * (pad - 1);
+        map.fitBounds(
+            [[minLat - latPad, minLon - lonPad],
+             [maxLat + latPad, maxLon + lonPad]],
+            { animate: true }
+        );
+    } else {
+        // Fallback to simple circle fit
+        const dLat = (glideR * pad / er) * (180 / Math.PI);
+        const dLon = dLat / Math.cos(lat * Math.PI / 180);
+        map.fitBounds(
+            [[lat - dLat, lon - dLon],[lat + dLat, lon + dLon]],
+            { animate: true }
+        );
+    }
 }
 
 function colorClass(s){
@@ -1294,8 +1324,6 @@ async function load(){
         const windDir = d.canopy.wind_dir;          // met FROM direction (degrees)
         const descentTime = 120;                    // seconds under canopy
         const canopyAirspeed = 22 * 0.514444;       // m/s
-
-        if (firstLoad){ fitToCanopy(glideR); firstLoad = false; }
 
         // ── DASHED CIRCLE: pure 2:1 glide, no wind ──
         canopyCircle = L.circle([lat, lon], {
@@ -1341,6 +1369,8 @@ async function load(){
             fill: true, fillColor: '#39ff89', fillOpacity: 0.08
         }).addTo(map);
 
+        if (firstLoad){ fitToCanopy(glideR, polyPoints); firstLoad = false; }
+
         lastFreefall = { distance: d.freefall.distance, direction: d.freefall.direction };
         lastWind14k = d.wind_14k;
         if (jrStart && jrEnd) drawFreefallParallel();
@@ -1358,12 +1388,44 @@ async function load(){
             </svg>`;
         }
 
+        // Max upwind reach = polygon point closest to wind-FROM direction
+        // Wind FROM direction = wind_dir; upwind means heading INTO the wind
+        const windFromRad = windDir * Math.PI / 180;
+        const upwindUx = Math.sin(windFromRad);
+        const upwindUy = Math.cos(windFromRad);
+        // Find the polygon point that is furthest in the upwind direction
+        let maxUpwind = 0;
+        for (let i = 0; i < polyPoints.length - 1; i++) {
+            const pLat = polyPoints[i][0];
+            const pLon = polyPoints[i][1];
+            const dLat = (pLat - lat) * 111000;
+            const dLon = (pLon - lon) * 111000 * cosLatC;
+            const proj = dLat * upwindUy + dLon * upwindUx;
+            if (proj > maxUpwind) maxUpwind = proj;
+        }
+        const upwindMi = maxUpwind / 1609.344;
+
+        // Min downwind reach = polygon point furthest in the downwind direction
+        const downwindUx = -upwindUx;
+        const downwindUy = -upwindUy;
+        let maxDownwind = 0;
+        for (let i = 0; i < polyPoints.length - 1; i++) {
+            const pLat = polyPoints[i][0];
+            const pLon = polyPoints[i][1];
+            const dLat = (pLat - lat) * 111000;
+            const dLon = (pLon - lon) * 111000 * cosLatC;
+            const proj = dLat * downwindUy + dLon * downwindUx;
+            if (proj > maxDownwind) maxDownwind = proj;
+        }
+        const downwindMi = maxDownwind / 1609.344;
+
         document.getElementById("canopyBlock").innerHTML =
             `<div class="sc-label">Canopy &nbsp;•&nbsp; SFC – 3 000 ft</div>
             <div class="sc-data">
                 <div><span>SPD</span>${d.canopy.speed.toFixed(1)} kt</div>
                 <div><span>DIR</span>${d.canopy.direction.toFixed(0)}°</div>
-                <div><span>RADIUS</span>${(d.canopy.glide_radius / 1609.344).toFixed(2)} mi</div>
+                <div><span>↑WIND</span>${upwindMi.toFixed(2)} mi</div>
+                <div><span>↓WIND</span>${downwindMi.toFixed(2)} mi</div>
                 <div>${arrow(d.canopy.direction, 'var(--canopy)')}</div>
             </div>`;
 

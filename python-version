@@ -1,0 +1,13 @@
+**"Port scan timeout reached, no open ports detected"** — gunicorn is starting but not binding to the port before Render's timeout. The gap between 8:54 AM and 9:08 AM (14 minutes!) means it's hanging somewhere during startup.
+
+The most likely cause: the app is making an outbound request **at startup** that hangs. Look at `load_dropzones()` — it reads a file which is fine. But `fetch_schulze` or anything network-related shouldn't run at import time...
+
+Actually the real issue is likely **Python 3.14 + gunicorn incompatibility** again. The `render.yaml` pins Python to 3.11 but Render may be ignoring it.
+
+Go to Render dashboard → your service → **Settings** → look for **Environment** or **Runtime** — is there a Python version field? Set it explicitly to `3.11.0` there.
+
+Also check: does your `render.yaml` still exist in GitHub? If you deleted it, Render falls back to Python 3.14. Let me update it to be more explicit:
+
+The `render.yaml` looks correct. The issue is Render may not be picking up the `PYTHON_VERSION` from `render.yaml` env vars — that's actually set via a special file. Add a `.python-version` file to your repo:
+
+Add `.python-version` to your GitHub repo with just `3.11.0` in it. This is the file Render actually reads to pin the Python version — the env var approach in `render.yaml` is less reliable. Once it deploys on Python 3.11 the port binding issue should go away.

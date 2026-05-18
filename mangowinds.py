@@ -73,14 +73,12 @@ def fetch_forecast(lat, lon, hour_offset=0):
         print(f"Cache HIT for {key}")
         return cached["data"]
 
-    # Try Schulze first — his PHP already does the hard work
     result = fetch_schulze(lat, lon, hour_offset)
     if result:
         _forecast_cache[key] = {"data": result, "expires": now + CACHE_TTL}
         return result
 
     print("Schulze unavailable — falling back to Open-Meteo")
-    # Open-Meteo fallback
     try:
         api_key = os.environ.get("OPENMETEO_API_KEY")
         url = "https://customer-api.open-meteo.com/v1/forecast" if api_key else "https://api.open-meteo.com/v1/forecast"
@@ -127,7 +125,6 @@ def color(s):
 
 
 def interpolate(base, alt):
-    """Linear interpolation between bracketing pressure levels."""
     if alt <= base[0][0]:
         return base[0][1], base[0][2]
     if alt >= base[-1][0]:
@@ -148,7 +145,6 @@ def interpolate(base, alt):
 
 
 def format_winds(data, hour):
-    """Returns {altitude_ft: wind_info} for 0-14000 ft."""
     if not data:
         print("format_winds: data is None")
         return {}
@@ -156,36 +152,41 @@ def format_winds(data, hour):
         source = data.get("source", "openmeteo")
 
         if source == "schulze":
-            # Schulze already interpolated every 1000ft — use directly
             d = data["data"]
             directions = d.get("direction", {})
             speeds     = d.get("speed", {})
+            temps      = d.get("temp", {})  # °C at every 1000ft
             result = {}
             for alt in [0] + list(range(1000, 15000, 1000)):
                 key = str(alt)
                 spd  = float(speeds.get(key, 0))
                 dirn = float(directions.get(key, 0))
+                tc   = temps.get(key)
+                tf   = round(tc * 9/5 + 32) if tc is not None else None
                 result[alt] = {
                     "speed":     round(spd, 1),
                     "direction": round(dirn % 360, 0),
                     "arrow":     wind_arrow(dirn),
                     "color":     color(spd),
+                    "temp_f":    tf,
                 }
-            # Override SFC with Schulze's ground observation (METAR-based)
+            # Override SFC with Schulze's ground observation
             gspd = float(d.get("groundSpd", speeds.get("0", 0)))
             gdir = float(d.get("groundDir", directions.get("0", 0)))
+            gt   = d.get("groundTemp")
+            gtf  = round(gt * 9/5 + 32) if gt is not None else None
             result[0] = {
                 "speed":     round(gspd, 1),
                 "direction": round(gdir % 360, 0),
                 "arrow":     wind_arrow(gdir),
                 "color":     color(gspd),
+                "temp_f":    gtf,
             }
-            print(f"format_winds (schulze): {len(result)} levels, ground={gspd}kt/{gdir}°")
+            print(f"format_winds (schulze): {len(result)} levels")
             return result
 
-        # Open-Meteo fallback
+        # Open-Meteo fallback — no temp data available
         h = data["data"]["hourly"]
-        print(f"format_winds (openmeteo): hour={hour}")
         pressure_levels = [
             (2500,  h["windspeed_925hPa"][hour],  h["winddirection_925hPa"][hour]),
             (4800,  h["windspeed_850hPa"][hour],  h["winddirection_850hPa"][hour]),
@@ -201,6 +202,7 @@ def format_winds(data, hour):
             "direction": round(surf_dir % 360, 0),
             "arrow":     wind_arrow(surf_dir),
             "color":     color(surf_speed),
+            "temp_f":    None,
         }
         for alt in range(1000, 15000, 1000):
             speed, direction = interpolate(base, alt)
@@ -209,8 +211,8 @@ def format_winds(data, hour):
                 "direction": round(direction % 360, 0),
                 "arrow":     wind_arrow(direction),
                 "color":     color(speed),
+                "temp_f":    None,
             }
-        print(f"format_winds (openmeteo): {len(result)} levels")
         return result
 
     except Exception as e:
@@ -228,7 +230,6 @@ def avg_wind_display(winds, low, high):
     speeds = []
     sin_sum = 0.0
     cos_sum = 0.0
-
     for alt in sorted(winds.keys()):
         if low <= alt < high:
             w = winds[alt]
@@ -236,13 +237,10 @@ def avg_wind_display(winds, low, high):
             r = math.radians(w["direction"])
             sin_sum += math.sin(r)
             cos_sum += math.cos(r)
-
     if not speeds:
         return 0, 0
-
     avg_speed = sum(speeds) / len(speeds)
     avg_dir = math.degrees(math.atan2(sin_sum, cos_sum)) % 360
-
     return avg_speed, avg_dir
 
 
@@ -295,8 +293,8 @@ def data():
     winds = format_winds(raw, hour)
 
     if not winds:
-        print(f"ERROR: winds empty for lat={lat} lon={lon} hour={hour}, raw={raw is not None}")
-        resp = jsonify({"error": "Could not fetch forecast — Open-Meteo may be rate limiting. Try again in 60 seconds."})
+        print(f"ERROR: winds empty for lat={lat} lon={lon} hour={hour}")
+        resp = jsonify({"error": "Could not fetch forecast. Try again in 60 seconds."})
         resp.headers["Cache-Control"] = "no-store"
         return resp, 503
 
@@ -615,9 +613,9 @@ select:focus { border-color: var(--accent); }
 
 .wind-card {
     display: grid;
-    grid-template-columns: 56px 1fr auto auto;
+    grid-template-columns: 56px 1fr auto auto auto;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     padding: 6px 10px;
     margin: 2px 0;
     border-radius: 6px;
@@ -635,6 +633,7 @@ select:focus { border-color: var(--accent); }
 .wind-card .arrow { font-size: 1rem; }
 .wind-card .speed { text-align: right; font-weight: bold; }
 .wind-card .dir { color: var(--muted); font-size: 0.72rem; text-align: right; }
+.wind-card .temp { color: var(--muted); font-size: 0.68rem; text-align: right; }
 
 .dot-green { color: var(--green); }
 .dot-orange { color: var(--orange); }
@@ -964,7 +963,7 @@ let lastFreefall = null;
 let lastWind14k = null;
 let planeMarker = null;
 let planeAnimId = null;
-let animGeneration = 0;     // incremented on stopPlane to cancel stale drift closures
+let animGeneration = 0;
 
 function renderTime(){
     const h = +document.getElementById("hour").value;
@@ -1095,7 +1094,7 @@ function parachuteIcon(){
 }
 
 function stopPlane(){
-    animGeneration++;   // invalidates all in-flight drift animations
+    animGeneration++;
     if (planeAnimId) { cancelAnimationFrame(planeAnimId); planeAnimId = null; }
     if (planeMarker) { planeMarker.remove(); planeMarker = null; }
     jumperTimers.forEach(t => clearTimeout(t));
@@ -1117,9 +1116,7 @@ function startPlaneAnimation(){
     const headwind = wSpd * Math.cos(angleDiff * Math.PI / 180);
     const gndSpeed = Math.max(airspeed - headwind, airspeed * 0.4);
 
-    // Realistic physics duration — used only for jumper spacing
     const realisticDuration = (jrDist / gndSpeed) * 1000;
-    // Everything scaled to fit in 10 seconds on screen
     const displayDuration   = 10000;
     const timeScale         = displayDuration / realisticDuration;
 
@@ -1128,7 +1125,6 @@ function startPlaneAnimation(){
 
     const sepSec = +(document.getElementById("sepSelect")?.value || 8);
 
-    // Compute realistic drop times, scale to display timeline
     const realisticDropTimes = [];
     for (let t = 2000; t < realisticDuration; t += sepSec * 1000)
         realisticDropTimes.push(t);
@@ -1136,7 +1132,6 @@ function startPlaneAnimation(){
 
     dropTimes.forEach((dropMs, idx) => {
         const tid = setTimeout(() => {
-            // Exit position based on realistic fraction along the run
             const frac = realisticDropTimes[idx] / realisticDuration;
             const exitLat = jrStart[0] + (jrEnd[0] - jrStart[0]) * frac;
             const exitLon = jrStart[1] + (jrEnd[1] - jrStart[1]) * frac;
@@ -1150,7 +1145,6 @@ function startPlaneAnimation(){
             }).addTo(map);
             jumperMarkers.push(jumper);
 
-            // Drift duration scaled — but capped between 1s and 4s
             const animDuration = Math.min(4000, Math.max(1000, 8000 * timeScale));
             const jStart = performance.now();
             const myGen = animGeneration;
@@ -1231,7 +1225,6 @@ function clearJumpRun(){
 }
 
 function clearAnimation(){
-    // Clear plane, jumpers and landing circles but leave jump run lines intact
     animGeneration++;
     if (planeAnimId) { cancelAnimationFrame(planeAnimId); planeAnimId = null; }
     if (planeMarker) { planeMarker.remove(); planeMarker = null; }
@@ -1248,7 +1241,7 @@ function toggleDrawMode(){
         btn.classList.add("active");
         btn.textContent = "✕ Cancel Draw";
         map.getContainer().style.cursor = "crosshair";
-        clearAnimation();  // clear plane/jumpers but keep lines
+        clearAnimation();
         jrStart = null; jrEnd = null;
     } else {
         btn.classList.remove("active");
@@ -1261,7 +1254,6 @@ function toggleDrawMode(){
 let dragLine  = null;
 let isDragging = false;
 
-// ── MOUSE HANDLERS ──
 function touchToLatLng(touch){
     const rect = map.getContainer().getBoundingClientRect();
     const pt   = L.point(touch.clientX - rect.left, touch.clientY - rect.top);
@@ -1303,13 +1295,11 @@ function endDraw(ll){
     toggleDrawMode();
 }
 
-// Mouse
 function onMapMouseDown(e){ if (!drawMode) return; startDraw(e.latlng); }
 function onMapMouseMove(e){ if (!drawMode) return; moveDraw(e.latlng); }
 function onMapMouseUp(e){   if (!drawMode) return; endDraw(e.latlng); }
 function onMapClick(e){     if (!drawMode || isDragging) return; }
 
-// Touch — attached directly to DOM to bypass Leaflet interception
 function onTouchStart(e){
     if (!drawMode) return;
     e.preventDefault();
@@ -1330,28 +1320,22 @@ function onTouchEnd(e){
 }
 
 function fitToCanopy(glideR, polyPoints){
-    // Fit to whichever is larger: the dashed circle or the wind polygon
     const er  = 6378137;
     const pad = 1.18;
-
     if (polyPoints && polyPoints.length > 1) {
-        // Use actual polygon bounds + dashed circle combined
         let minLat =  90, maxLat = -90, minLon =  180, maxLon = -180;
-        // Include dashed circle extent
         const dLat = (glideR / er) * (180 / Math.PI);
         const dLon = dLat / Math.cos(lat * Math.PI / 180);
         minLat = Math.min(minLat, lat - dLat);
         maxLat = Math.max(maxLat, lat + dLat);
         minLon = Math.min(minLon, lon - dLon);
         maxLon = Math.max(maxLon, lon + dLon);
-        // Include polygon points
         for (const [pLat, pLon] of polyPoints) {
             minLat = Math.min(minLat, pLat);
             maxLat = Math.max(maxLat, pLat);
             minLon = Math.min(minLon, pLon);
             maxLon = Math.max(maxLon, pLon);
         }
-        // Add padding and center on DZ
         const latPad = (maxLat - minLat) * (pad - 1);
         const lonPad = (maxLon - minLon) * (pad - 1);
         map.fitBounds(
@@ -1360,7 +1344,6 @@ function fitToCanopy(glideR, polyPoints){
             { animate: true }
         );
     } else {
-        // Fallback to simple circle fit
         const dLat = (glideR * pad / er) * (180 / Math.PI);
         const dLon = dLat / Math.cos(lat * Math.PI / 180);
         map.fitBounds(
@@ -1397,50 +1380,35 @@ async function load(){
 
         marker = L.marker([lat, lon]).addTo(map);
 
-        const glideR  = d.canopy.glide_radius;   // metres — no-wind reach
-        const windSpd = d.canopy.speed * 0.514444; // m/s canopy layer wind
-        const windDir = d.canopy.wind_dir;          // met FROM direction (degrees)
-        const descentTime = 120;                    // seconds under canopy
-        const canopyAirspeed = 22 * 0.514444;       // m/s
+        const glideR  = d.canopy.glide_radius;
+        const windSpd = d.canopy.speed * 0.514444;
+        const windDir = d.canopy.wind_dir;
+        const descentTime = 120;
+        const canopyAirspeed = 22 * 0.514444;
 
-        // ── DASHED CIRCLE: pure 2:1 glide, no wind ──
         canopyCircle = L.circle([lat, lon], {
             radius: glideR, color: '#39ff89', weight: 2,
             opacity: 0.4, fill: false, dashArray: '6,5'
         }).addTo(map);
 
-        // ── SOLID SHAPE: wind-adjusted reachability polygon ──
-        // For each bearing θ (0-359°), calculate how far the canopy
-        // can reach in that direction given the wind vector.
-        //
-        // Canopy flies heading θ at airspeed Va into a wind vector W.
-        // Ground velocity in direction θ = Va + W·cos(θ - windFrom + 180)
-        // (wind FROM direction means it pushes canopy in windFrom+180 direction)
-        // Reach in direction θ = groundspeed × descentTime
-        //
         const cosLatC = Math.cos(lat * Math.PI / 180);
-        const wFromRad = windDir * Math.PI / 180;  // wind FROM direction
-        const wVx = windSpd * Math.sin(wFromRad); // wind vector east component (FROM = blows opposite)
-        const wVy = windSpd * Math.cos(wFromRad); // wind vector north component
+        const wFromRad = windDir * Math.PI / 180;
+        const wVx = windSpd * Math.sin(wFromRad);
+        const wVy = windSpd * Math.cos(wFromRad);
 
         const polyPoints = [];
-        const steps = 72; // every 5 degrees
+        const steps = 72;
         for (let i = 0; i < steps; i++) {
-            const theta = (i / steps) * 2 * Math.PI; // bearing in radians
-            // Unit vector in direction theta (north=0, east=90)
+            const theta = (i / steps) * 2 * Math.PI;
             const ux = Math.sin(theta);
             const uy = Math.cos(theta);
-            // Ground speed component in direction theta
-            // = canopy airspeed + wind tailwind component
             const groundSpd = canopyAirspeed + (wVx * ux + wVy * uy);
-            // Reach = groundspeed × time (floor at 10% of glideR to avoid inversion)
             const reach = Math.max(groundSpd * descentTime, glideR * 0.1);
-            // Convert reach (metres) to lat/lon offset
             const pLat = lat + (uy * reach) / 111000;
             const pLon = lon + (ux * reach) / (111000 * cosLatC);
             polyPoints.push([pLat, pLon]);
         }
-        polyPoints.push(polyPoints[0]); // close polygon
+        polyPoints.push(polyPoints[0]);
 
         canopyCircleShifted = L.polygon(polyPoints, {
             color: '#39ff89', weight: 3, opacity: 0.85,
@@ -1466,12 +1434,9 @@ async function load(){
             </svg>`;
         }
 
-        // Max upwind reach = polygon point closest to wind-FROM direction
-        // Wind FROM direction = wind_dir; upwind means heading INTO the wind
         const windFromRad = windDir * Math.PI / 180;
         const upwindUx = Math.sin(windFromRad);
         const upwindUy = Math.cos(windFromRad);
-        // Find the polygon point that is furthest in the upwind direction
         let maxUpwind = 0;
         for (let i = 0; i < polyPoints.length - 1; i++) {
             const pLat = polyPoints[i][0];
@@ -1483,7 +1448,6 @@ async function load(){
         }
         const upwindMi = maxUpwind / 1609.344;
 
-        // Min downwind reach = polygon point furthest in the downwind direction
         const downwindUx = -upwindUx;
         const downwindUy = -upwindUy;
         let maxDownwind = 0;
@@ -1536,11 +1500,13 @@ async function load(){
                 <polygon points="8,1 11,13 8,11 5,13" fill="${clsColor}"/>
             </svg>`;
             const altLabel = a === 0 ? 'SFC' : `${a.toLocaleString()} ft`;
+            const tempStr = w.temp_f !== null && w.temp_f !== undefined ? `${w.temp_f}°F` : '';
             html += `<div class="wind-card ${group === 'high' ? 'upper' : ''}">
                 <span class="alt">${altLabel}</span>
                 <span class="arrow">${svgArrow}</span>
                 <span class="speed ${cls}">${w.speed.toFixed(1)} kt</span>
                 <span class="dir">${w.direction.toFixed(0)}°</span>
+                <span class="temp">${tempStr}</span>
             </div>`;
         }
         document.getElementById("cards").innerHTML = html;
@@ -1576,8 +1542,6 @@ function initMap(){
     map.on('mousemove', onMapMouseMove);
     map.on('mouseup',   onMapMouseUp);
     map.on('click',     onMapClick);
-
-    // Attach touch events directly to DOM container — Leaflet intercepts them otherwise
     const mapEl = map.getContainer();
     mapEl.addEventListener('touchstart', onTouchStart, { passive: false });
     mapEl.addEventListener('touchmove',  onTouchMove,  { passive: false });

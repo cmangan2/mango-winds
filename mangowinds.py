@@ -1028,7 +1028,7 @@ function drawFreefallParallel(){
 
 function drawJumpRun(){
     if (jumpRunLine) jumpRunLine.forEach(l => l.remove());
-    stopPlane();
+    clearAnimation();
 
     const jrLine = L.polyline([jrStart, jrEnd], {
         color: '#fff', weight: 3, opacity: 0.85, dashArray: '8,5'
@@ -1230,6 +1230,17 @@ function clearJumpRun(){
     document.getElementById("clearBtn").style.display    = "none";
 }
 
+function clearAnimation(){
+    // Clear plane, jumpers and landing circles but leave jump run lines intact
+    animGeneration++;
+    if (planeAnimId) { cancelAnimationFrame(planeAnimId); planeAnimId = null; }
+    if (planeMarker) { planeMarker.remove(); planeMarker = null; }
+    jumperTimers.forEach(t => clearTimeout(t));
+    jumperTimers = [];
+    jumperMarkers.forEach(m => m.remove());
+    jumperMarkers = [];
+}
+
 function toggleDrawMode(){
     drawMode = !drawMode;
     const btn = document.getElementById("drawBtn");
@@ -1237,6 +1248,7 @@ function toggleDrawMode(){
         btn.classList.add("active");
         btn.textContent = "✕ Cancel Draw";
         map.getContainer().style.cursor = "crosshair";
+        clearAnimation();  // clear plane/jumpers but keep lines
         jrStart = null; jrEnd = null;
     } else {
         btn.classList.remove("active");

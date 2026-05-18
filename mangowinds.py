@@ -1116,18 +1116,28 @@ function startPlaneAnimation(){
     const angleDiff = ((wDir - hdg + 180 + 360) % 360) - 180;
     const headwind = wSpd * Math.cos(angleDiff * Math.PI / 180);
     const gndSpeed = Math.max(airspeed - headwind, airspeed * 0.4);
-    const duration = 10000;  // fixed 10 second animation
+
+    // Realistic physics duration — used only for jumper spacing
+    const realisticDuration = (jrDist / gndSpeed) * 1000;
+    // Everything scaled to fit in 10 seconds on screen
+    const displayDuration   = 10000;
+    const timeScale         = displayDuration / realisticDuration;
 
     const ffDist = lastFreefall.distance;
     const ffRad = lastFreefall.direction * Math.PI / 180;
 
     const sepSec = +(document.getElementById("sepSelect")?.value || 8);
-    const dropTimes = [];
-    for (let t = 2000; t < duration; t += sepSec * 1000) dropTimes.push(t);
 
-    dropTimes.forEach(dropMs => {
+    // Compute realistic drop times, scale to display timeline
+    const realisticDropTimes = [];
+    for (let t = 2000; t < realisticDuration; t += sepSec * 1000)
+        realisticDropTimes.push(t);
+    const dropTimes = realisticDropTimes.map(t => t * timeScale);
+
+    dropTimes.forEach((dropMs, idx) => {
         const tid = setTimeout(() => {
-            const frac = dropMs / duration;
+            // Exit position based on realistic fraction along the run
+            const frac = realisticDropTimes[idx] / realisticDuration;
             const exitLat = jrStart[0] + (jrEnd[0] - jrStart[0]) * frac;
             const exitLon = jrStart[1] + (jrEnd[1] - jrStart[1]) * frac;
             const dlatFF = Math.cos(ffRad) * ffDist / 111000;
@@ -1140,12 +1150,13 @@ function startPlaneAnimation(){
             }).addTo(map);
             jumperMarkers.push(jumper);
 
-            const animDuration = 3000;  // 3 second drift
+            // Drift duration scaled — but capped between 1s and 4s
+            const animDuration = Math.min(4000, Math.max(1000, 8000 * timeScale));
             const jStart = performance.now();
-            const myGen = animGeneration;  // capture generation at spawn time
+            const myGen = animGeneration;
 
             function driftAnimate(now){
-                if (animGeneration !== myGen) return;  // stopPlane was called
+                if (animGeneration !== myGen) return;
                 const jt = Math.min((now - jStart) / animDuration, 1);
                 jumper.setLatLng([
                     exitLat + (landLat - exitLat) * jt,
@@ -1154,7 +1165,7 @@ function startPlaneAnimation(){
                 if (jt < 1){
                     requestAnimationFrame(driftAnimate);
                 } else {
-                    if (animGeneration !== myGen) return;  // cancelled mid-flight
+                    if (animGeneration !== myGen) return;
                     const landingCircle = L.circle([landLat, landLon], {
                         radius: 152.4,
                         color: '#ff4f4f',
@@ -1176,7 +1187,7 @@ function startPlaneAnimation(){
     const startTime = performance.now();
 
     function animate(now){
-        const t = Math.min((now - startTime) / duration, 1);
+        const t = Math.min((now - startTime) / displayDuration, 1);
         planeMarker.setLatLng([
             jrStart[0] + (jrEnd[0] - jrStart[0]) * t,
             jrStart[1] + (jrEnd[1] - jrStart[1]) * t

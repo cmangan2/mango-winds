@@ -842,7 +842,7 @@ select:focus { border-color: var(--accent); }
                 <div class="wc-icon" style="color:#fff">✏️</div>
                 <div>
                     <div class="wc-title">Draw Jump Run</div>
-                    <div class="wc-text">Click <b>Draw Jump Run</b>, then click two points on the map to draw the aircraft's flight path. An <b>orange parallel line</b> appears showing where jumpers will land after freefall drift. A <b>red plane</b> animates the run, dropping parachute symbols at your chosen separation interval.</div>
+                    <div class="wc-text">Click <b>Draw Jump Run</b>, then <b>click and drag</b> on the map to draw the aircraft's flight path. An <b>orange parallel line</b> appears showing where jumpers will land after freefall drift. A <b>red plane</b> animates the run, dropping parachute symbols at your chosen separation interval.</div>
                 </div>
             </div>
 
@@ -964,6 +964,7 @@ let lastFreefall = null;
 let lastWind14k = null;
 let planeMarker = null;
 let planeAnimId = null;
+let animGeneration = 0;     // incremented on stopPlane to cancel stale drift closures
 
 function renderTime(){
     const h = +document.getElementById("hour").value;
@@ -1094,14 +1095,12 @@ function parachuteIcon(){
 }
 
 function stopPlane(){
+    animGeneration++;   // invalidates all in-flight drift animations
     if (planeAnimId) { cancelAnimationFrame(planeAnimId); planeAnimId = null; }
     if (planeMarker) { planeMarker.remove(); planeMarker = null; }
     jumperTimers.forEach(t => clearTimeout(t));
     jumperTimers = [];
-    jumperMarkers.forEach(m => {
-        if (m._animActive) m._animActive = () => false;
-        m.remove();
-    });
+    jumperMarkers.forEach(m => m.remove());
     jumperMarkers = [];
 }
 
@@ -1143,11 +1142,10 @@ function startPlaneAnimation(){
 
             const animDuration = 8000;
             const jStart = performance.now();
-            let animActive = true;
-            jumper._animActive = () => animActive;
+            const myGen = animGeneration;  // capture generation at spawn time
 
             function driftAnimate(now){
-                if (!animActive) return;
+                if (animGeneration !== myGen) return;  // stopPlane was called
                 const jt = Math.min((now - jStart) / animDuration, 1);
                 jumper.setLatLng([
                     exitLat + (landLat - exitLat) * jt,
@@ -1156,7 +1154,7 @@ function startPlaneAnimation(){
                 if (jt < 1){
                     requestAnimationFrame(driftAnimate);
                 } else {
-                    if (!animActive) return;
+                    if (animGeneration !== myGen) return;  // cancelled mid-flight
                     const landingCircle = L.circle([landLat, landLon], {
                         radius: 152.4,
                         color: '#ff4f4f',
@@ -1236,19 +1234,47 @@ function toggleDrawMode(){
     }
 }
 
-function onMapClick(e){
+// ── MAP DRAG HANDLER ──
+let dragLine  = null;
+let isDragging = false;
+
+function onMapMouseDown(e){
     if (!drawMode) return;
-    const pt = [e.latlng.lat, e.latlng.lng];
-    if (!jrStart){
-        jrStart = pt;
-        if (jumpRunLine) { jumpRunLine.forEach(l => l.remove()); jumpRunLine = null; }
-        if (freefallLine){ freefallLine.forEach(l => l.remove()); freefallLine = null; }
-        document.getElementById("jumpRunInfo").style.display = "none";
-    } else {
-        jrEnd = pt;
-        drawJumpRun();
-        toggleDrawMode();
-    }
+    isDragging = true;
+    jrStart = [e.latlng.lat, e.latlng.lng];
+    if (jumpRunLine)  { jumpRunLine.forEach(l => l.remove());  jumpRunLine = null; }
+    if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
+    if (dragLine)     { dragLine.remove(); dragLine = null; }
+    document.getElementById("jumpRunInfo").style.display = "none";
+    map.dragging.disable();
+}
+
+function onMapMouseMove(e){
+    if (!drawMode || !isDragging || !jrStart) return;
+    const cur = [e.latlng.lat, e.latlng.lng];
+    if (dragLine) dragLine.remove();
+    dragLine = L.polyline([jrStart, cur], {
+        color: '#fff', weight: 3, opacity: 0.6, dashArray: '8,5'
+    }).addTo(map);
+}
+
+function onMapMouseUp(e){
+    if (!drawMode || !isDragging || !jrStart) return;
+    isDragging = false;
+    map.dragging.enable();
+    if (dragLine) { dragLine.remove(); dragLine = null; }
+    const endPt = [e.latlng.lat, e.latlng.lng];
+    const startPx = map.latLngToContainerPoint(L.latLng(jrStart));
+    const endPx   = map.latLngToContainerPoint(L.latLng(endPt));
+    const dist = Math.sqrt(Math.pow(startPx.x-endPx.x,2)+Math.pow(startPx.y-endPx.y,2));
+    if (dist < 20) { jrStart = null; return; }
+    jrEnd = endPt;
+    drawJumpRun();
+    toggleDrawMode();
+}
+
+function onMapClick(e){
+    if (!drawMode || isDragging) return;
 }
 
 function fitToCanopy(glideR, polyPoints){
@@ -1494,7 +1520,13 @@ function initMap(){
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Tiles © Esri'
     }).addTo(map);
-    map.on('click', onMapClick);
+    map.on('mousedown',  onMapMouseDown);
+    map.on('mousemove',  onMapMouseMove);
+    map.on('mouseup',    onMapMouseUp);
+    map.on('click',      onMapClick);
+    map.on('touchstart', onMapMouseDown);
+    map.on('touchmove',  onMapMouseMove);
+    map.on('touchend',   onMapMouseUp);
 }
 
 function initDZ(){
@@ -1540,7 +1572,7 @@ function initDZ(){
         document.getElementById("replayBtn").style.display  = "none";
         document.getElementById("clearBtn").style.display   = "none";
         clearTimeout(loadTimeout);
-        loadTimeout = setTimeout(load, 3400);
+        loadTimeout = setTimeout(load, 2000);
     };
 
     renderTime();

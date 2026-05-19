@@ -1,4 +1,5 @@
 from flask import Flask, render_template, jsonify, request
+import json
 import requests
 import math
 import re
@@ -12,6 +13,45 @@ app = Flask(__name__)
 # =====================================================
 _forecast_cache = {}
 CACHE_TTL = timedelta(minutes=60)
+CACHE_FILE = os.path.join(os.path.dirname(__file__), "winds_cache.json")
+
+
+def load_cache_from_disk():
+    """Load persisted cache from disk on startup."""
+    try:
+        if os.path.exists(CACHE_FILE):
+            with open(CACHE_FILE, "r") as f:
+                raw = json.load(f)
+            now = datetime.now(timezone.utc)
+            for k, v in raw.items():
+                expires = datetime.fromisoformat(v["expires"])
+                if expires > now:
+                    # Restore tuple key from string
+                    parts = k.split(",")
+                    key = (float(parts[0]), float(parts[1]))
+                    _forecast_cache[key] = {"data": v["data"], "expires": expires}
+            print(f"Loaded {len(_forecast_cache)} cache entries from disk")
+    except Exception as e:
+        print(f"Cache load error: {e}")
+
+
+def save_cache_to_disk():
+    """Persist current cache to disk."""
+    try:
+        serializable = {}
+        for k, v in _forecast_cache.items():
+            str_key = f"{k[0]},{k[1]}"
+            serializable[str_key] = {
+                "data": v["data"],
+                "expires": v["expires"].isoformat()
+            }
+        with open(CACHE_FILE, "w") as f:
+            json.dump(serializable, f)
+    except Exception as e:
+        print(f"Cache save error: {e}")
+
+
+load_cache_from_disk()
 
 # =====================================================
 # 🪂 DROPZONES
@@ -74,38 +114,48 @@ def fetch_forecast(lat, lon, hour_offset=0):
         print(f"Cache HIT for {dz_key}")
         return cached["data"]
 
-    result = fetch_schulze(lat, lon, hour_offset)
-    if result:
-        _forecast_cache[dz_key] = {"data": result, "expires": now + CACHE_TTL}
-        return result
+    # Use Schulze only for current conditions (hour=0) — accurate METAR surface wind
+    # For future hours use Open-Meteo directly to avoid hammering Schulze's server
+    if hour_offset == 0:
+        result = fetch_schulze(lat, lon, 0)
+        if result:
+            _forecast_cache[dz_key] = {"data": result, "expires": now + CACHE_TTL}
+            save_cache_to_disk()
+            return result
 
-    print("Schulze unavailable — falling back to Open-Meteo")
+    print("Using Open-Meteo (future hour or Schulze unavailable)")
     try:
         api_key = os.environ.get("OPENMETEO_API_KEY")
         url = "https://customer-api.open-meteo.com/v1/forecast" if api_key else "https://api.open-meteo.com/v1/forecast"
         params = {
             "latitude": lat, "longitude": lon,
             "hourly": [
-                "windspeed_10m", "winddirection_10m",
-                "windspeed_925hPa", "winddirection_925hPa",
-                "windspeed_850hPa", "winddirection_850hPa",
-                "windspeed_700hPa", "winddirection_700hPa",
-                "windspeed_600hPa", "winddirection_600hPa",
+                "windspeed_10m",     "winddirection_10m",
+                "windspeed_925hPa",  "winddirection_925hPa",
+                "windspeed_850hPa",  "winddirection_850hPa",
+                "windspeed_700hPa",  "winddirection_700hPa",
+                "windspeed_600hPa",  "winddirection_600hPa",
+                "windspeed_500hPa",  "winddirection_500hPa",
             ],
-            "forecast_days": 3, "timezone": "auto", "wind_speed_unit": "kn",
+            "forecast_days": 3,
+            "timezone": "auto",
+            "wind_speed_unit": "kn",
+            "models": "best_match",
         }
         if api_key:
             params["apikey"] = api_key
         r = requests.get(url, timeout=15, params=params,
-                         headers={"User-Agent": "MangoWindHub/1.0"})
+                         headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
         r.raise_for_status()
         data = r.json()
         result = {"source": "openmeteo", "data": data}
+        # Cache future-hour Open-Meteo data for 60 min
         _forecast_cache[dz_key] = {"data": result, "expires": now + CACHE_TTL}
-        print(f"Open-Meteo fallback OK for {dz_key}")
+        save_cache_to_disk()
+        print(f"Open-Meteo OK for {dz_key} hour={hour_offset}")
         return result
     except Exception as e:
-        print(f"Open-Meteo fallback error: {e}")
+        print(f"Open-Meteo error: {e}")
         if cached:
             return cached["data"]
         return None
@@ -193,6 +243,7 @@ def format_winds(data, hour):
             (4800,  h["windspeed_850hPa"][hour],  h["winddirection_850hPa"][hour]),
             (9843,  h["windspeed_700hPa"][hour],  h["winddirection_700hPa"][hour]),
             (14764, h["windspeed_600hPa"][hour],  h["winddirection_600hPa"][hour]),
+            (18289, h["windspeed_500hPa"][hour],  h["winddirection_500hPa"][hour]),
         ]
         surf_speed = h["windspeed_10m"][hour]
         surf_dir   = h["winddirection_10m"][hour]

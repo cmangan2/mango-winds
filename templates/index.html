@@ -1,0 +1,1539 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Mango Wind Hub</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+
+<style>
+:root {
+    --bg: #070b10;
+    --panel-bg: #0d1520;
+    --card-bg: #111d2b;
+    --card-alt: #0c1825;
+    --border: #1e3045;
+    --text: #c8daea;
+    --muted: #5a7a96;
+    --accent: #00d4ff;
+    --canopy: #39ff89;
+    --freefall: #ffaa00;
+    --surface: #ffd166;
+    --green: #39ff89;
+    --orange: #ffaa00;
+    --red: #ff4f4f;
+    --panel-w: 290px;
+    --drawer-h: 56px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: 'Barlow Condensed', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#wrap { display: flex; height: 100vh; height: 100dvh; }
+#map { flex: 1; min-width: 0; }
+
+#panel {
+    width: var(--panel-w);
+    background: var(--panel-bg);
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--border);
+    overflow: hidden;
+    transition: transform 0.3s ease;
+}
+
+@media (max-width: 599px) {
+    #wrap { flex-direction: column; position: relative; }
+    #map { position: absolute; inset: 0; z-index: 1; }
+    #panel {
+        position: absolute;
+        bottom: 0; left: 0; right: 0;
+        width: 100%;
+        max-height: 88dvh;
+        border-left: none;
+        border-top: 2px solid var(--border);
+        border-radius: 18px 18px 0 0;
+        z-index: 10;
+        transform: translateY(calc(100% - var(--drawer-h)));
+        transition: transform 0.35s cubic-bezier(.4,0,.2,1);
+        box-shadow: 0 -8px 32px rgba(0,0,0,0.6);
+    }
+    #panel.open { transform: translateY(0); }
+    #panel-handle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 16px 6px;
+        cursor: pointer;
+        flex-shrink: 0;
+        height: var(--drawer-h);
+        border-bottom: 1px solid var(--border);
+        user-select: none;
+    }
+    #panel-handle .handle-bar {
+        width: 36px; height: 4px;
+        background: var(--muted);
+        border-radius: 2px;
+        margin: 0 auto 4px;
+    }
+    #panel-handle .handle-title {
+        font-weight: 700;
+        font-size: 1rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+    }
+    #panel-handle .handle-summary {
+        font-family: 'Share Tech Mono', monospace;
+        font-size: 0.68rem;
+        color: var(--muted);
+    }
+    #panel-handle-inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+    }
+    #panel-header { display: none; }
+    #panel-body {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        flex: 1;
+    }
+    select { padding: 10px 12px; font-size: 1rem; }
+    #hour { height: 28px; }
+    #drawBtn, #replayBtn { padding: 12px 10px; font-size: 1.05rem; }
+    .wind-card { padding: 8px 10px; }
+    .summary-card { padding: 10px 14px; }
+    .sc-data { font-size: 0.85rem !important; gap: 10px !important; }
+}
+
+@media (min-width: 600px) {
+    #panel-handle { display: none; }
+    #panel-body { display: contents; }
+}
+
+#panel-header {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+#panel-header h1 {
+    font-weight: 700;
+    font-size: 1.35rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+#panel-header p {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 2px;
+}
+
+#controls {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+label {
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 4px;
+}
+
+select {
+    width: 100%;
+    background: var(--card-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.95rem;
+    outline: none;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235a7a96' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+}
+select:focus { border-color: var(--accent); }
+
+.time-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 10px;
+    margin-bottom: 4px;
+}
+.time-row label { margin: 0; }
+
+#timeLabel {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--accent);
+    white-space: nowrap;
+}
+
+#hour {
+    width: 100%;
+    accent-color: var(--accent);
+    cursor: pointer;
+    height: 6px;
+    border-radius: 3px;
+}
+
+#summaries {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.summary-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 12px;
+    position: relative;
+    overflow: hidden;
+}
+.summary-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+}
+.summary-card.canopy::before { background: var(--canopy); }
+.summary-card.freefall::before { background: var(--freefall); }
+.summary-card .sc-label {
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+.summary-card.canopy .sc-label { color: var(--canopy); }
+.summary-card.freefall .sc-label { color: var(--freefall); }
+.summary-card .sc-data {
+    display: flex;
+    gap: 16px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--text);
+    flex-wrap: wrap;
+}
+.summary-card .sc-data span { color: var(--muted); font-size: 0.7rem; margin-right: 2px; }
+
+#cards-wrap {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 14px 14px;
+    -webkit-overflow-scrolling: touch;
+}
+#cards-wrap::-webkit-scrollbar { width: 4px; }
+#cards-wrap::-webkit-scrollbar-track { background: transparent; }
+#cards-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.alt-section-title {
+    font-size: 0.64rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 10px 0 4px;
+}
+.alt-section-title.upper { color: var(--freefall); }
+.alt-section-title.lower { color: var(--canopy); }
+
+.wind-card {
+    display: grid;
+    grid-template-columns: 56px 1fr auto auto auto;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    margin: 2px 0;
+    border-radius: 6px;
+    background: var(--card-alt);
+    border: 1px solid transparent;
+    transition: border-color 0.15s;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.78rem;
+}
+.wind-card:hover { border-color: var(--border); }
+.wind-card.upper { background: rgba(255,170,0,0.06); }
+.wind-card.upper .alt { color: var(--freefall); opacity: 0.75; }
+.wind-card .alt { color: var(--muted); font-size: 0.7rem; }
+.wind-card:not(.upper) .alt { color: var(--canopy); opacity: 0.85; }
+.wind-card .arrow { font-size: 1rem; }
+.wind-card .speed { text-align: right; font-weight: bold; }
+.wind-card .dir { color: var(--muted); font-size: 0.72rem; text-align: right; }
+.wind-card .temp { color: var(--muted); font-size: 0.68rem; text-align: right; }
+
+.dot-green { color: var(--green); }
+.dot-orange { color: var(--orange); }
+.dot-red { color: var(--red); }
+
+#loader {
+    position: fixed;
+    inset: 0;
+    background: rgba(7,11,16,0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    backdrop-filter: blur(2px);
+    transition: opacity 0.3s;
+}
+#loader.hidden { opacity: 0; pointer-events: none; }
+.spinner {
+    width: 32px; height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+#welcomeModal {
+    position: fixed;
+    inset: 0;
+    background: rgba(7,11,16,0.88);
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+    padding: 16px;
+}
+#welcomeBox {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    max-width: 480px;
+    width: 100%;
+    max-height: 90dvh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    overflow: hidden;
+}
+#welcomeHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 700;
+    font-size: 1.1rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+    flex-shrink: 0;
+}
+#welcomeVersion {
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    font-weight: 400;
+}
+#welcomeBody {
+    overflow-y: auto;
+    padding: 14px 20px;
+    flex: 1;
+    -webkit-overflow-scrolling: touch;
+}
+.wc-section {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+}
+.wc-section:last-child { border-bottom: none; }
+.wc-icon {
+    font-size: 1.4rem;
+    flex-shrink: 0;
+    width: 28px;
+    text-align: center;
+    margin-top: 2px;
+}
+.wc-title {
+    font-weight: 700;
+    font-size: 0.85rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text);
+    margin-bottom: 4px;
+}
+.wc-text {
+    font-size: 0.82rem;
+    color: var(--muted);
+    line-height: 1.55;
+    font-family: 'Barlow Condensed', sans-serif;
+}
+.wc-text b { color: var(--text); font-weight: 600; }
+#welcomeClose {
+    margin: 14px 20px 16px;
+    padding: 12px;
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    border-radius: 8px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: opacity 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+#welcomeClose:hover { opacity: 0.85; }
+
+/* ── DEFINE MODAL ── */
+#defineModal {
+    position: fixed;
+    inset: 0;
+    background: rgba(7,11,16,0.88);
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+    padding: 16px;
+}
+#defineBox {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    max-width: 360px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    overflow: hidden;
+}
+#defineHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px 12px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+#defineCloseBtn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+#defineCloseBtn:hover { color: var(--text); }
+#defineBody { padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; }
+.df-row { display: flex; flex-direction: column; gap: 4px; }
+.df-label {
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.df-pair { display: flex; gap: 8px; }
+.df-input {
+    background: var(--card-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.9rem;
+    outline: none;
+    width: 100%;
+}
+.df-input:focus { border-color: var(--accent); }
+.df-short { width: 90px; flex-shrink: 0; }
+.df-select {
+    background: var(--card-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.9rem;
+    outline: none;
+    cursor: pointer;
+    flex: 1;
+    appearance: none;
+}
+.df-select:focus { border-color: var(--accent); }
+#dfSubmitBtn {
+    margin: 6px 18px 16px;
+    padding: 11px;
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    border-radius: 8px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+#dfSubmitBtn:hover { opacity: 0.85; }
+
+#helpBtn {
+    background: none;
+    border: 1px solid var(--muted);
+    color: var(--muted);
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: border-color 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    padding: 0;
+}
+#helpBtn:hover { border-color: var(--accent); color: var(--accent); }
+
+#defineBtn {
+    margin-top: 6px;
+    width: 100%;
+    padding: 7px 10px;
+    background: var(--card-bg);
+    color: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.95rem;
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    transition: background 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+#defineBtn:hover, #defineBtn:active { background: var(--border); color: var(--text); }
+
+#drawBtn {
+    margin-top: 10px;
+    width: 100%;
+    padding: 7px 10px;
+    background: var(--card-bg);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.95rem;
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    transition: background 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+#drawBtn:hover, #drawBtn:active { background: var(--accent); color: var(--bg); }
+#drawBtn.active { background: var(--accent); color: var(--bg); }
+
+#replayBtn {
+    margin-top: 6px;
+    width: 100%;
+    padding: 6px 10px;
+    background: var(--card-bg);
+    color: var(--freefall);
+    border: 1px solid var(--freefall);
+    border-radius: 6px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.95rem;
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    transition: background 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+#replayBtn:hover, #replayBtn:active { background: var(--freefall); color: var(--bg); }
+
+#clearBtn {
+    margin-top: 6px;
+    width: 100%;
+    padding: 6px 10px;
+    background: var(--card-bg);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.95rem;
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    transition: background 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+#clearBtn:hover, #clearBtn:active { background: var(--border); color: var(--text); }
+
+#jumpRunInfo {
+    margin-top: 6px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--muted);
+    line-height: 1.6;
+}
+</style>
+</head>
+
+<body>
+
+<!-- ── WELCOME MODAL ── -->
+<div id="welcomeModal">
+    <div id="welcomeBox">
+        <div id="welcomeHeader">
+            <span>🪂 Mango Wind Hub</span>
+            <span id="welcomeVersion">Quick Start Guide</span>
+        </div>
+        <div id="welcomeBody">
+
+            <div class="wc-section">
+                <div class="wc-icon" style="color:var(--canopy)">◉</div>
+                <div>
+                    <div class="wc-title">Canopy Circles</div>
+                    <div class="wc-text">The <b>dashed circle</b> is your maximum canopy reach in <b>zero wind</b>. The <b>solid shape</b> shifts upwind to show your <b>real wind-adjusted reach</b> — we display max upwind reach and min downwind reach. If you open in the shape you should make it back for a landing pattern!</div>
+                </div>
+            </div>
+
+            <div class="wc-section">
+                <div class="wc-icon" style="color:#fff">✏️</div>
+                <div>
+                    <div class="wc-title">Draw or Define Jump Run</div>
+                    <div class="wc-text">Click <b>Draw Jump Run</b>, then <b>click and drag</b> on the map to draw the aircraft's flight path — OR — <b>Define Jump Run</b> with direction, prior/past, offset and length. An <b>orange parallel line</b> appears showing approximate freefall drift. A <b>red plane</b> animates the run, dropping jumpers at your chosen separation interval.</div>
+                </div>
+            </div>
+
+            <div class="wc-section">
+                <div class="wc-icon" style="color:var(--red)">◎</div>
+                <div>
+                    <div class="wc-title">Jumper Breakoff Diameter</div>
+                    <div class="wc-text">When each jumper group opens, a <b>translucent red circle</b> (500 ft radius) appears, representing the <b>maximum tracking distance</b> a jumper can cover at breakoff.</div>
+                </div>
+            </div>
+
+            <div class="wc-section">
+                <div class="wc-icon" style="color:var(--accent)">⏱</div>
+                <div>
+                    <div class="wc-title">Forecast Scroll</div>
+                    <div class="wc-text">Use the <b>Forecast Offset</b> slider to scroll up to <b>72 hours</b> into the future. Wind circles, drift lines, and all wind cards update automatically — great for planning a jump day in advance.</div>
+                </div>
+            </div>
+
+            <div class="wc-section">
+                <div class="wc-icon" style="color:var(--muted)">📍</div>
+                <div>
+                    <div class="wc-title">Dropzone Selector</div>
+                    <div class="wc-text">Switch between dropzones using the <b>Dropzone</b> dropdown. The map recenters and all wind data updates for the new location.</div>
+                </div>
+            </div>
+
+        </div>
+        <button id="welcomeClose" onclick="closeWelcome()">Got it — Let's Jump! 🪂</button>
+    </div>
+</div>
+
+<!-- ── DEFINE JUMP RUN MODAL ── -->
+<div id="defineModal" style="display:none">
+    <div id="defineBox">
+        <div id="defineHeader">
+            <span>📐 Define Jump Run</span>
+            <button id="defineCloseBtn" onclick="closeDefineModal()">✕</button>
+        </div>
+        <div id="defineBody">
+
+            <div class="df-row">
+                <label class="df-label">Direction (°)</label>
+                <input type="number" id="dfDir" min="0" max="360" placeholder="e.g. 270" class="df-input">
+            </div>
+
+            <div class="df-row">
+                <label class="df-label">Distance from DZ (mi)</label>
+                <div class="df-pair">
+                    <input type="number" id="dfDist" min="0" step="0.1" placeholder="0.0" class="df-input df-short">
+                    <select id="dfDistDir" class="df-select">
+                        <option value="prior">Prior</option>
+                        <option value="past">Past</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="df-row">
+                <label class="df-label">Offset from DZ (mi)</label>
+                <div class="df-pair">
+                    <input type="number" id="dfOffset" min="0" step="0.1" placeholder="0.0" class="df-input df-short">
+                    <select id="dfOffsetDir" class="df-select">
+                        <option value="N">North</option>
+                        <option value="S">South</option>
+                        <option value="E">East</option>
+                        <option value="W">West</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="df-row">
+                <label class="df-label">Jump Run Length (mi)</label>
+                <input type="number" id="dfLength" min="0" step="0.1" placeholder="e.g. 2.0" class="df-input">
+            </div>
+
+            <div id="dfError" style="display:none;color:var(--red);font-size:0.8rem;margin-top:6px"></div>
+
+        </div>
+        <button id="dfSubmitBtn" onclick="submitDefineJumpRun()">✈️ Draw Jump Run</button>
+        <script>
+        document.addEventListener('keydown', function(e){
+            if (e.key === 'Enter' && document.getElementById('defineModal').style.display !== 'none')
+                submitDefineJumpRun();
+        });
+        </script>
+    </div>
+</div>
+
+<div id="loader"><div class="spinner"></div></div>
+
+<div id="wrap">
+
+    <div id="map"></div>
+
+    <div id="panel">
+
+        <div id="panel-handle" onclick="togglePanel()">
+            <div id="panel-handle-inner">
+                <div class="handle-bar"></div>
+                <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
+                    <span class="handle-title">🪂 Mango Wind Hub</span>
+                    <div style="display:flex;align-items:center;gap:8px">
+                        <span class="handle-summary" id="handleSummary">Tap for details</span>
+                        <button onclick="openWelcome();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;font-weight:700;cursor:pointer;line-height:1;padding:0;flex-shrink:0">?</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="panel-header">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                <h1>🪂 Mango Wind Hub</h1>
+                <button id="helpBtn" onclick="openWelcome()" title="Quick Start Guide">?</button>
+            </div>
+            <p id="utcLabel">Fetching forecast...</p>
+        </div>
+
+        <div id="panel-body">
+
+            <div id="controls">
+                <label>Dropzone</label>
+                <select id="dz"></select>
+
+                <div class="time-row">
+                    <label>Forecast Offset</label>
+                    <span id="timeLabel">+0h</span>
+                </div>
+                <input type="range" min="0" max="71" value="0" id="hour">
+
+                <button id="drawBtn" onclick="toggleDrawMode()">✏️ Draw Jump Run</button>
+                <button id="defineBtn" onclick="openDefineModal()">📐 Define Jump Run</button>
+                <button id="replayBtn" onclick="startPlaneAnimation()" style="display:none">▶ Replay</button>
+                <button id="clearBtn" onclick="clearJumpRun()" style="display:none">✕ Clear</button>
+                <div id="sepRow" style="margin-top:8px">
+                    <label style="margin-bottom:3px">Jumper Separation</label>
+                    <select id="sepSelect">
+                        <option value="8">8 sec</option>
+                        <option value="10">10 sec</option>
+                        <option value="12">12 sec</option>
+                        <option value="14">14 sec</option>
+                        <option value="16">16 sec</option>
+                        <option value="18">18 sec</option>
+                        <option value="20">20 sec</option>
+                    </select>
+                </div>
+                <div id="jumpRunInfo" style="display:none"></div>
+            </div>
+
+            <div id="summaries">
+                <div class="summary-card canopy" id="canopyBlock">
+                    <div class="sc-label">Canopy  •  SFC – 3 000 ft</div>
+                    <div class="sc-data">—</div>
+                </div>
+                <div class="summary-card freefall" id="freefallBlock">
+                    <div class="sc-label">Freefall  •  4 000 – 14 000 ft</div>
+                    <div class="sc-data">—</div>
+                </div>
+            </div>
+
+            <div id="cards-wrap">
+                <div id="cards"></div>
+            </div>
+
+        </div>
+
+    </div>
+</div>
+
+<script>
+let dz = {{ dz | tojson }};
+let lat, lon;
+let map, marker, canopyCircle, canopyCircleShifted, highLine;
+let loadTimeout = null;
+let firstLoad = true;
+
+let drawMode = false;
+let jumpRunLine = null;
+let freefallLine = null;
+let jrStart = null;
+let jrEnd = null;
+let lastFreefall = null;
+let lastWind14k = null;
+let planeMarker = null;
+let planeAnimId = null;
+let animGeneration = 0;
+
+function renderTime(){
+    const h = +document.getElementById("hour").value;
+    const now = new Date();
+    const future = new Date(now.getTime() + h * 3600 * 1000);
+    future.setMinutes(0, 0, 0);
+    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const day = days[future.getDay()];
+    const raw = future.getHours();
+    const ampm = raw >= 12 ? 'pm' : 'am';
+    const h12 = raw % 12 === 0 ? 12 : raw % 12;
+    const label = h === 0 ? `${day} ${h12}${ampm} (now)` : `${day} ${h12}${ampm} (+${h}h)`;
+    document.getElementById("timeLabel").innerText = label;
+}
+
+function drawFreefallParallel(){
+    if (!jrStart || !jrEnd || !lastFreefall) return;
+    if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
+
+    const ff = lastFreefall;
+    const ffDist = Math.min(ff.distance, 8000);
+    const ffRad = ff.direction * Math.PI / 180;
+    const cosLat = Math.cos(jrStart[0] * Math.PI / 180);
+    const dlatFF = Math.cos(ffRad) * ffDist / 111000;
+    const dlonFF = Math.sin(ffRad) * ffDist / (111000 * cosLat);
+
+    const pStart = [jrStart[0] + dlatFF, jrStart[1] + dlonFF];
+    const pEnd = [jrEnd[0] + dlatFF, jrEnd[1] + dlonFF];
+
+    const connector = L.polyline([jrStart, pStart], {
+        color: '#ffaa00', weight: 2, opacity: 0.45, dashArray: '5,6'
+    }).addTo(map);
+    const parallel = L.polyline([pStart, pEnd], {
+        color: '#ffaa00', weight: 4, opacity: 0.9
+    }).addTo(map);
+    freefallLine = [connector, parallel];
+
+    const jrLenM = distMeters(jrStart, jrEnd);
+    const bear = bearing(jrStart, jrEnd);
+    document.getElementById("jumpRunInfo").style.display = "block";
+    document.getElementById("jumpRunInfo").innerHTML =
+        `JR heading: ${bear.toFixed(0)}°<br>` +
+        `JR length:  ${(jrLenM / 1609.344).toFixed(2)} mi<br>` +
+        `FF drift:   ${(ffDist / 1609.344).toFixed(2)} mi @ ${ff.direction.toFixed(0)}°`;
+}
+
+function drawJumpRun(){
+    if (jumpRunLine) jumpRunLine.forEach(l => l.remove());
+    clearAnimation();
+
+    const jrLine = L.polyline([jrStart, jrEnd], {
+        color: '#fff', weight: 3, opacity: 0.85, dashArray: '8,5'
+    }).addTo(map);
+
+    const bear = bearing(jrStart, jrEnd);
+    const arrowHead = makeArrowhead(jrEnd, bear);
+    jumpRunLine = [jrLine, arrowHead];
+
+    drawFreefallParallel();
+    startPlaneAnimation();
+
+    document.getElementById("replayBtn").style.display = "block";
+    document.getElementById("clearBtn").style.display = "block";
+}
+
+function makeArrowhead(tip, hdg){
+    const tipPx = map.latLngToLayerPoint(L.latLng(tip));
+    const r = (hdg - 90) * Math.PI / 180;
+    function pt(dist, ang){
+        return map.layerPointToLatLng(L.point(
+            tipPx.x + dist * Math.cos(r + ang),
+            tipPx.y + dist * Math.sin(r + ang)
+        ));
+    }
+    const left = pt(14, 2.5);
+    const right = pt(14, -2.5);
+    return L.polygon([tip, left, right], {
+        color: '#fff', fillColor: '#fff', fillOpacity: 1, weight: 0
+    }).addTo(map);
+}
+
+let jumperMarkers = [];
+let jumperTimers = [];
+
+function planeIcon(hdg){
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="-18 -18 36 36"
+        style="transform:rotate(${hdg}deg);overflow:visible">
+      <ellipse cx="0" cy="0"    rx="2.5" ry="9"   fill="#ff4f4f"/>
+      <ellipse cx="0" cy="-10" rx="1.8" ry="3"   fill="#cc2222"/>
+      <ellipse cx="0" cy="-1"  rx="14"  ry="2.2" fill="#ff6666"/>
+      <ellipse cx="0" cy="-1"  rx="16"  ry="1.1" fill="#dd4444" opacity="0.6"/>
+      <ellipse cx="0" cy="8"   rx="6"   ry="1.3" fill="#ff6666"/>
+      <ellipse cx="0" cy="6.5" rx="1"   ry="2.5" fill="#cc2222"/>
+      <ellipse cx="0" cy="-11.5" rx="1.2" ry="1.8" fill="#aa2222"/>
+      <ellipse cx="0" cy="-13" rx="4"   ry="0.6" fill="#ff4f4f" opacity="0.7"/>
+    </svg>`;
+    return L.divIcon({ html: svg, className: '', iconSize: [36,36], iconAnchor: [18,18] });
+}
+
+function parachuteIcon(){
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="28" viewBox="0 0 24 28">
+      <path d="M2,13 Q2,2 12,2 Q22,2 22,13 Z" fill="#ff4f4f" stroke="#cc2222" stroke-width="0.8"/>
+      <line x1="12" y1="2"  x2="12" y2="13" stroke="#cc2222" stroke-width="0.5"/>
+      <line x1="7"  y1="3"  x2="10" y2="13" stroke="#cc2222" stroke-width="0.5"/>
+      <line x1="17" y1="3"  x2="14" y2="13" stroke="#cc2222" stroke-width="0.5"/>
+      <line x1="3"  y1="7"  x2="8"  y2="13" stroke="#cc2222" stroke-width="0.5"/>
+      <line x1="21" y1="7"  x2="16" y2="13" stroke="#cc2222" stroke-width="0.5"/>
+      <line x1="8"  y1="13" x2="11" y2="22" stroke="#cc2222" stroke-width="0.7"/>
+      <line x1="16" y1="13" x2="13" y2="22" stroke="#cc2222" stroke-width="0.7"/>
+      <ellipse cx="12" cy="24" rx="2" ry="3" fill="#cc2222"/>
+    </svg>`;
+    return L.divIcon({ html: svg, className: '', iconSize: [24,28], iconAnchor: [12,28] });
+}
+
+function stopPlane(){
+    animGeneration++;
+    if (planeAnimId) { cancelAnimationFrame(planeAnimId); planeAnimId = null; }
+    if (planeMarker) { planeMarker.remove(); planeMarker = null; }
+    jumperTimers.forEach(t => clearTimeout(t));
+    jumperTimers = [];
+    jumperMarkers.forEach(m => m.remove());
+    jumperMarkers = [];
+}
+
+function startPlaneAnimation(){
+    stopPlane();
+    if (!jrStart || !jrEnd || !lastWind14k || !lastFreefall) return;
+
+    const hdg = bearing(jrStart, jrEnd);
+    const jrDist = distMeters(jrStart, jrEnd);
+    const airspeed = 110 * 0.514444;
+    const wSpd = lastWind14k.speed * 0.514444;
+    const wDir = lastWind14k.direction;
+    const angleDiff = ((wDir - hdg + 180 + 360) % 360) - 180;
+    const headwind = wSpd * Math.cos(angleDiff * Math.PI / 180);
+    const gndSpeed = Math.max(airspeed - headwind, airspeed * 0.4);
+
+    const realisticDuration = (jrDist / gndSpeed) * 1000;
+    const displayDuration   = 10000;
+    const timeScale         = displayDuration / realisticDuration;
+
+    const ffDist = lastFreefall.distance;
+    const ffRad = lastFreefall.direction * Math.PI / 180;
+
+    const sepSec = +(document.getElementById("sepSelect")?.value || 8);
+
+    const realisticDropTimes = [];
+    for (let t = 2000; t < realisticDuration; t += sepSec * 1000)
+        realisticDropTimes.push(t);
+    const dropTimes = realisticDropTimes.map(t => t * timeScale);
+
+    dropTimes.forEach((dropMs, idx) => {
+        const tid = setTimeout(() => {
+            const frac = realisticDropTimes[idx] / realisticDuration;
+            const exitLat = jrStart[0] + (jrEnd[0] - jrStart[0]) * frac;
+            const exitLon = jrStart[1] + (jrEnd[1] - jrStart[1]) * frac;
+            const dlatFF = Math.cos(ffRad) * ffDist / 111000;
+            const dlonFF = Math.sin(ffRad) * ffDist / (111000 * Math.cos(exitLat * Math.PI / 180));
+            const landLat = exitLat + dlatFF;
+            const landLon = exitLon + dlonFF;
+
+            const jumper = L.marker([exitLat, exitLon], {
+                icon: parachuteIcon(), zIndexOffset: 900
+            }).addTo(map);
+            jumperMarkers.push(jumper);
+
+            const animDuration = Math.min(4000, Math.max(1000, 8000 * timeScale));
+            const jStart = performance.now();
+            const myGen = animGeneration;
+
+            function driftAnimate(now){
+                if (animGeneration !== myGen) return;
+                const jt = Math.min((now - jStart) / animDuration, 1);
+                jumper.setLatLng([
+                    exitLat + (landLat - exitLat) * jt,
+                    exitLon + (landLon - exitLon) * jt
+                ]);
+                if (jt < 1){
+                    requestAnimationFrame(driftAnimate);
+                } else {
+                    if (animGeneration !== myGen) return;
+                    const landingCircle = L.circle([landLat, landLon], {
+                        radius: 152.4,
+                        color: '#ff4f4f',
+                        weight: 1,
+                        opacity: 0.7,
+                        fill: true,
+                        fillColor: '#ff4f4f',
+                        fillOpacity: 0.18
+                    }).addTo(map);
+                    jumperMarkers.push(landingCircle);
+                }
+            }
+            requestAnimationFrame(driftAnimate);
+        }, dropMs);
+        jumperTimers.push(tid);
+    });
+
+    planeMarker = L.marker(jrStart, { icon: planeIcon(hdg), zIndexOffset: 1000 }).addTo(map);
+    const startTime = performance.now();
+
+    function animate(now){
+        const t = Math.min((now - startTime) / displayDuration, 1);
+        planeMarker.setLatLng([
+            jrStart[0] + (jrEnd[0] - jrStart[0]) * t,
+            jrStart[1] + (jrEnd[1] - jrStart[1]) * t
+        ]);
+        if (t < 1){
+            planeAnimId = requestAnimationFrame(animate);
+        } else {
+            planeAnimId = null;
+            document.getElementById("replayBtn").style.display = "block";
+        }
+    }
+    planeAnimId = requestAnimationFrame(animate);
+}
+
+function distMeters(a, b){
+    const R = 6378137;
+    const dLat = (b[0]-a[0]) * Math.PI/180;
+    const dLon = (b[1]-a[1]) * Math.PI/180;
+    const s = Math.sin(dLat/2)*Math.sin(dLat/2) +
+              Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*
+              Math.sin(dLon/2)*Math.sin(dLon/2);
+    return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
+}
+
+function bearing(a, b){
+    const dLon = (b[1]-a[1]) * Math.PI/180;
+    const y = Math.sin(dLon) * Math.cos(b[0]*Math.PI/180);
+    const x = Math.cos(a[0]*Math.PI/180)*Math.sin(b[0]*Math.PI/180) -
+               Math.sin(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.cos(dLon);
+    return (Math.atan2(y, x) * 180/Math.PI + 360) % 360;
+}
+
+function clearJumpRun(){
+    if (jumpRunLine)  { jumpRunLine.forEach(l => l.remove());  jumpRunLine = null; }
+    if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
+    stopPlane();
+    jrStart = null; jrEnd = null;
+    document.getElementById("jumpRunInfo").style.display = "none";
+    document.getElementById("replayBtn").style.display   = "none";
+    document.getElementById("clearBtn").style.display    = "none";
+}
+
+function clearAnimation(){
+    animGeneration++;
+    if (planeAnimId) { cancelAnimationFrame(planeAnimId); planeAnimId = null; }
+    if (planeMarker) { planeMarker.remove(); planeMarker = null; }
+    jumperTimers.forEach(t => clearTimeout(t));
+    jumperTimers = [];
+    jumperMarkers.forEach(m => m.remove());
+    jumperMarkers = [];
+}
+
+function toggleDrawMode(){
+    drawMode = !drawMode;
+    const btn = document.getElementById("drawBtn");
+    if (drawMode){
+        btn.classList.add("active");
+        btn.textContent = "✕ Cancel Draw";
+        map.getContainer().style.cursor = "crosshair";
+        clearAnimation();
+        jrStart = null; jrEnd = null;
+    } else {
+        btn.classList.remove("active");
+        btn.textContent = "✏️ Draw Jump Run";
+        map.getContainer().style.cursor = "";
+    }
+}
+
+// ── MAP DRAG HANDLER ──
+let dragLine  = null;
+let isDragging = false;
+
+function touchToLatLng(touch){
+    const rect = map.getContainer().getBoundingClientRect();
+    const pt   = L.point(touch.clientX - rect.left, touch.clientY - rect.top);
+    return map.containerPointToLatLng(pt);
+}
+
+function startDraw(ll){
+    isDragging = true;
+    jrStart = [ll.lat, ll.lng];
+    if (jumpRunLine)  { jumpRunLine.forEach(l => l.remove());  jumpRunLine = null; }
+    if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
+    if (dragLine)     { dragLine.remove(); dragLine = null; }
+    document.getElementById("jumpRunInfo").style.display = "none";
+    map.dragging.disable();
+    map.touchZoom.disable();
+}
+
+function moveDraw(ll){
+    if (!isDragging || !jrStart) return;
+    if (dragLine) dragLine.remove();
+    dragLine = L.polyline([jrStart, [ll.lat, ll.lng]], {
+        color: '#fff', weight: 3, opacity: 0.6, dashArray: '8,5'
+    }).addTo(map);
+}
+
+function endDraw(ll){
+    if (!isDragging || !jrStart) return;
+    isDragging = false;
+    map.dragging.enable();
+    map.touchZoom.enable();
+    if (dragLine) { dragLine.remove(); dragLine = null; }
+    const endPt   = [ll.lat, ll.lng];
+    const startPx = map.latLngToContainerPoint(L.latLng(jrStart));
+    const endPx   = map.latLngToContainerPoint(L.latLng(endPt));
+    const dist    = Math.sqrt(Math.pow(startPx.x-endPx.x,2)+Math.pow(startPx.y-endPx.y,2));
+    if (dist < 15) { jrStart = null; return; }
+    jrEnd = endPt;
+    drawJumpRun();
+    toggleDrawMode();
+}
+
+function onMapMouseDown(e){ if (!drawMode) return; startDraw(e.latlng); }
+function onMapMouseMove(e){ if (!drawMode) return; moveDraw(e.latlng); }
+function onMapMouseUp(e){   if (!drawMode) return; endDraw(e.latlng); }
+function onMapClick(e){     if (!drawMode || isDragging) return; }
+
+function onTouchStart(e){
+    if (!drawMode) return;
+    e.preventDefault();
+    const ll = touchToLatLng(e.touches[0]);
+    startDraw(ll);
+}
+function onTouchMove(e){
+    if (!drawMode || !isDragging) return;
+    e.preventDefault();
+    const ll = touchToLatLng(e.touches[0]);
+    moveDraw(ll);
+}
+function onTouchEnd(e){
+    if (!drawMode || !isDragging) return;
+    e.preventDefault();
+    const ll = touchToLatLng(e.changedTouches[0]);
+    endDraw(ll);
+}
+
+function fitToCanopy(glideR, polyPoints){
+    const er  = 6378137;
+    const pad = 1.18;
+    if (polyPoints && polyPoints.length > 1) {
+        let minLat =  90, maxLat = -90, minLon =  180, maxLon = -180;
+        const dLat = (glideR / er) * (180 / Math.PI);
+        const dLon = dLat / Math.cos(lat * Math.PI / 180);
+        minLat = Math.min(minLat, lat - dLat);
+        maxLat = Math.max(maxLat, lat + dLat);
+        minLon = Math.min(minLon, lon - dLon);
+        maxLon = Math.max(maxLon, lon + dLon);
+        for (const [pLat, pLon] of polyPoints) {
+            minLat = Math.min(minLat, pLat);
+            maxLat = Math.max(maxLat, pLat);
+            minLon = Math.min(minLon, pLon);
+            maxLon = Math.max(maxLon, pLon);
+        }
+        const latPad = (maxLat - minLat) * (pad - 1);
+        const lonPad = (maxLon - minLon) * (pad - 1);
+        map.fitBounds(
+            [[minLat - latPad, minLon - lonPad],
+             [maxLat + latPad, maxLon + lonPad]],
+            { animate: true }
+        );
+    } else {
+        const dLat = (glideR * pad / er) * (180 / Math.PI);
+        const dLon = dLat / Math.cos(lat * Math.PI / 180);
+        map.fitBounds(
+            [[lat - dLat, lon - dLon],[lat + dLat, lon + dLon]],
+            { animate: true }
+        );
+    }
+}
+
+function lerpColor(a, b, t){
+    const ah = parseInt(a.slice(1), 16);
+    const bh = parseInt(b.slice(1), 16);
+    const ar = (ah >> 16) & 0xff, ag = (ah >> 8) & 0xff, ab = ah & 0xff;
+    const br = (bh >> 16) & 0xff, bg = (bh >> 8) & 0xff, bb = bh & 0xff;
+    const rr = Math.round(ar + (br-ar)*t);
+    const rg = Math.round(ag + (bg-ag)*t);
+    const rb = Math.round(ab + (bb-ab)*t);
+    return `#${((1<<24)|(rr<<16)|(rg<<8)|rb).toString(16).slice(1)}`;
+}
+
+function colorClass(s){
+    if (s < 10) return 'dot-green';
+    if (s < 25) return 'dot-orange';
+    return 'dot-red';
+}
+
+async function load(){
+    document.getElementById("loader").classList.remove("hidden");
+    const hour = document.getElementById("hour").value;
+
+    try {
+        const r = await fetch(`/data?lat=${lat}&lon=${lon}&hour=${hour}`);
+        const d = await r.json();
+
+        if (d.error) {
+            console.error("Data error:", d.error);
+            document.getElementById("loader").classList.add("hidden");
+            document.getElementById("utcLabel").innerText = "⚠️ " + d.error;
+            document.getElementById("utcLabel").style.color = "var(--red)";
+            return;
+        }
+        document.getElementById("utcLabel").style.color = "";
+
+        if (marker)              marker.remove();
+        if (canopyCircle)        canopyCircle.remove();
+        if (canopyCircleShifted) canopyCircleShifted.remove();
+        if (highLine)            highLine.remove();
+
+        marker = L.marker([lat, lon]).addTo(map);
+
+        const glideR  = d.canopy.glide_radius;
+        const windSpd = d.canopy.speed * 0.514444;
+        const windDir = d.canopy.wind_dir;
+        const descentTime = 120;
+        const canopyAirspeed = 22 * 0.514444;
+
+        canopyCircle = L.circle([lat, lon], {
+            radius: glideR, color: '#39ff89', weight: 2,
+            opacity: 0.4, fill: false, dashArray: '6,5'
+        }).addTo(map);
+
+        const cosLatC = Math.cos(lat * Math.PI / 180);
+        const wFromRad = windDir * Math.PI / 180;
+        const wVx = windSpd * Math.sin(wFromRad);
+        const wVy = windSpd * Math.cos(wFromRad);
+
+        const polyPoints = [];
+        const steps = 72;
+        for (let i = 0; i < steps; i++) {
+            const theta = (i / steps) * 2 * Math.PI;
+            const ux = Math.sin(theta);
+            const uy = Math.cos(theta);
+            const groundSpd = canopyAirspeed + (wVx * ux + wVy * uy);
+            const reach = Math.max(groundSpd * descentTime, glideR * 0.1);
+            const pLat = lat + (uy * reach) / 111000;
+            const pLon = lon + (ux * reach) / (111000 * cosLatC);
+            polyPoints.push([pLat, pLon]);
+        }
+        polyPoints.push(polyPoints[0]);
+
+        canopyCircleShifted = L.polygon(polyPoints, {
+            color: '#39ff89', weight: 3, opacity: 0.85,
+            fill: true, fillColor: '#39ff89', fillOpacity: 0.08
+        }).addTo(map);
+
+        if (firstLoad){ fitToCanopy(glideR, polyPoints); firstLoad = false; }
+
+        lastFreefall = { distance: d.freefall.distance, direction: d.freefall.direction };
+        lastWind14k = d.wind_14k;
+        if (jrStart && jrEnd) drawFreefallParallel();
+
+        if (d.time_label) {
+            document.getElementById("utcLabel").innerText = d.time_label;
+        }
+        updateHandleSummary(d.canopy.speed, d.canopy.direction,
+            document.getElementById("timeLabel").innerText);
+
+        function arrow(dir, color='var(--text)'){
+            const blowTo = (dir + 180) % 360;
+            return `<svg width="18" height="18" viewBox="0 0 16 16" style="display:inline-block;vertical-align:middle;transform:rotate(${blowTo}deg)">
+                <polygon points="8,1 11,13 8,11 5,13" fill="${color}"/>
+            </svg>`;
+        }
+
+        const windFromRad = windDir * Math.PI / 180;
+        const upwindUx = Math.sin(windFromRad);
+        const upwindUy = Math.cos(windFromRad);
+        let maxUpwind = 0;
+        for (let i = 0; i < polyPoints.length - 1; i++) {
+            const pLat = polyPoints[i][0];
+            const pLon = polyPoints[i][1];
+            const dLat = (pLat - lat) * 111000;
+            const dLon = (pLon - lon) * 111000 * cosLatC;
+            const proj = dLat * upwindUy + dLon * upwindUx;
+            if (proj > maxUpwind) maxUpwind = proj;
+        }
+        const upwindMi = maxUpwind / 1609.344;
+
+        const downwindUx = -upwindUx;
+        const downwindUy = -upwindUy;
+        let maxDownwind = 0;
+        for (let i = 0; i < polyPoints.length - 1; i++) {
+            const pLat = polyPoints[i][0];
+            const pLon = polyPoints[i][1];
+            const dLat = (pLat - lat) * 111000;
+            const dLon = (pLon - lon) * 111000 * cosLatC;
+            const proj = dLat * downwindUy + dLon * downwindUx;
+            if (proj > maxDownwind) maxDownwind = proj;
+        }
+        const downwindMi = maxDownwind / 1609.344;
+
+        document.getElementById("canopyBlock").innerHTML =
+            `<div class="sc-label">Canopy &nbsp;•&nbsp; SFC – 3 000 ft</div>
+            <div class="sc-data">
+                <div><span>SPD</span>${d.canopy.speed.toFixed(1)} kt</div>
+                <div><span>DIR</span>${d.canopy.direction.toFixed(0)}°</div>
+                <div><span>↑WIND</span>${upwindMi.toFixed(2)} mi</div>
+                <div><span>↓WIND</span>${downwindMi.toFixed(2)} mi</div>
+                <div>${arrow(d.canopy.direction, 'var(--canopy)')}</div>
+            </div>`;
+
+        const ffFromDir = (d.freefall.direction + 180) % 360;
+        document.getElementById("freefallBlock").innerHTML =
+            `<div class="sc-label">Freefall &nbsp;•&nbsp; 4 000 – 14 000 ft</div>
+            <div class="sc-data">
+                <div><span>SPD</span>${d.freefall.speed.toFixed(1)} kt</div>
+                <div><span>DIR</span>${ffFromDir.toFixed(0)}°</div>
+                <div><span>DRIFT</span>${(d.freefall.distance / 1609.344).toFixed(2)} mi</div>
+                <div>${arrow(ffFromDir, 'var(--freefall)')}</div>
+            </div>`;
+
+        let html = '';
+        const alts = Object.keys(d.winds).map(Number).sort((a,b)=>a-b);
+        html += `<div class="alt-section-title lower">Surface & Low</div>`;
+        let lastGroup = 'low';
+
+        for (const a of alts){
+            const w = d.winds[a];
+            const group = a < 4000 ? 'low' : 'high';
+            if (group === 'high' && lastGroup === 'low'){
+                html += `<div class="alt-section-title upper">Upper Winds</div>`;
+                lastGroup = 'high';
+            }
+            const blowTo = (w.direction + 180) % 360;
+            const cls = colorClass(w.speed);
+            const clsColor = cls === 'dot-green' ? 'var(--green)' : cls === 'dot-orange' ? 'var(--orange)' : 'var(--red)';
+            const svgArrow = `<svg width="16" height="16" viewBox="0 0 16 16" style="display:inline-block;vertical-align:middle;transform:rotate(${blowTo}deg)">
+                <polygon points="8,1 11,13 8,11 5,13" fill="${clsColor}"/>
+            </svg>`;
+            const altLabel = a === 0 ? 'SFC' : `${a.toLocaleString()} ft`;
+            const tf = w.temp_f;
+            let tempStr = '';
+            let tempColor = 'var(--muted)';
+            if (tf !== null && tf !== undefined) {
+                tempStr = `${tf}°F`;
+                // >80 red, 70-80 orange, 40-70 green, 30-40 blue, <30 dark blue
+                if      (tf >= 85) tempColor = '#ff4f4f';
+                else if (tf >= 75) tempColor = lerpColor('#ff8c00', '#ff4f4f', (tf-75)/10);
+                else if (tf >= 60) tempColor = '#39ff89';
+                else if (tf >= 45) tempColor = lerpColor('#ffe033', '#39ff89', (tf-45)/15);
+                else if (tf >= 35) tempColor = lerpColor('#4488ff', '#ffe033', (tf-35)/10);
+                else               tempColor = '#1a3a8a';
+            }
+            html += `<div class="wind-card ${group === 'high' ? 'upper' : ''}">
+                <span class="alt">${altLabel}</span>
+                <span class="arrow">${svgArrow}</span>
+                <span class="speed ${cls}">${w.speed.toFixed(1)} kt</span>
+                <span class="dir">${w.direction.toFixed(0)}°</span>
+                <span class="temp" style="color:${tempColor};font-weight:bold">${tempStr}</span>
+            </div>`;
+        }
+        document.getElementById("cards").innerHTML = html;
+
+    } catch(e) {
+        console.error("Load error:", e);
+    } finally {
+        document.getElementById("loader").classList.add("hidden");
+    }
+}
+
+let panelOpen = false;
+function togglePanel(){
+    panelOpen = !panelOpen;
+    document.getElementById("panel").classList.toggle("open", panelOpen);
+    setTimeout(() => map.invalidateSize(), 350);
+}
+function updateHandleSummary(canopySpd, canopyDir, timeStr){
+    const el = document.getElementById("handleSummary");
+    if (el) el.textContent = `${timeStr}  •  ${canopySpd.toFixed(0)}kt ${canopyDir.toFixed(0)}°`;
+}
+
+function closeWelcome(){
+    document.getElementById("welcomeModal").style.display = "none";
+}
+
+function openWelcome(){
+    document.getElementById("welcomeModal").style.display = "flex";
+}
+
+// ── DEFINE JUMP RUN MODAL ──
+function openDefineModal(){
+    document.getElementById("defineModal").style.display = "flex";
+    document.getElementById("dfDir").focus();
+}
+
+function closeDefineModal(){
+    document.getElementById("defineModal").style.display = "none";
+    document.getElementById("dfError").style.display = "none";
+}
+
+function miToMeters(mi){ return mi * 1609.344; }
+
+function offsetLatLon(baseLat, baseLon, bearingDeg, distanceMi){
+    // Move baseLat/baseLon by distanceMi in bearingDeg direction
+    const R = 6378137;
+    const d = miToMeters(distanceMi);
+    const rad = bearingDeg * Math.PI / 180;
+    const lat1 = baseLat * Math.PI / 180;
+    const lon1 = baseLon * Math.PI / 180;
+    const lat2 = Math.asin(Math.sin(lat1)*Math.cos(d/R) +
+                           Math.cos(lat1)*Math.sin(d/R)*Math.cos(rad));
+    const lon2 = lon1 + Math.atan2(Math.sin(rad)*Math.sin(d/R)*Math.cos(lat1),
+                                   Math.cos(d/R)-Math.sin(lat1)*Math.sin(lat2));
+    return [lat2 * 180/Math.PI, lon2 * 180/Math.PI];
+}
+
+function submitDefineJumpRun(){
+    const errEl = document.getElementById("dfError");
+    errEl.style.display = "none";
+
+    const dir     = parseFloat(document.getElementById("dfDir").value);
+    const dist    = parseFloat(document.getElementById("dfDist").value) || 0;
+    const distDir = document.getElementById("dfDistDir").value;
+    const offset  = parseFloat(document.getElementById("dfOffset").value) || 0;
+    const offDir  = document.getElementById("dfOffsetDir").value;
+    const length  = parseFloat(document.getElementById("dfLength").value);
+
+    if (isNaN(dir) || dir < 0 || dir > 360) {
+        errEl.textContent = "Please enter a valid direction (0–360°).";
+        errEl.style.display = "block";
+        return;
+    }
+    if (isNaN(length) || length <= 0) {
+        errEl.textContent = "Please enter a valid jump run length.";
+        errEl.style.display = "block";
+        return;
+    }
+
+    // Prior = start is 180° from direction (plane approaches from behind)
+    // Past  = start is in the direction (plane has already passed DZ)
+    const startBearing = distDir === "prior" ? (dir + 180) % 360 : dir;
+    let startPt = offsetLatLon(lat, lon, startBearing, dist);
+
+    // Apply N/S/E/W offset
+    const offBearing = { N: 0, S: 180, E: 90, W: 270 }[offDir];
+    if (offset > 0) {
+        startPt = offsetLatLon(startPt[0], startPt[1], offBearing, offset);
+    }
+
+    // End point = start + length in the jump run direction
+    const endPt = offsetLatLon(startPt[0], startPt[1], dir, length);
+
+    jrStart = startPt;
+    jrEnd   = endPt;
+
+    closeDefineModal();
+    drawJumpRun();
+}
+
+function initMap(){
+    map = L.map('map', { zoomSnap: 0.25, zoomDelta: 0.25, wheelPxPerZoomLevel: 120 }).setView([lat, lon], 9);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles © Esri'
+    }).addTo(map);
+    map.on('mousedown', onMapMouseDown);
+    map.on('mousemove', onMapMouseMove);
+    map.on('mouseup',   onMapMouseUp);
+    map.on('click',     onMapClick);
+    const mapEl = map.getContainer();
+    mapEl.addEventListener('touchstart', onTouchStart, { passive: false });
+    mapEl.addEventListener('touchmove',  onTouchMove,  { passive: false });
+    mapEl.addEventListener('touchend',   onTouchEnd,   { passive: false });
+}
+
+function initDZ(){
+    const sel = document.getElementById("dz");
+    const keys = Object.keys(dz);
+    const defaultDz = keys.find(k => k.toLowerCase().includes("skydive new england")) || keys[0];
+
+    for (const k of keys){
+        const o = document.createElement("option");
+        o.value = k; o.text = k;
+        sel.appendChild(o);
+    }
+
+    sel.value = defaultDz;
+    lat = dz[defaultDz][0];
+    lon = dz[defaultDz][1];
+
+    sel.onchange = () => {
+        const v = sel.value;
+        lat = dz[v][0];
+        lon = dz[v][1];
+        if (jumpRunLine)  { jumpRunLine.forEach(l => l.remove());  jumpRunLine = null; }
+        if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
+        stopPlane();
+        jrStart = null; jrEnd = null;
+        document.getElementById("jumpRunInfo").style.display = "none";
+        document.getElementById("replayBtn").style.display  = "none";
+        document.getElementById("clearBtn").style.display   = "none";
+        firstLoad = true;
+        load();
+    };
+
+    initMap();
+    load();
+
+    document.getElementById("hour").oninput = () => {
+        renderTime();
+        if (jumpRunLine)  { jumpRunLine.forEach(l => l.remove());  jumpRunLine = null; }
+        if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
+        stopPlane();
+        jrStart = null; jrEnd = null;
+        document.getElementById("jumpRunInfo").style.display = "none";
+        document.getElementById("replayBtn").style.display  = "none";
+        document.getElementById("clearBtn").style.display   = "none";
+        clearTimeout(loadTimeout);
+        loadTimeout = setTimeout(load, 2000);
+    };
+
+    renderTime();
+}
+
+initDZ();
+</script>
+
+</body>
+</html>

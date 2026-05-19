@@ -105,25 +105,31 @@ def fetch_schulze(lat, lon, hour_offset=0):
 
 
 def fetch_forecast(lat, lon, hour_offset=0):
-    # Cache key is per-DZ only (not per hour) since Schulze returns all hours
-    dz_key = (round(lat, 3), round(lon, 3))
+    # hour=0 uses Schulze (keyed by DZ only, no hour)
+    # future hours use Open-Meteo (keyed by DZ + hour)
     now = datetime.now(timezone.utc)
 
-    cached = _forecast_cache.get(dz_key)
-    if cached and cached["expires"] > now:
-        print(f"Cache HIT for {dz_key}")
-        return cached["data"]
-
-    # Use Schulze only for current conditions (hour=0) — accurate METAR surface wind
-    # For future hours use Open-Meteo directly to avoid hammering Schulze's server
     if hour_offset == 0:
+        dz_key = (round(lat, 3), round(lon, 3))
+        cached = _forecast_cache.get(dz_key)
+        if cached and cached["expires"] > now:
+            print(f"Cache HIT (schulze) for {dz_key}")
+            return cached["data"]
         result = fetch_schulze(lat, lon, 0)
         if result:
             _forecast_cache[dz_key] = {"data": result, "expires": now + CACHE_TTL}
             save_cache_to_disk()
             return result
+        print("Schulze unavailable for hour=0, falling back to Open-Meteo")
+        dz_key = (round(lat, 3), round(lon, 3), 0)
+    else:
+        dz_key = (round(lat, 3), round(lon, 3), hour_offset)
+        cached = _forecast_cache.get(dz_key)
+        if cached and cached["expires"] > now:
+            print(f"Cache HIT (openmeteo) for {dz_key}")
+            return cached["data"]
 
-    print("Using Open-Meteo (future hour or Schulze unavailable)")
+    print(f"Using Open-Meteo for hour={hour_offset}")
     try:
         api_key = os.environ.get("OPENMETEO_API_KEY")
         url = "https://customer-api.open-meteo.com/v1/forecast" if api_key else "https://api.open-meteo.com/v1/forecast"
@@ -156,6 +162,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
         return result
     except Exception as e:
         print(f"Open-Meteo error: {e}")
+        cached = _forecast_cache.get(dz_key)
         if cached:
             return cached["data"]
         return None

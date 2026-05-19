@@ -785,6 +785,10 @@ select:focus { border-color: var(--accent); }
                 </div>
             </div>
 
+            <div id="cards-header" style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px 0">
+                <span style="font-size:0.64rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)">Winds by Altitude</span>
+                <button id="toggleCardsBtn" onclick="toggleCards()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:2px 8px;font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;letter-spacing:0.08em;cursor:pointer;-webkit-tap-highlight-color:transparent">Hide</button>
+            </div>
             <div id="cards-wrap">
                 <div id="cards"></div>
             </div>
@@ -1384,6 +1388,15 @@ function togglePanel(){
 function updateHandleSummary(canopySpd, canopyDir, timeStr){
     const el = document.getElementById("handleSummary");
     if (el) el.textContent = `${timeStr}  •  ${canopySpd.toFixed(0)}kt ${canopyDir.toFixed(0)}°`;
+}
+
+function toggleCards(){
+    const wrap = document.getElementById("cards-wrap");
+    const btn  = document.getElementById("toggleCardsBtn");
+    const hdr  = document.getElementById("cards-header");
+    const hidden = wrap.style.display === "none";
+    wrap.style.display = hidden ? "" : "none";
+    btn.textContent = hidden ? "Hide" : "Show";
 }
 
 function closeWelcome(){

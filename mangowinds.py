@@ -856,6 +856,24 @@ select:focus { border-color: var(--accent); }
 }
 #dfSubmitBtn:hover { opacity: 0.85; }
 
+#helpBtn {
+    background: none;
+    border: 1px solid var(--muted);
+    color: var(--muted);
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: border-color 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    padding: 0;
+}
+#helpBtn:hover { border-color: var(--accent); color: var(--accent); }
+
 #defineBtn {
     margin-top: 6px;
     width: 100%;
@@ -957,8 +975,8 @@ select:focus { border-color: var(--accent); }
             <div class="wc-section">
                 <div class="wc-icon" style="color:#fff">✏️</div>
                 <div>
-                    <div class="wc-title">Draw Jump Run</div>
-                    <div class="wc-text">Click <b>Draw Jump Run</b>, then <b>click and drag</b> on the map to draw the aircraft's flight path. An <b>orange parallel line</b> appears showing where jumpers will land after freefall drift. A <b>red plane</b> animates the run, dropping parachute symbols at your chosen separation interval.</div>
+                    <div class="wc-title">Draw or Define Jump Run</div>
+                    <div class="wc-text">Click <b>Draw Jump Run</b>, then <b>click and drag</b> on the map to draw the aircraft's flight path — OR — <b>Define Jump Run</b> with direction, prior/past, offset and length. An <b>orange parallel line</b> appears showing approximate freefall drift. A <b>red plane</b> animates the run, dropping jumpers at your chosen separation interval.</div>
                 </div>
             </div>
 
@@ -1060,7 +1078,10 @@ select:focus { border-color: var(--accent); }
         </div>
 
         <div id="panel-header">
-            <h1>🪂 Mango Wind Hub</h1>
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                <h1>🪂 Mango Wind Hub</h1>
+                <button id="helpBtn" onclick="openWelcome()" title="Quick Start Guide">?</button>
+            </div>
             <p id="utcLabel">Fetching forecast...</p>
         </div>
 
@@ -1722,6 +1743,10 @@ function updateHandleSummary(canopySpd, canopyDir, timeStr){
 
 function closeWelcome(){
     document.getElementById("welcomeModal").style.display = "none";
+}
+
+function openWelcome(){
+    document.getElementById("welcomeModal").style.display = "flex";
 }
 
 // ── DEFINE JUMP RUN MODAL ──

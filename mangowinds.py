@@ -1353,6 +1353,17 @@ function fitToCanopy(glideR, polyPoints){
     }
 }
 
+function lerpColor(a, b, t){
+    const ah = parseInt(a.slice(1), 16);
+    const bh = parseInt(b.slice(1), 16);
+    const ar = (ah >> 16) & 0xff, ag = (ah >> 8) & 0xff, ab = ah & 0xff;
+    const br = (bh >> 16) & 0xff, bg = (bh >> 8) & 0xff, bb = bh & 0xff;
+    const rr = Math.round(ar + (br-ar)*t);
+    const rg = Math.round(ag + (bg-ag)*t);
+    const rb = Math.round(ab + (bb-ab)*t);
+    return `#${((1<<24)|(rr<<16)|(rg<<8)|rb).toString(16).slice(1)}`;
+}
+
 function colorClass(s){
     if (s < 10) return 'dot-green';
     if (s < 25) return 'dot-orange';
@@ -1500,13 +1511,25 @@ async function load(){
                 <polygon points="8,1 11,13 8,11 5,13" fill="${clsColor}"/>
             </svg>`;
             const altLabel = a === 0 ? 'SFC' : `${a.toLocaleString()} ft`;
-            const tempStr = w.temp_f !== null && w.temp_f !== undefined ? `${w.temp_f}°F` : '';
+            const tf = w.temp_f;
+            let tempStr = '';
+            let tempColor = 'var(--muted)';
+            if (tf !== null && tf !== undefined) {
+                tempStr = `${tf}°F`;
+                // >80 red, 70-80 orange, 40-70 green, 30-40 blue, <30 dark blue
+                if      (tf >= 80) tempColor = '#ff4f4f';
+                else if (tf >= 70) tempColor = lerpColor('#ff8c00', '#ff4f4f', (tf-70)/10);
+                else if (tf >= 55) tempColor = '#39ff89';
+                else if (tf >= 40) tempColor = lerpColor('#ffe033', '#39ff89', (tf-40)/15);
+                else if (tf >= 30) tempColor = lerpColor('#4488ff', '#ffe033', (tf-30)/10);
+                else               tempColor = '#1a3a8a';
+            }
             html += `<div class="wind-card ${group === 'high' ? 'upper' : ''}">
                 <span class="alt">${altLabel}</span>
                 <span class="arrow">${svgArrow}</span>
                 <span class="speed ${cls}">${w.speed.toFixed(1)} kt</span>
                 <span class="dir">${w.direction.toFixed(0)}°</span>
-                <span class="temp">${tempStr}</span>
+                <span class="temp" style="color:${tempColor};font-weight:bold">${tempStr}</span>
             </div>`;
         }
         document.getElementById("cards").innerHTML = html;

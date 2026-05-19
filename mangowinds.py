@@ -758,6 +758,121 @@ select:focus { border-color: var(--accent); }
 }
 #welcomeClose:hover { opacity: 0.85; }
 
+/* ── DEFINE MODAL ── */
+#defineModal {
+    position: fixed;
+    inset: 0;
+    background: rgba(7,11,16,0.88);
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+    padding: 16px;
+}
+#defineBox {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    max-width: 360px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    overflow: hidden;
+}
+#defineHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px 12px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+#defineCloseBtn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+#defineCloseBtn:hover { color: var(--text); }
+#defineBody { padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; }
+.df-row { display: flex; flex-direction: column; gap: 4px; }
+.df-label {
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.df-pair { display: flex; gap: 8px; }
+.df-input {
+    background: var(--card-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.9rem;
+    outline: none;
+    width: 100%;
+}
+.df-input:focus { border-color: var(--accent); }
+.df-short { width: 90px; flex-shrink: 0; }
+.df-select {
+    background: var(--card-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.9rem;
+    outline: none;
+    cursor: pointer;
+    flex: 1;
+    appearance: none;
+}
+.df-select:focus { border-color: var(--accent); }
+#dfSubmitBtn {
+    margin: 6px 18px 16px;
+    padding: 11px;
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    border-radius: 8px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+#dfSubmitBtn:hover { opacity: 0.85; }
+
+#defineBtn {
+    margin-top: 6px;
+    width: 100%;
+    padding: 7px 10px;
+    background: var(--card-bg);
+    color: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.95rem;
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    transition: background 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+#defineBtn:hover, #defineBtn:active { background: var(--border); color: var(--text); }
+
 #drawBtn {
     margin-top: 10px;
     width: 100%;
@@ -876,6 +991,56 @@ select:focus { border-color: var(--accent); }
     </div>
 </div>
 
+<!-- ── DEFINE JUMP RUN MODAL ── -->
+<div id="defineModal" style="display:none">
+    <div id="defineBox">
+        <div id="defineHeader">
+            <span>📐 Define Jump Run</span>
+            <button id="defineCloseBtn" onclick="closeDefineModal()">✕</button>
+        </div>
+        <div id="defineBody">
+
+            <div class="df-row">
+                <label class="df-label">Direction (°)</label>
+                <input type="number" id="dfDir" min="0" max="360" placeholder="e.g. 270" class="df-input">
+            </div>
+
+            <div class="df-row">
+                <label class="df-label">Distance from DZ (mi)</label>
+                <div class="df-pair">
+                    <input type="number" id="dfDist" min="0" step="0.1" placeholder="0.0" class="df-input df-short">
+                    <select id="dfDistDir" class="df-select">
+                        <option value="prior">Prior</option>
+                        <option value="past">Past</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="df-row">
+                <label class="df-label">Offset from DZ (mi)</label>
+                <div class="df-pair">
+                    <input type="number" id="dfOffset" min="0" step="0.1" placeholder="0.0" class="df-input df-short">
+                    <select id="dfOffsetDir" class="df-select">
+                        <option value="N">North</option>
+                        <option value="S">South</option>
+                        <option value="E">East</option>
+                        <option value="W">West</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="df-row">
+                <label class="df-label">Jump Run Length (mi)</label>
+                <input type="number" id="dfLength" min="0" step="0.1" placeholder="e.g. 2.0" class="df-input">
+            </div>
+
+            <div id="dfError" style="display:none;color:var(--red);font-size:0.8rem;margin-top:6px"></div>
+
+        </div>
+        <button id="dfSubmitBtn" onclick="submitDefineJumpRun()">✈️ Draw Jump Run</button>
+    </div>
+</div>
+
 <div id="loader"><div class="spinner"></div></div>
 
 <div id="wrap">
@@ -912,6 +1077,7 @@ select:focus { border-color: var(--accent); }
                 <input type="range" min="0" max="71" value="0" id="hour">
 
                 <button id="drawBtn" onclick="toggleDrawMode()">✏️ Draw Jump Run</button>
+                <button id="defineBtn" onclick="openDefineModal()">📐 Define Jump Run</button>
                 <button id="replayBtn" onclick="startPlaneAnimation()" style="display:none">▶ Replay</button>
                 <button id="clearBtn" onclick="clearJumpRun()" style="display:none">✕ Clear</button>
                 <div id="sepRow" style="margin-top:8px">
@@ -1519,11 +1685,11 @@ async function load(){
             if (tf !== null && tf !== undefined) {
                 tempStr = `${tf}°F`;
                 // >80 red, 70-80 orange, 40-70 green, 30-40 blue, <30 dark blue
-                if      (tf >= 80) tempColor = '#ff4f4f';
-                else if (tf >= 70) tempColor = lerpColor('#ff8c00', '#ff4f4f', (tf-70)/10);
-                else if (tf >= 55) tempColor = '#39ff89';
-                else if (tf >= 40) tempColor = lerpColor('#ffe033', '#39ff89', (tf-40)/15);
-                else if (tf >= 30) tempColor = lerpColor('#4488ff', '#ffe033', (tf-30)/10);
+                if      (tf >= 85) tempColor = '#ff4f4f';
+                else if (tf >= 75) tempColor = lerpColor('#ff8c00', '#ff4f4f', (tf-75)/10);
+                else if (tf >= 60) tempColor = '#39ff89';
+                else if (tf >= 45) tempColor = lerpColor('#ffe033', '#39ff89', (tf-45)/15);
+                else if (tf >= 35) tempColor = lerpColor('#4488ff', '#ffe033', (tf-35)/10);
                 else               tempColor = '#1a3a8a';
             }
             html += `<div class="wind-card ${group === 'high' ? 'upper' : ''}">
@@ -1556,6 +1722,76 @@ function updateHandleSummary(canopySpd, canopyDir, timeStr){
 
 function closeWelcome(){
     document.getElementById("welcomeModal").style.display = "none";
+}
+
+// ── DEFINE JUMP RUN MODAL ──
+function openDefineModal(){
+    document.getElementById("defineModal").style.display = "flex";
+    document.getElementById("dfDir").focus();
+}
+
+function closeDefineModal(){
+    document.getElementById("defineModal").style.display = "none";
+    document.getElementById("dfError").style.display = "none";
+}
+
+function miToMeters(mi){ return mi * 1609.344; }
+
+function offsetLatLon(baseLat, baseLon, bearingDeg, distanceMi){
+    // Move baseLat/baseLon by distanceMi in bearingDeg direction
+    const R = 6378137;
+    const d = miToMeters(distanceMi);
+    const rad = bearingDeg * Math.PI / 180;
+    const lat1 = baseLat * Math.PI / 180;
+    const lon1 = baseLon * Math.PI / 180;
+    const lat2 = Math.asin(Math.sin(lat1)*Math.cos(d/R) +
+                           Math.cos(lat1)*Math.sin(d/R)*Math.cos(rad));
+    const lon2 = lon1 + Math.atan2(Math.sin(rad)*Math.sin(d/R)*Math.cos(lat1),
+                                   Math.cos(d/R)-Math.sin(lat1)*Math.sin(lat2));
+    return [lat2 * 180/Math.PI, lon2 * 180/Math.PI];
+}
+
+function submitDefineJumpRun(){
+    const errEl = document.getElementById("dfError");
+    errEl.style.display = "none";
+
+    const dir     = parseFloat(document.getElementById("dfDir").value);
+    const dist    = parseFloat(document.getElementById("dfDist").value) || 0;
+    const distDir = document.getElementById("dfDistDir").value;
+    const offset  = parseFloat(document.getElementById("dfOffset").value) || 0;
+    const offDir  = document.getElementById("dfOffsetDir").value;
+    const length  = parseFloat(document.getElementById("dfLength").value);
+
+    if (isNaN(dir) || dir < 0 || dir > 360) {
+        errEl.textContent = "Please enter a valid direction (0–360°).";
+        errEl.style.display = "block";
+        return;
+    }
+    if (isNaN(length) || length <= 0) {
+        errEl.textContent = "Please enter a valid jump run length.";
+        errEl.style.display = "block";
+        return;
+    }
+
+    // Prior = start is 180° from direction (plane approaches from behind)
+    // Past  = start is in the direction (plane has already passed DZ)
+    const startBearing = distDir === "prior" ? (dir + 180) % 360 : dir;
+    let startPt = offsetLatLon(lat, lon, startBearing, dist);
+
+    // Apply N/S/E/W offset
+    const offBearing = { N: 0, S: 180, E: 90, W: 270 }[offDir];
+    if (offset > 0) {
+        startPt = offsetLatLon(startPt[0], startPt[1], offBearing, offset);
+    }
+
+    // End point = start + length in the jump run direction
+    const endPt = offsetLatLon(startPt[0], startPt[1], dir, length);
+
+    jrStart = startPt;
+    jrEnd   = endPt;
+
+    closeDefineModal();
+    drawJumpRun();
 }
 
 function initMap(){

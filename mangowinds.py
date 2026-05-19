@@ -233,10 +233,12 @@ def avg_wind_display(winds, low, high):
     for alt in sorted(winds.keys()):
         if low <= alt < high:
             w = winds[alt]
-            speeds.append(w["speed"])
+            spd = w["speed"]
+            speeds.append(spd)
             r = math.radians(w["direction"])
-            sin_sum += math.sin(r)
-            cos_sum += math.cos(r)
+            # Weight by speed so a 40kt wind dominates over a 2kt wind
+            sin_sum += math.sin(r) * spd
+            cos_sum += math.cos(r) * spd
     if not speeds:
         return 0, 0
     avg_speed = sum(speeds) / len(speeds)

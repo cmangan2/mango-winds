@@ -1312,9 +1312,8 @@ async function load(){
             <div class="sc-data">
                 <div><span>SPD</span>${d.canopy.speed.toFixed(1)} kt</div>
                 <div><span>DIR</span>${d.canopy.direction.toFixed(0)}°</div>
-                <div><span>↑WIND</span>${upwindMi.toFixed(2)} mi</div>
-                <div><span>↓WIND</span>${downwindMi.toFixed(2)} mi</div>
-                <div>${arrow(d.canopy.direction, 'var(--canopy)')}</div>
+                <div><span>UPWIND</span>${upwindMi.toFixed(2)} mi</div>
+                <div><span>DWNWIND</span>${downwindMi.toFixed(2)} mi</div>
             </div>`;
 
         const ffFromDir = (d.freefall.direction + 180) % 360;

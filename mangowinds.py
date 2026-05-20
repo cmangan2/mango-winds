@@ -150,7 +150,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
     try:
         api_key = os.environ.get("OPENMETEO_API_KEY")
         url = "https://customer-api.open-meteo.com/v1/forecast" if api_key else "https://api.open-meteo.com/v1/forecast"
-        hourly_fields = ",".join([
+        hourly_fields = [
             "windspeed_10m","winddirection_10m",
             "windspeed_1000hPa","winddirection_1000hPa",
             "windspeed_975hPa","winddirection_975hPa",
@@ -168,19 +168,17 @@ def fetch_forecast(lat, lon, hour_offset=0):
             "geopotential_height_950hPa","geopotential_height_925hPa",
             "geopotential_height_850hPa","geopotential_height_700hPa",
             "geopotential_height_600hPa","geopotential_height_500hPa",
-        ])
-        params = {
-            "latitude": lat, "longitude": lon,
-            "hourly": hourly_fields,
-            "forecast_days": 3,
-            "timezone": "auto",
-            "elevation": "auto",
-            "models": os.environ.get("WIND_MODEL", "best_match"),
-            "wind_speed_unit": "kn",
-        }
+        ]
+        model = os.environ.get("WIND_MODEL", "best_match")
+        # Build URL manually with comma-separated hourly — Open-Meteo requires this exact format
+        hourly_str = ",".join(hourly_fields)
+        full_url = (f"{url}?latitude={lat}&longitude={lon}"
+                    f"&hourly={hourly_str}"
+                    f"&forecast_days=3&timezone=auto&elevation=auto"
+                    f"&models={model}&wind_speed_unit=kn")
         if api_key:
-            params["apikey"] = api_key
-        r = requests.get(url, timeout=15, params=params,
+            full_url += f"&apikey={api_key}"
+        r = requests.get(full_url, timeout=15,
                          headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
         r.raise_for_status()
         data = r.json()

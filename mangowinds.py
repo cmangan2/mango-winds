@@ -62,13 +62,17 @@ def load_dropzones(path="Dropzone list.txt"):
     try:
         with open(path, "r", encoding="utf-8") as f:
             for line in f:
+                line = line.strip()
                 if ":" not in line:
                     continue
-                name, coords = line.split(":", 1)
-                lat, lon = coords.split(",")
-                dz[name.strip()] = (float(lat), float(lon))
+                name, rest = line.split(":", 1)
+                parts = [p.strip() for p in rest.split(",")]
+                lat = float(parts[0])
+                lon = float(parts[1])
+                icao = parts[2] if len(parts) > 2 else None
+                dz[name.strip()] = (lat, lon, icao)
     except Exception:
-        dz = {"default DZ": (43.3712, -70.9259)}
+        dz = {"default DZ": (43.3712, -70.9259, "KLEB")}
     return dz
 
 
@@ -104,6 +108,34 @@ def fetch_schulze(lat, lon, hour_offset=0):
         return None
 
 
+def fetch_metar(icao):
+    """Fetch current surface wind from aviationweather.gov METAR API."""
+    if not icao:
+        return None
+    try:
+        url = f"https://aviationweather.gov/api/data/metar"
+        params = {"ids": icao, "format": "json"}
+        headers = {"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"}
+        r = requests.get(url, timeout=10, params=params, headers=headers)
+        r.raise_for_status()
+        data = r.json()
+        if data and len(data) > 0:
+            obs = data[0]
+            wdir = obs.get("wdir")
+            wspd = obs.get("wspd")
+            temp = obs.get("temp")
+            if wdir is not None and wspd is not None:
+                print(f"METAR {icao}: {wspd}kt @ {wdir}°")
+                return {
+                    "wdir": float(wdir),
+                    "wspd": float(wspd),
+                    "temp": float(temp) if temp is not None else None,
+                }
+    except Exception as e:
+        print(f"METAR fetch error for {icao}: {e}")
+    return None
+
+
 def fetch_forecast(lat, lon, hour_offset=0):
     # hour=0 uses Schulze (keyed by DZ only, no hour)
     # future hours use Open-Meteo (keyed by DZ + hour)
@@ -113,14 +145,10 @@ def fetch_forecast(lat, lon, hour_offset=0):
         dz_key = (round(lat, 3), round(lon, 3))
         cached = _forecast_cache.get(dz_key)
         if cached and cached["expires"] > now:
-            print(f"Cache HIT (schulze) for {dz_key}")
+            print(f"Cache HIT (current) for {dz_key}")
             return cached["data"]
-        result = fetch_schulze(lat, lon, 0)
-        if result:
-            _forecast_cache[dz_key] = {"data": result, "expires": now + CACHE_TTL}
-            save_cache_to_disk()
-            return result
-        print("Schulze unavailable for hour=0, falling back to Open-Meteo")
+        # For current conditions, get Open-Meteo forecast data
+        # then override surface with live METAR observation
         dz_key = (round(lat, 3), round(lon, 3), 0)
     else:
         dz_key = (round(lat, 3), round(lon, 3), hour_offset)
@@ -348,8 +376,27 @@ def data():
     if lat is None or lon is None:
         return jsonify({"error": "lat and lon are required"}), 400
 
+    # Get ICAO for this DZ if available
+    icao = None
+    for dz_vals in DROPZONES.values():
+        if len(dz_vals) > 2 and abs(dz_vals[0]-lat) < 0.01 and abs(dz_vals[1]-lon) < 0.01:
+            icao = dz_vals[2]
+            break
+
     raw = fetch_forecast(lat, lon, hour)
     winds = format_winds(raw, hour)
+
+    # Override SFC with live METAR for current conditions
+    if hour == 0 and icao and winds:
+        metar = fetch_metar(icao)
+        if metar:
+            winds[0] = {
+                "speed":     round(metar["wspd"], 1),
+                "direction": round(metar["wdir"] % 360, 0),
+                "arrow":     wind_arrow(metar["wdir"]),
+                "color":     color(metar["wspd"]),
+                "temp_f":    round(metar["temp"] * 9/5 + 32) if metar["temp"] is not None else None,
+            }
 
     if not winds:
         print(f"ERROR: winds empty for lat={lat} lon={lon} hour={hour}")
@@ -406,7 +453,9 @@ def data():
 
 @app.route("/")
 def index():
-    return render_template("index.html", dz=DROPZONES)
+    # Pass only lat/lon to frontend (strip ICAO)
+    dz_frontend = {k: (v[0], v[1]) for k, v in DROPZONES.items()}
+    return render_template("index.html", dz=dz_frontend)
 
 
 if __name__ == "__main__":

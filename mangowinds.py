@@ -174,13 +174,17 @@ def fetch_forecast(lat, lon, hour_offset=0):
         hourly_str = ",".join(hourly_fields)
         full_url = (f"{url}?latitude={lat}&longitude={lon}"
                     f"&hourly={hourly_str}"
-                    f"&forecast_days=3&timezone=auto&elevation=auto"
-                    f"&models={model}&wind_speed_unit=kn")
+                    f"&forecast_days=3&timezone=auto"
+                    f"&wind_speed_unit=kn")
+        if model:
+            full_url += f"&models={model}"
         if api_key:
             full_url += f"&apikey={api_key}"
         r = requests.get(full_url, timeout=15,
                          headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
-        r.raise_for_status()
+        if not r.ok:
+            print(f"Open-Meteo {r.status_code}: {r.text[:300]}")
+            r.raise_for_status()
         data = r.json()
         result = {"source": "openmeteo", "data": data}
         # Cache future-hour Open-Meteo data for 60 min

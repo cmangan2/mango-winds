@@ -162,6 +162,10 @@ def fetch_forecast(lat, lon, hour_offset=0):
                 "windspeed_700hPa",  "winddirection_700hPa",
                 "windspeed_600hPa",  "winddirection_600hPa",
                 "windspeed_500hPa",  "winddirection_500hPa",
+                "temperature_1000hPa", "temperature_975hPa",
+                "temperature_950hPa",  "temperature_925hPa",
+                "temperature_850hPa",  "temperature_700hPa",
+                "temperature_600hPa",  "temperature_500hPa",
                 "geopotential_height_1000hPa",
                 "geopotential_height_975hPa",
                 "geopotential_height_950hPa",
@@ -270,47 +274,66 @@ def format_winds(data, hour):
             print(f"format_winds (schulze): {len(result)} levels")
             return result
 
-        # Open-Meteo fallback — use actual geopotential heights for accuracy
+        # Open-Meteo — use geopotential heights for accurate interpolation
         h = data["data"]["hourly"]
 
         def gh(lvl):
             return h[f"geopotential_height_{lvl}hPa"][hour] * 3.28084
 
-        # Build all pressure levels at their real altitudes
-        all_levels = [
-            (gh(1000), h["windspeed_1000hPa"][hour], h["winddirection_1000hPa"][hour]),
-            (gh(975),  h["windspeed_975hPa"][hour],  h["winddirection_975hPa"][hour]),
-            (gh(950),  h["windspeed_950hPa"][hour],  h["winddirection_950hPa"][hour]),
-            (gh(925),  h["windspeed_925hPa"][hour],  h["winddirection_925hPa"][hour]),
-            (gh(850),  h["windspeed_850hPa"][hour],  h["winddirection_850hPa"][hour]),
-            (gh(700),  h["windspeed_700hPa"][hour],  h["winddirection_700hPa"][hour]),
-            (gh(600),  h["windspeed_600hPa"][hour],  h["winddirection_600hPa"][hour]),
-            (gh(500),  h["windspeed_500hPa"][hour],  h["winddirection_500hPa"][hour]),
-        ]
-        # Filter out below-ground levels (geopotential < 50ft)
-        pressure_levels = [(a, s, d) for a, s, d in all_levels if a > 50]
+        def tc_to_f(tc):
+            return round(tc * 9/5 + 32) if tc is not None else None
 
-        surf_speed = h["windspeed_10m"][hour]
-        surf_dir   = h["winddirection_10m"][hour]
-        base = [(33, surf_speed, surf_dir)] + pressure_levels
+        all_levels = [
+            (gh(1000), h["windspeed_1000hPa"][hour], h["winddirection_1000hPa"][hour], h.get("temperature_1000hPa", [None]*200)[hour]),
+            (gh(975),  h["windspeed_975hPa"][hour],  h["winddirection_975hPa"][hour],  h.get("temperature_975hPa",  [None]*200)[hour]),
+            (gh(950),  h["windspeed_950hPa"][hour],  h["winddirection_950hPa"][hour],  h.get("temperature_950hPa",  [None]*200)[hour]),
+            (gh(925),  h["windspeed_925hPa"][hour],  h["winddirection_925hPa"][hour],  h.get("temperature_925hPa",  [None]*200)[hour]),
+            (gh(850),  h["windspeed_850hPa"][hour],  h["winddirection_850hPa"][hour],  h.get("temperature_850hPa",  [None]*200)[hour]),
+            (gh(700),  h["windspeed_700hPa"][hour],  h["winddirection_700hPa"][hour],  h.get("temperature_700hPa",  [None]*200)[hour]),
+            (gh(600),  h["windspeed_600hPa"][hour],  h["winddirection_600hPa"][hour],  h.get("temperature_600hPa",  [None]*200)[hour]),
+            (gh(500),  h["windspeed_500hPa"][hour],  h["winddirection_500hPa"][hour],  h.get("temperature_500hPa",  [None]*200)[hour]),
+        ]
+        # Filter out below-ground levels
+        pressure_levels = [(a, s, d, t) for a, s, d, t in all_levels if a > 50]
+
+        # Interpolation base uses pressure levels only (no 10m surface anchor)
+        # This keeps upper winds accurate — METAR overrides SFC display in /data
+        base = [(p[0], p[1], p[2]) for p in pressure_levels]
+
         result = {}
+        # SFC display: use lowest pressure level; METAR overrides at hour=0
+        lowest = pressure_levels[0]
         result[0] = {
-            "speed":     round(surf_speed, 1),
-            "direction": round(surf_dir % 360, 0),
-            "arrow":     wind_arrow(surf_dir),
-            "color":     color(surf_speed),
-            "temp_f":    None,
+            "speed":     round(lowest[1], 1),
+            "direction": round(lowest[2] % 360, 0),
+            "arrow":     wind_arrow(lowest[2]),
+            "color":     color(lowest[1]),
+            "temp_f":    tc_to_f(lowest[3]),
         }
         for alt in range(1000, 15000, 1000):
             speed, direction = interpolate(base, alt)
+            # Interpolate temperature between bracketing pressure levels
+            temp_c = None
+            for i in range(len(pressure_levels) - 1):
+                a0, _, _, t0 = pressure_levels[i]
+                a1, _, _, t1 = pressure_levels[i + 1]
+                if a0 <= alt <= a1 and t0 is not None and t1 is not None:
+                    temp_c = t0 + (t1 - t0) * (alt - a0) / (a1 - a0)
+                    break
+            if temp_c is None:
+                if alt <= pressure_levels[0][0]:
+                    temp_c = pressure_levels[0][3]
+                else:
+                    temp_c = pressure_levels[-1][3]
             result[alt] = {
                 "speed":     round(speed, 1),
                 "direction": round(direction % 360, 0),
                 "arrow":     wind_arrow(direction),
                 "color":     color(speed),
-                "temp_f":    None,
+                "temp_f":    tc_to_f(temp_c),
             }
         return result
+
 
     except Exception as e:
         import traceback

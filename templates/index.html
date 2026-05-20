@@ -896,7 +896,17 @@ function drawFreefallParallel(){
 
     const jrLenM = distMeters(jrStart, jrEnd);
     const bear = bearing(jrStart, jrEnd);
-    const gndKts = lastGndSpeedKts ? lastGndSpeedKts.toFixed(0) + ' kt' : '—';
+    // Calculate ground speed fresh each time using current wind data
+    let gndKts = '—';
+    if (lastWind14k) {
+        const airspeedMs = 110 * 0.514444;
+        const wSpdMs = lastWind14k.speed * 0.514444;
+        const angleDiff = ((lastWind14k.direction - bear + 180 + 360) % 360) - 180;
+        const headwindMs = wSpdMs * Math.cos(angleDiff * Math.PI / 180);
+        const gndMs = Math.max(airspeedMs - headwindMs, airspeedMs * 0.4);
+        lastGndSpeedKts = gndMs / 0.514444;
+        gndKts = lastGndSpeedKts.toFixed(0) + ' kt';
+    }
     document.getElementById("jumpRunInfo").style.display = "block";
     document.getElementById("jumpRunInfo").innerHTML =
         `JR heading: ${bear.toFixed(0)}°<br>` +

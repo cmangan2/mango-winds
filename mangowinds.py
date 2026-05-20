@@ -257,7 +257,7 @@ def format_winds(data, hour, lat=0, lon=0):
             speeds     = d.get("speed", {})
             temps      = d.get("temp", {})  # °C at every 1000ft
             result = {}
-            for alt in [0] + list(range(1000, 15000, 1000)):
+            for alt in [0] + list(range(1000, 19000, 1000)):
                 key = str(alt)
                 spd  = float(speeds.get(key, 0))
                 dirn = float(directions.get(key, 0))
@@ -331,7 +331,7 @@ def format_winds(data, hour, lat=0, lon=0):
             "color":     color(lowest[1]),
             "temp_f":    tc_to_f(lowest[3]),
         }
-        for alt in range(1000, 15000, 1000):
+        for alt in range(1000, 19000, 1000):
             speed, direction = interpolate(base, alt)
             # Interpolate temperature between bracketing pressure levels
             temp_c = None
@@ -490,8 +490,8 @@ def data():
             "distance": freefall_distance(free_speed, free_dir),
         },
         "wind_14k": {
-            "speed": winds.get(14000, {}).get("speed", 0),
-            "direction": winds.get(14000, {}).get("direction", 0),
+            "speed": winds.get(18000, {}).get("speed", winds.get(14000, {}).get("speed", 0)),
+            "direction": winds.get(18000, {}).get("direction", winds.get(14000, {}).get("direction", 0)),
         },
         "time_label": time_label,
     })

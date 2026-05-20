@@ -441,9 +441,10 @@ def data():
     winds = format_winds(raw, hour, lat, lon)
 
     # Override SFC with live METAR for current conditions
+    # If METAR returns calm (0kt) fall back to Open-Meteo lowest level
     if hour == 0 and icao and winds:
         metar = fetch_metar(icao)
-        if metar:
+        if metar and metar["wspd"] > 0:
             winds[0] = {
                 "speed":     round(metar["wspd"], 1),
                 "direction": round(metar["wdir"] % 360, 0),
@@ -451,6 +452,9 @@ def data():
                 "color":     color(metar["wspd"]),
                 "temp_f":    round(metar["temp"] * 9/5 + 32) if metar["temp"] is not None else None,
             }
+            print(f"SFC: using METAR {icao} {metar['wspd']}kt/{metar['wdir']}°")
+        else:
+            print(f"SFC: METAR calm or unavailable, using Open-Meteo lowest level")
 
     if not winds:
         print(f"ERROR: winds empty for lat={lat} lon={lon} hour={hour}")

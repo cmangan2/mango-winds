@@ -508,6 +508,23 @@ select:focus { border-color: var(--accent); }
 }
 #dfSubmitBtn:hover { opacity: 0.85; }
 
+#refreshBtn {
+    background: none;
+    border: 1px solid var(--muted);
+    color: var(--muted);
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    font-size: 1rem;
+    cursor: pointer;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: border-color 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    padding: 0;
+}
+#refreshBtn:hover { border-color: var(--accent); color: var(--accent); }
+
 #helpBtn {
     background: none;
     border: 1px solid var(--muted);
@@ -745,6 +762,7 @@ select:focus { border-color: var(--accent); }
                 <div class="handle-bar"></div>
                 <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
                     <span class="handle-title">🪂 Mango Wind Hub</span>
+                    <button onclick="clearAndReload();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.85rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Clear cache & refresh">↺</button>
                     <button onclick="openWelcome();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;font-weight:700;cursor:pointer;line-height:1;padding:0;flex-shrink:0">?</button>
                 </div>
             </div>
@@ -753,7 +771,10 @@ select:focus { border-color: var(--accent); }
         <div id="panel-header">
             <div style="display:flex;justify-content:space-between;align-items:flex-start">
                 <h1>🪂 Mango Wind Hub</h1>
-                <button id="helpBtn" onclick="openWelcome()" title="Quick Start Guide">?</button>
+                <div style="display:flex;gap:6px;align-items:center">
+                    <button id="refreshBtn" onclick="clearAndReload()" title="Clear cache & refresh">↺</button>
+                    <button id="helpBtn" onclick="openWelcome()" title="Quick Start Guide">?</button>
+                </div>
             </div>
             <p id="utcLabel">Fetching forecast...</p>
         </div>
@@ -1423,6 +1444,13 @@ function toggleCards(){
 
 function closeWelcome(){
     document.getElementById("welcomeModal").style.display = "none";
+}
+
+async function clearAndReload(){
+    try {
+        await fetch('/clearcache?token=mango');
+    } catch(e) {}
+    load();
 }
 
 function openWelcome(){

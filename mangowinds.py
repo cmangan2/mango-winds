@@ -321,15 +321,17 @@ def format_winds(data, hour, lat=0, lon=0):
         # Interpolation base uses pressure levels only (no 10m surface anchor)
         base = [(p[0], p[1], p[2]) for p in pressure_levels]
 
+        # SFC display: use Open-Meteo 10m wind (actual surface model wind)
+        # METAR overrides this at hour=0 if wind > 0
+        surf_spd = h["windspeed_10m"][hour]
+        surf_dir = h["winddirection_10m"][hour]
         result = {}
-        # SFC display: use lowest pressure level; METAR overrides at hour=0
-        lowest = pressure_levels[0]
         result[0] = {
-            "speed":     round(lowest[1], 1),
-            "direction": round(lowest[2] % 360, 0),
-            "arrow":     wind_arrow(lowest[2]),
-            "color":     color(lowest[1]),
-            "temp_f":    tc_to_f(lowest[3]),
+            "speed":     round(surf_spd, 1),
+            "direction": round(surf_dir % 360, 0),
+            "arrow":     wind_arrow(surf_dir),
+            "color":     color(surf_spd),
+            "temp_f":    tc_to_f(pressure_levels[0][3]) if pressure_levels else None,
         }
         for alt in range(1000, 19000, 1000):
             speed, direction = interpolate(base, alt)

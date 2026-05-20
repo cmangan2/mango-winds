@@ -177,8 +177,9 @@ def fetch_forecast(lat, lon, hour_offset=0):
             ],
             "forecast_days": 3,
             "timezone": "auto",
+            "elevation": "auto",
             "wind_speed_unit": "kn",
-            "models": "best_match",
+
         }
         if api_key:
             params["apikey"] = api_key
@@ -233,7 +234,7 @@ def interpolate(base, alt):
     return base[-1][1], base[-1][2]
 
 
-def format_winds(data, hour):
+def format_winds(data, hour, lat=0, lon=0):
     if not data:
         print("format_winds: data is None")
         return {}
@@ -293,8 +294,17 @@ def format_winds(data, hour):
             (gh(600),  h["windspeed_600hPa"][hour],  h["winddirection_600hPa"][hour],  h.get("temperature_600hPa",  [None]*200)[hour]),
             (gh(500),  h["windspeed_500hPa"][hour],  h["winddirection_500hPa"][hour],  h.get("temperature_500hPa",  [None]*200)[hour]),
         ]
-        # Filter out below-ground levels
-        pressure_levels = [(a, s, d, t) for a, s, d, t in all_levels if a > 50]
+        # Get site elevation from Open-Meteo response if available
+        # otherwise use a safe 1000ft cutoff to exclude near-surface bogus levels
+        try:
+            elev_m = data["data"].get("elevation", 0) or 0
+            elev_ft = elev_m * 3.28084
+        except Exception:
+            elev_ft = 0
+        # Only keep pressure levels at least 300ft above site elevation
+        min_alt_ft = elev_ft + 300
+        pressure_levels = [(a, s, d, t) for a, s, d, t in all_levels if a > min_alt_ft]
+        print(f"Site elev={elev_ft:.0f}ft, keeping levels above {min_alt_ft:.0f}ft: {[int(p[0]) for p in pressure_levels[:4]]}")
 
         # Interpolation base uses pressure levels only (no 10m surface anchor)
         # This keeps upper winds accurate — METAR overrides SFC display in /data
@@ -417,7 +427,7 @@ def data():
             break
 
     raw = fetch_forecast(lat, lon, hour)
-    winds = format_winds(raw, hour)
+    winds = format_winds(raw, hour, lat, lon)
 
     # Override SFC with live METAR for current conditions
     if hour == 0 and icao and winds:

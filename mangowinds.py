@@ -113,24 +113,35 @@ def fetch_metar(icao):
     if not icao:
         return None
     try:
-        url = f"https://aviationweather.gov/api/data/metar"
+        url = "https://aviationweather.gov/api/data/metar"
         params = {"ids": icao, "format": "json"}
         headers = {"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"}
         r = requests.get(url, timeout=10, params=params, headers=headers)
         r.raise_for_status()
         data = r.json()
+        print(f"METAR raw {icao}: {data[0] if data else 'empty'}")
         if data and len(data) > 0:
             obs = data[0]
             wdir = obs.get("wdir")
             wspd = obs.get("wspd")
             temp = obs.get("temp")
+            # Handle variable winds (VRB) — use 0° direction, still show speed
+            if str(wdir).upper() == "VRB":
+                wdir = 0
             if wdir is not None and wspd is not None:
-                print(f"METAR {icao}: {wspd}kt @ {wdir}°")
-                return {
-                    "wdir": float(wdir),
-                    "wspd": float(wspd),
-                    "temp": float(temp) if temp is not None else None,
-                }
+                try:
+                    wdir_f = float(wdir)
+                    wspd_f = float(wspd)
+                    print(f"METAR {icao}: {wspd_f}kt @ {wdir_f}°")
+                    return {
+                        "wdir": wdir_f,
+                        "wspd": wspd_f,
+                        "temp": float(temp) if temp is not None else None,
+                    }
+                except (ValueError, TypeError) as e:
+                    print(f"METAR {icao} parse error: {e} wdir={wdir} wspd={wspd}")
+            else:
+                print(f"METAR {icao}: missing wdir or wspd — obs={obs}")
     except Exception as e:
         print(f"METAR fetch error for {icao}: {e}")
     return None

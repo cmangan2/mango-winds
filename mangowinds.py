@@ -150,37 +150,33 @@ def fetch_forecast(lat, lon, hour_offset=0):
     try:
         api_key = os.environ.get("OPENMETEO_API_KEY")
         url = "https://customer-api.open-meteo.com/v1/forecast" if api_key else "https://api.open-meteo.com/v1/forecast"
+        hourly_fields = ",".join([
+            "windspeed_10m","winddirection_10m",
+            "windspeed_1000hPa","winddirection_1000hPa",
+            "windspeed_975hPa","winddirection_975hPa",
+            "windspeed_950hPa","winddirection_950hPa",
+            "windspeed_925hPa","winddirection_925hPa",
+            "windspeed_850hPa","winddirection_850hPa",
+            "windspeed_700hPa","winddirection_700hPa",
+            "windspeed_600hPa","winddirection_600hPa",
+            "windspeed_500hPa","winddirection_500hPa",
+            "temperature_1000hPa","temperature_975hPa",
+            "temperature_950hPa","temperature_925hPa",
+            "temperature_850hPa","temperature_700hPa",
+            "temperature_600hPa","temperature_500hPa",
+            "geopotential_height_1000hPa","geopotential_height_975hPa",
+            "geopotential_height_950hPa","geopotential_height_925hPa",
+            "geopotential_height_850hPa","geopotential_height_700hPa",
+            "geopotential_height_600hPa","geopotential_height_500hPa",
+        ])
         params = {
             "latitude": lat, "longitude": lon,
-            "hourly": [
-                "windspeed_10m",     "winddirection_10m",
-                "windspeed_1000hPa", "winddirection_1000hPa",
-                "windspeed_975hPa",  "winddirection_975hPa",
-                "windspeed_950hPa",  "winddirection_950hPa",
-                "windspeed_925hPa",  "winddirection_925hPa",
-                "windspeed_850hPa",  "winddirection_850hPa",
-                "windspeed_700hPa",  "winddirection_700hPa",
-                "windspeed_600hPa",  "winddirection_600hPa",
-                "windspeed_500hPa",  "winddirection_500hPa",
-                "temperature_1000hPa", "temperature_975hPa",
-                "temperature_950hPa",  "temperature_925hPa",
-                "temperature_850hPa",  "temperature_700hPa",
-                "temperature_600hPa",  "temperature_500hPa",
-                "geopotential_height_1000hPa",
-                "geopotential_height_975hPa",
-                "geopotential_height_950hPa",
-                "geopotential_height_925hPa",
-                "geopotential_height_850hPa",
-                "geopotential_height_700hPa",
-                "geopotential_height_600hPa",
-                "geopotential_height_500hPa",
-            ],
+            "hourly": hourly_fields,
             "forecast_days": 3,
             "timezone": "auto",
             "elevation": "auto",
             "models": os.environ.get("WIND_MODEL", "best_match"),
             "wind_speed_unit": "kn",
-
         }
         if api_key:
             params["apikey"] = api_key

@@ -595,6 +595,21 @@ select:focus { border-color: var(--accent); }
 }
 #clearBtn:hover, #clearBtn:active { background: var(--border); color: var(--text); }
 
+#attribution {
+    padding: 10px 4px 4px;
+    font-size: 0.62rem;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.8;
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
+}
+#attribution a {
+    color: var(--muted);
+    text-decoration: none;
+}
+#attribution a:hover { color: var(--accent); }
+
 #jumpRunInfo {
     margin-top: 6px;
     font-family: 'Share Tech Mono', monospace;
@@ -791,6 +806,11 @@ select:focus { border-color: var(--accent); }
             </div>
             <div id="cards-wrap">
                 <div id="cards"></div>
+                <div id="attribution">
+                    Weather: <a href="https://open-meteo.com" target="_blank">Open-Meteo</a> (CC BY 4.0)
+                    &nbsp;|&nbsp; Surface: <a href="https://aviationweather.gov" target="_blank">aviationweather.gov</a>
+                    &nbsp;|&nbsp; Maps: <a href="https://www.esri.com" target="_blank">Esri</a>
+                </div>
             </div>
 
         </div>

@@ -178,6 +178,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
             "forecast_days": 3,
             "timezone": "auto",
             "elevation": "auto",
+            "models": os.environ.get("WIND_MODEL", "best_match"),
             "wind_speed_unit": "kn",
 
         }
@@ -294,20 +295,21 @@ def format_winds(data, hour, lat=0, lon=0):
             (gh(600),  h["windspeed_600hPa"][hour],  h["winddirection_600hPa"][hour],  h.get("temperature_600hPa",  [None]*200)[hour]),
             (gh(500),  h["windspeed_500hPa"][hour],  h["winddirection_500hPa"][hour],  h.get("temperature_500hPa",  [None]*200)[hour]),
         ]
-        # Get site elevation from Open-Meteo response if available
-        # otherwise use a safe 1000ft cutoff to exclude near-surface bogus levels
+        # Get site elevation from Open-Meteo response (top-level field)
         try:
-            elev_m = data["data"].get("elevation", 0) or 0
+            elev_m = float(data["data"].get("elevation") or 0)
             elev_ft = elev_m * 3.28084
         except Exception:
             elev_ft = 0
         # Only keep pressure levels at least 300ft above site elevation
         min_alt_ft = elev_ft + 300
         pressure_levels = [(a, s, d, t) for a, s, d, t in all_levels if a > min_alt_ft]
-        print(f"Site elev={elev_ft:.0f}ft, keeping levels above {min_alt_ft:.0f}ft: {[int(p[0]) for p in pressure_levels[:4]]}")
+        # Safety: if filter removed everything, fall back to all levels
+        if not pressure_levels:
+            pressure_levels = [(a, s, d, t) for a, s, d, t in all_levels if a > 0]
+        print(f"Site elev={elev_ft:.0f}ft, keeping {len(pressure_levels)} levels above {min_alt_ft:.0f}ft")
 
         # Interpolation base uses pressure levels only (no 10m surface anchor)
-        # This keeps upper winds accurate — METAR overrides SFC display in /data
         base = [(p[0], p[1], p[2]) for p in pressure_levels]
 
         result = {}

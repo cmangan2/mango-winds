@@ -1079,6 +1079,8 @@ function toggleDrawMode(){
         map.getContainer().style.cursor = "crosshair";
         clearAnimation();
         jrStart = null; jrEnd = null;
+        // Auto-collapse panel on mobile so user can draw
+        if (window.innerWidth < 600 && panelOpen) togglePanel();
     } else {
         btn.classList.remove("active");
         btn.textContent = "✏️ Draw Jump Run";
@@ -1475,6 +1477,8 @@ function submitDefineJumpRun(){
 
     closeDefineModal();
     drawJumpRun();
+    // Auto-collapse panel on mobile so user can see the animation
+    if (window.innerWidth < 600 && panelOpen) togglePanel();
 }
 
 function initMap(){

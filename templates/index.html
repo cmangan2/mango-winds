@@ -853,6 +853,7 @@ let jrStart = null;
 let jrEnd = null;
 let lastFreefall = null;
 let lastWind14k = null;
+let lastGndSpeedKts = null;
 let planeMarker = null;
 let planeAnimId = null;
 let animGeneration = 0;
@@ -895,10 +896,12 @@ function drawFreefallParallel(){
 
     const jrLenM = distMeters(jrStart, jrEnd);
     const bear = bearing(jrStart, jrEnd);
+    const gndKts = lastGndSpeedKts ? lastGndSpeedKts.toFixed(0) + ' kt' : '—';
     document.getElementById("jumpRunInfo").style.display = "block";
     document.getElementById("jumpRunInfo").innerHTML =
         `JR heading: ${bear.toFixed(0)}°<br>` +
         `JR length:  ${(jrLenM / 1609.344).toFixed(2)} mi<br>` +
+        `JR speed:   ${gndKts}<br>` +
         `FF drift:   ${(ffDist / 1609.344).toFixed(2)} mi @ ${ff.direction.toFixed(0)}°`;
 }
 
@@ -992,6 +995,7 @@ function startPlaneAnimation(){
     const angleDiff = ((wDir - hdg + 180 + 360) % 360) - 180;
     const headwind = wSpd * Math.cos(angleDiff * Math.PI / 180);
     const gndSpeed = Math.max(airspeed - headwind, airspeed * 0.4);
+    lastGndSpeedKts = gndSpeed / 0.514444;  // store in knots for display
 
     const realisticDuration = (jrDist / gndSpeed) * 1000;
     const displayDuration   = 10000;

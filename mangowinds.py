@@ -387,6 +387,7 @@ def format_winds(data, hour, lat=0, lon=0):
 # =====================================================
 
 def avg_wind_display(winds, low, high):
+    """Simple arithmetic average of speed and direction for displayed altitudes."""
     speeds = []
     sin_sum = 0.0
     cos_sum = 0.0
@@ -396,9 +397,8 @@ def avg_wind_display(winds, low, high):
             spd = w["speed"]
             speeds.append(spd)
             r = math.radians(w["direction"])
-            # Weight by speed so a 40kt wind dominates over a 2kt wind
-            sin_sum += math.sin(r) * spd
-            cos_sum += math.cos(r) * spd
+            sin_sum += math.sin(r)
+            cos_sum += math.cos(r)
     if not speeds:
         return 0, 0
     avg_speed = sum(speeds) / len(speeds)

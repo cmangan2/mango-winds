@@ -430,7 +430,8 @@ def debug():
     lat = request.args.get("lat", 43.371169, type=float)
     lon = request.args.get("lon", -70.925974, type=float)
 
-    hourly_fields = [
+    # ── Pressure level fields ──
+    pressure_fields = [
         "windspeed_10m","winddirection_10m",
         "windspeed_1000hPa","winddirection_1000hPa",
         "windspeed_975hPa","winddirection_975hPa",
@@ -445,13 +446,23 @@ def debug():
         "geopotential_height_850hPa","geopotential_height_700hPa",
         "geopotential_height_600hPa","geopotential_height_500hPa",
     ]
-    hourly_str = ",".join(hourly_fields)
+    # ── Altitude-based fields (metres AGL) ──
+    # Open-Meteo altitude levels: 10,80,120,180m and then pressure-derived heights
+    # The "wind_speed_Xm" variables are at fixed heights above ground
+    alt_fields = [
+        "windspeed_10m","winddirection_10m",
+        "windspeed_80m","winddirection_80m",
+        "windspeed_120m","winddirection_120m",
+        "windspeed_180m","winddirection_180m",
+    ]
+
     base_url = "https://api.open-meteo.com/v1/forecast"
     STD = {1000:364,975:820,950:1555,925:2500,850:4780,700:9843,600:14108,500:18289}
 
-    def fetch_model(model):
+    def fetch_pressure(model):
+        fields = ",".join(pressure_fields)
         url = (f"{base_url}?latitude={lat}&longitude={lon}"
-               f"&hourly={hourly_str}"
+               f"&hourly={fields}"
                f"&forecast_days=1&timezone=auto&wind_speed_unit=kn"
                + (f"&models={model}" if model else ""))
         try:
@@ -475,26 +486,54 @@ def debug():
         except Exception as e:
             return [("Error", 0, None, str(e))]
 
-    models = [("GFS", "gfs_seamless"), ("ECMWF", "ecmwf_ifs025"), ("ICON", "icon_seamless")]
-    results = {name: fetch_model(m) for name, m in models}
+    def fetch_altitude():
+        # Altitude-based: 10m, 80m, 120m, 180m above ground
+        # Also fetch pressure levels for comparison — these give heights in metres AGL
+        fields = ",".join(alt_fields)
+        url = (f"{base_url}?latitude={lat}&longitude={lon}"
+               f"&hourly={fields}"
+               f"&forecast_days=1&timezone=auto&wind_speed_unit=kn")
+        try:
+            r = requests.get(url, timeout=15, headers={"User-Agent": "MangoWindHub/1.0"})
+            r.raise_for_status()
+            h = r.json()["hourly"]
+            return [
+                ("10m AGL",   33,   h["windspeed_10m"][0],  h["winddirection_10m"][0]),
+                ("80m AGL",   262,  h["windspeed_80m"][0],  h["winddirection_80m"][0]),
+                ("120m AGL",  394,  h["windspeed_120m"][0], h["winddirection_120m"][0]),
+                ("180m AGL",  591,  h["windspeed_180m"][0], h["winddirection_180m"][0]),
+            ]
+        except Exception as e:
+            return [("Error", 0, None, str(e))]
+
+    pressure_models = [("GFS", "gfs_seamless"), ("ECMWF", "ecmwf_ifs025"), ("ICON", "icon_seamless")]
+    pressure_results = {name: fetch_pressure(m) for name, m in pressure_models}
+    alt_results = fetch_altitude()
 
     def make_rows(data):
         out = ""
         for name, alt_ft, spd, dirn in data:
-            grey = "color:#555" if alt_ft > 14500 else ""
-            spd_str  = f"{spd:.1f} kt"  if isinstance(spd,  float) else str(spd)
-            dir_str  = f"{dirn:.0f}°"   if isinstance(dirn, float) else str(dirn)
-            out += f"<tr style=\"{grey}\"><td>{name}</td><td>{alt_ft:,.0f} ft</td><td>{spd_str}</td><td>{dir_str}</td></tr>"
+            grey = "color:#555" if isinstance(alt_ft, (int,float)) and alt_ft > 14500 else ""
+            spd_str = f"{spd:.1f} kt" if isinstance(spd, float) else (f"{spd} kt" if spd is not None else "None")
+            dir_str = f"{dirn:.0f}°"  if isinstance(dirn, float) else (f"{dirn}°" if dirn is not None else "None")
+            out += f'<tr style="{grey}"><td>{name}</td><td>{alt_ft:,.0f} ft</td><td>{spd_str}</td><td>{dir_str}</td></tr>'
         return out
 
     cols = ""
-    for name, _ in models:
-        cols += f"""<td style="vertical-align:top;padding-right:32px">
+    for name, _ in pressure_models:
+        cols += f'''<td style="vertical-align:top;padding-right:28px">
             <h3>{name}</h3>
             <table>
                 <tr><th>Level</th><th>Alt MSL</th><th>Speed</th><th>Dir</th></tr>
-                {make_rows(results[name])}
-            </table></td>"""
+                {make_rows(pressure_results[name])}
+            </table></td>'''
+
+    alt_col = f'''<td style="vertical-align:top;padding-right:28px">
+        <h3 style="color:#ffaa00">ALT-BASED</h3>
+        <table>
+            <tr><th>Level</th><th>Alt AGL</th><th>Speed</th><th>Dir</th></tr>
+            {make_rows(alt_results)}
+        </table></td>'''
 
     return f"""<!DOCTYPE html><html><head><title>Model Comparison</title>
     <style>
@@ -507,7 +546,7 @@ def debug():
     </style></head><body>
     <h2>Wind Model Comparison — Hour 0</h2>
     <p class="note">lat={lat}, lon={lon} | SNE elev ≈ 315ft | grey = above 14,500ft MSL</p>
-    <table><tr>{cols}</tr></table>
+    <table><tr>{cols}{alt_col}</tr></table>
     </body></html>"""
 
 

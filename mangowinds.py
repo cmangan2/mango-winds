@@ -162,7 +162,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
         api_key = os.environ.get("OPENMETEO_API_KEY")
         url = "https://customer-api.open-meteo.com/v1/forecast" if api_key else "https://api.open-meteo.com/v1/forecast"
         hourly_fields = [
-            "windspeed_10m","winddirection_10m",
+            "windspeed_10m","winddirection_10m","windspeed_80m","winddirection_80m",
             "windspeed_1000hPa","winddirection_1000hPa",
             "windspeed_975hPa","winddirection_975hPa",
             "windspeed_950hPa","winddirection_950hPa",
@@ -180,13 +180,8 @@ def fetch_forecast(lat, lon, hour_offset=0):
             "geopotential_height_850hPa","geopotential_height_700hPa",
             "geopotential_height_600hPa","geopotential_height_500hPa",
         ]
-        # Use HRRR for hours 0-18 (best short-range US model, 3km, hourly updates)
-        # Use GFS seamless for hours 19-72
         hourly_str = ",".join(hourly_fields)
-        if hour_offset <= 18:
-            model = "gfs_hrrr"   # GFS+HRRR blend — best for 0-18h US forecasts
-        else:
-            model = os.environ.get("WIND_MODEL", "gfs_seamless")
+        model = os.environ.get("WIND_MODEL", "gfs_seamless")
         full_url = (f"{url}?latitude={lat}&longitude={lon}"
                     f"&hourly={hourly_str}"
                     f"&forecast_days=3&timezone=auto"
@@ -263,7 +258,7 @@ def format_winds(data, hour, lat=0, lon=0):
             speeds     = d.get("speed", {})
             temps      = d.get("temp", {})  # °C at every 1000ft
             result = {}
-            for alt in [0] + list(range(1000, 19000, 1000)):
+            for alt in [0] + list(range(1000, 15000, 1000)):
                 key = str(alt)
                 spd  = float(speeds.get(key, 0))
                 dirn = float(directions.get(key, 0))
@@ -336,10 +331,17 @@ def format_winds(data, hour, lat=0, lon=0):
         # Interpolation base uses pressure levels only (no 10m surface anchor)
         base = [(p[0], p[1], p[2]) for p in pressure_levels]
 
-        # SFC display: use Open-Meteo 10m wind (actual surface model wind)
-        # METAR overrides this at hour=0 if wind > 0
-        surf_spd = h["windspeed_10m"][hour]
-        surf_dir = h["winddirection_10m"][hour]
+        # SFC: average 10m and 80m AGL winds (vector average)
+        spd10  = h["windspeed_10m"][hour]
+        dir10  = h["winddirection_10m"][hour]
+        spd80  = h.get("windspeed_80m",  [spd10]*200)[hour] or spd10
+        dir80  = h.get("winddirection_80m", [dir10]*200)[hour] or dir10
+        r10 = math.radians(dir10); r80 = math.radians(dir80)
+        sin_s = (math.sin(r10)*spd10 + math.sin(r80)*spd80) / (spd10+spd80+0.001)
+        cos_s = (math.cos(r10)*spd10 + math.cos(r80)*spd80) / (spd10+spd80+0.001)
+        surf_spd = (spd10 + spd80) / 2
+        surf_dir = math.degrees(math.atan2(sin_s, cos_s)) % 360
+
         result = {}
         result[0] = {
             "speed":     round(surf_spd, 1),
@@ -348,7 +350,7 @@ def format_winds(data, hour, lat=0, lon=0):
             "color":     color(surf_spd),
             "temp_f":    tc_to_f(pressure_levels[0][3]) if pressure_levels else None,
         }
-        for alt in range(1000, 19000, 1000):
+        for alt in range(1000, 15000, 1000):
             speed, direction = interpolate(base, alt)
             # Interpolate temperature between bracketing pressure levels
             temp_c = None
@@ -636,8 +638,8 @@ def data():
             "distance": freefall_distance(free_speed, free_dir),
         },
         "wind_14k": {
-            "speed": winds.get(18000, {}).get("speed", winds.get(14000, {}).get("speed", 0)),
-            "direction": winds.get(18000, {}).get("direction", winds.get(14000, {}).get("direction", 0)),
+            "speed": winds.get(14000, {}).get("speed", 0),
+            "direction": winds.get(14000, {}).get("direction", 0),
         },
         "time_label": time_label,
     })

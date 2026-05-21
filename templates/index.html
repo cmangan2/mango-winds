@@ -1303,23 +1303,8 @@ async function load(){
         const wVx = windSpd * Math.sin(wFromRad);
         const wVy = windSpd * Math.cos(wFromRad);
 
-        // Downwind limit: the point directly downwind where net upwind groundspeed = 0
-        // i.e. canopy airspeed exactly cancels wind — beyond this you can't make it back
-        // Downwind direction = windDir + 180 (wind blows FROM windDir, pushes TO windDir+180)
-        const downwindRad = (windDir + 180) * Math.PI / 180;
-        const downwindUx = Math.sin(downwindRad);
-        const downwindUy = Math.cos(downwindRad);
-        // Max downwind reach = canopyAirspeed * descentTime in downwind direction
-        // (net speed going downwind = airspeed + windspeed, but the LIMIT is where
-        //  trying to fly upwind gives 0 net movement, so clip at airspeed * descentTime downwind)
-        const downwindLimit = canopyAirspeed * descentTime;
-        // Clip plane passes through DZ + downwindLimit in downwind direction
-        // Normal of clip plane points upwind (FROM downwind direction)
-        const clipLat = lat + (downwindUy * downwindLimit) / 111000;
-        const clipLon = lon + (downwindUx * downwindLimit) / (111000 * cosLatC);
-
-        const rawPoints = [];
-        const steps = 360;  // higher res for clean clip
+        const polyPoints = [];
+        const steps = 72;
         for (let i = 0; i < steps; i++) {
             const theta = (i / steps) * 2 * Math.PI;
             const ux = Math.sin(theta);
@@ -1328,46 +1313,17 @@ async function load(){
             const reach = Math.max(groundSpd * descentTime, glideR * 0.1);
             const pLat = lat + (uy * reach) / 111000;
             const pLon = lon + (ux * reach) / (111000 * cosLatC);
-            rawPoints.push([pLat, pLon]);
+            polyPoints.push([pLat, pLon]);
         }
+        polyPoints.push(polyPoints[0]);
+        const finalPoints = polyPoints;
 
-        // Clip polygon: remove any point past the downwind limit
-        // Walk the polygon and clip segments that cross the downwind limit
-        const dpProj = (pLat, pLon) => {
-            const dLat = (pLat - lat) * 111000;
-            const dLon = (pLon - lon) * 111000 * cosLatC;
-            return dLat * downwindUy + dLon * downwindUx;
-        };
-        const polyPoints = [];
-        for (let i = 0; i < rawPoints.length; i++) {
-            const curr = rawPoints[i];
-            const next = rawPoints[(i + 1) % rawPoints.length];
-            const dCurr = dpProj(curr[0], curr[1]);
-            const dNext = dpProj(next[0], next[1]);
-
-            if (dCurr <= downwindLimit) {
-                polyPoints.push(curr);
-            }
-            // If segment crosses the clip boundary, add the intersection point
-            if ((dCurr <= downwindLimit) !== (dNext <= downwindLimit)) {
-                const t = (downwindLimit - dCurr) / (dNext - dCurr);
-                const iLat = curr[0] + (next[0] - curr[0]) * t;
-                const iLon = curr[1] + (next[1] - curr[1]) * t;
-                polyPoints.push([iLat, iLon]);
-            }
-        }
-        if (polyPoints.length > 1) polyPoints.push(polyPoints[0]);
-
-        // Safety: if clipping removed everything, fall back to raw points
-        const finalPoints = polyPoints.length > 2 ? polyPoints : rawPoints;
-        finalPoints.push(finalPoints[0]);
-
-        canopyCircleShifted = L.polygon(finalPoints, {
+        canopyCircleShifted = L.polygon(polyPoints, {
             color: '#39ff89', weight: 3, opacity: 0.85,
             fill: true, fillColor: '#39ff89', fillOpacity: 0.08
         }).addTo(map);
 
-        if (firstLoad){ fitToCanopy(glideR, finalPoints); firstLoad = false; }
+        if (firstLoad){ fitToCanopy(glideR, polyPoints); firstLoad = false; }
 
         lastFreefall = { distance: d.freefall.distance, direction: d.freefall.direction };
         lastWind14k = d.wind_14k;
@@ -1390,9 +1346,9 @@ async function load(){
         const upwindUx = Math.sin(windFromRad);
         const upwindUy = Math.cos(windFromRad);
         let maxUpwind = 0;
-        for (let i = 0; i < finalPoints.length - 1; i++) {
-            const pLat = finalPoints[i][0];
-            const pLon = finalPoints[i][1];
+        for (let i = 0; i < polyPoints.length - 1; i++) {
+            const pLat = polyPoints[i][0];
+            const pLon = polyPoints[i][1];
             const dLat = (pLat - lat) * 111000;
             const dLon = (pLon - lon) * 111000 * cosLatC;
             const proj = dLat * upwindUy + dLon * upwindUx;
@@ -1403,9 +1359,9 @@ async function load(){
         const downwindUx = -upwindUx;
         const downwindUy = -upwindUy;
         let maxDownwind = 0;
-        for (let i = 0; i < finalPoints.length - 1; i++) {
-            const pLat = finalPoints[i][0];
-            const pLon = finalPoints[i][1];
+        for (let i = 0; i < polyPoints.length - 1; i++) {
+            const pLat = polyPoints[i][0];
+            const pLon = polyPoints[i][1];
             const dLat = (pLat - lat) * 111000;
             const dLon = (pLon - lon) * 111000 * cosLatC;
             const proj = dLat * downwindUy + dLon * downwindUx;

@@ -762,8 +762,10 @@ select:focus { border-color: var(--accent); }
                 <div class="handle-bar"></div>
                 <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
                     <span class="handle-title">🪂 Mango Wind Hub</span>
-                    <button onclick="clearAndReload();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.85rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Clear cache & refresh">↺</button>
-                    <button onclick="openWelcome();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;font-weight:700;cursor:pointer;line-height:1;padding:0;flex-shrink:0">?</button>
+                    <div style="display:flex;gap:6px;align-items:center">
+                        <button onclick="clearAndReload();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.85rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Clear cache & refresh">↺</button>
+                        <button onclick="openWelcome();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;font-weight:700;cursor:pointer;line-height:1;padding:0;flex-shrink:0">?</button>
+                    </div>
                 </div>
             </div>
         </div>

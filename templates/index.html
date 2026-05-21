@@ -1356,14 +1356,18 @@ async function load(){
                 polyPoints.push([iLat, iLon]);
             }
         }
-        polyPoints.push(polyPoints[0]);
+        if (polyPoints.length > 1) polyPoints.push(polyPoints[0]);
 
-        canopyCircleShifted = L.polygon(polyPoints, {
+        // Safety: if clipping removed everything, fall back to raw points
+        const finalPoints = polyPoints.length > 2 ? polyPoints : rawPoints;
+        finalPoints.push(finalPoints[0]);
+
+        canopyCircleShifted = L.polygon(finalPoints, {
             color: '#39ff89', weight: 3, opacity: 0.85,
             fill: true, fillColor: '#39ff89', fillOpacity: 0.08
         }).addTo(map);
 
-        if (firstLoad){ fitToCanopy(glideR, polyPoints); firstLoad = false; }
+        if (firstLoad){ fitToCanopy(glideR, finalPoints); firstLoad = false; }
 
         lastFreefall = { distance: d.freefall.distance, direction: d.freefall.direction };
         lastWind14k = d.wind_14k;
@@ -1386,9 +1390,9 @@ async function load(){
         const upwindUx = Math.sin(windFromRad);
         const upwindUy = Math.cos(windFromRad);
         let maxUpwind = 0;
-        for (let i = 0; i < polyPoints.length - 1; i++) {
-            const pLat = polyPoints[i][0];
-            const pLon = polyPoints[i][1];
+        for (let i = 0; i < finalPoints.length - 1; i++) {
+            const pLat = finalPoints[i][0];
+            const pLon = finalPoints[i][1];
             const dLat = (pLat - lat) * 111000;
             const dLon = (pLon - lon) * 111000 * cosLatC;
             const proj = dLat * upwindUy + dLon * upwindUx;
@@ -1399,9 +1403,9 @@ async function load(){
         const downwindUx = -upwindUx;
         const downwindUy = -upwindUy;
         let maxDownwind = 0;
-        for (let i = 0; i < polyPoints.length - 1; i++) {
-            const pLat = polyPoints[i][0];
-            const pLon = polyPoints[i][1];
+        for (let i = 0; i < finalPoints.length - 1; i++) {
+            const pLat = finalPoints[i][0];
+            const pLon = finalPoints[i][1];
             const dLat = (pLat - lat) * 111000;
             const dLon = (pLon - lon) * 111000 * cosLatC;
             const proj = dLat * downwindUy + dLon * downwindUx;

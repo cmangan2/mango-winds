@@ -180,15 +180,18 @@ def fetch_forecast(lat, lon, hour_offset=0):
             "geopotential_height_850hPa","geopotential_height_700hPa",
             "geopotential_height_600hPa","geopotential_height_500hPa",
         ]
-        model = os.environ.get("WIND_MODEL", "best_match")
-        # Build URL manually with comma-separated hourly — Open-Meteo requires this exact format
+        # Use HRRR for hours 0-18 (best short-range US model, 3km, hourly updates)
+        # Use GFS seamless for hours 19-72
         hourly_str = ",".join(hourly_fields)
+        if hour_offset <= 18:
+            model = "gfs_hrrr"   # GFS+HRRR blend — best for 0-18h US forecasts
+        else:
+            model = os.environ.get("WIND_MODEL", "gfs_seamless")
         full_url = (f"{url}?latitude={lat}&longitude={lon}"
                     f"&hourly={hourly_str}"
                     f"&forecast_days=3&timezone=auto"
-                    f"&wind_speed_unit=kn")
-        if model:
-            full_url += f"&models={model}"
+                    f"&wind_speed_unit=kn"
+                    f"&models={model}")
         if api_key:
             full_url += f"&apikey={api_key}"
         r = requests.get(full_url, timeout=15,
@@ -506,7 +509,7 @@ def debug():
         except Exception as e:
             return [("Error", 0, None, str(e))]
 
-    pressure_models = [("GFS", "gfs_seamless"), ("ECMWF", "ecmwf_ifs025"), ("ICON", "icon_seamless")]
+    pressure_models = [("GFS", "gfs_seamless"), ("GFS+HRRR", "gfs_hrrr"), ("ECMWF", "ecmwf_ifs025"), ("ICON", "icon_seamless")]
     pressure_results = {name: fetch_pressure(m) for name, m in pressure_models}
     alt_results = fetch_altitude()
 

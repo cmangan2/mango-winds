@@ -288,8 +288,16 @@ def format_winds(data, hour, lat=0, lon=0):
         # Open-Meteo — use geopotential heights for accurate interpolation
         h = data["data"]["hourly"]
 
+        # Standard atmosphere fallback heights (ft MSL) for models that don't support geopotential
+        STD_HEIGHTS = {
+            1000: 364, 975: 820, 950: 1555, 925: 2500,
+            850: 4780, 700: 9843, 600: 14108, 500: 18289
+        }
         def gh(lvl):
-            return h[f"geopotential_height_{lvl}hPa"][hour] * 3.28084
+            val = h.get(f"geopotential_height_{lvl}hPa", [None]*200)[hour]
+            if val is None:
+                return float(STD_HEIGHTS.get(lvl, 0))
+            return val * 3.28084
 
         def tc_to_f(tc):
             return round(tc * 9/5 + 32) if tc is not None else None

@@ -225,6 +225,9 @@ def color(s):
 
 
 def interpolate(base, alt):
+    base = [(a, s, d) for a, s, d in base if s is not None and d is not None]
+    if not base:
+        return 0, 0
     if alt <= base[0][0]:
         return base[0][1], base[0][2]
     if alt >= base[-1][0]:
@@ -320,11 +323,12 @@ def format_winds(data, hour, lat=0, lon=0):
             elev_ft = 0
         # Only keep pressure levels at least 300ft above site elevation
         min_alt_ft = elev_ft + 300
-        pressure_levels = [(a, s, d, t) for a, s, d, t in all_levels if a > min_alt_ft]
-        # Safety: if filter removed everything, fall back to all levels
+        pressure_levels = [(a, s, d, t) for a, s, d, t in all_levels
+                           if a > min_alt_ft and s is not None and d is not None]
+        # Safety: if filter removed everything, fall back to all valid levels
         if not pressure_levels:
-            pressure_levels = [(a, s, d, t) for a, s, d, t in all_levels if a > 0]
-        print(f"Site elev={elev_ft:.0f}ft, keeping {len(pressure_levels)} levels above {min_alt_ft:.0f}ft")
+            pressure_levels = [(a, s, d, t) for a, s, d, t in all_levels
+                               if s is not None and d is not None and a > 0]
 
         # Interpolation base uses pressure levels only (no 10m surface anchor)
         base = [(p[0], p[1], p[2]) for p in pressure_levels]

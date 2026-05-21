@@ -445,58 +445,70 @@ def debug():
         "geopotential_height_850hPa","geopotential_height_700hPa",
         "geopotential_height_600hPa","geopotential_height_500hPa",
     ]
-    url = "https://api.open-meteo.com/v1/forecast"
     hourly_str = ",".join(hourly_fields)
-    full_url = (f"{url}?latitude={lat}&longitude={lon}"
-                f"&hourly={hourly_str}"
-                f"&forecast_days=1&timezone=auto&wind_speed_unit=kn")
-    try:
-        r = requests.get(full_url, timeout=15, headers={"User-Agent": "MangoWindHub/1.0"})
-        r.raise_for_status()
-        h = r.json()["hourly"]
-    except Exception as e:
-        return f"<pre>Error: {e}</pre>"
+    base_url = "https://api.open-meteo.com/v1/forecast"
+    STD = {1000:364,975:820,950:1555,925:2500,850:4780,700:9843,600:14108,500:18289}
 
-    # Use hour index 0 (current)
-    hour = 0
-    levels = [
-        ("10m",    33,   h["windspeed_10m"][hour],    h["winddirection_10m"][hour]),
-        ("1000hPa", h["geopotential_height_1000hPa"][hour]*3.28084, h["windspeed_1000hPa"][hour], h["winddirection_1000hPa"][hour]),
-        ("975hPa",  h["geopotential_height_975hPa"][hour]*3.28084,  h["windspeed_975hPa"][hour],  h["winddirection_975hPa"][hour]),
-        ("950hPa",  h["geopotential_height_950hPa"][hour]*3.28084,  h["windspeed_950hPa"][hour],  h["winddirection_950hPa"][hour]),
-        ("925hPa",  h["geopotential_height_925hPa"][hour]*3.28084,  h["windspeed_925hPa"][hour],  h["winddirection_925hPa"][hour]),
-        ("850hPa",  h["geopotential_height_850hPa"][hour]*3.28084,  h["windspeed_850hPa"][hour],  h["winddirection_850hPa"][hour]),
-        ("700hPa",  h["geopotential_height_700hPa"][hour]*3.28084,  h["windspeed_700hPa"][hour],  h["winddirection_700hPa"][hour]),
-        ("600hPa",  h["geopotential_height_600hPa"][hour]*3.28084,  h["windspeed_600hPa"][hour],  h["winddirection_600hPa"][hour]),
-        ("500hPa",  h["geopotential_height_500hPa"][hour]*3.28084,  h["windspeed_500hPa"][hour],  h["winddirection_500hPa"][hour]),
-    ]
+    def fetch_model(model):
+        url = (f"{base_url}?latitude={lat}&longitude={lon}"
+               f"&hourly={hourly_str}"
+               f"&forecast_days=1&timezone=auto&wind_speed_unit=kn"
+               + (f"&models={model}" if model else ""))
+        try:
+            r = requests.get(url, timeout=15, headers={"User-Agent": "MangoWindHub/1.0"})
+            r.raise_for_status()
+            h = r.json()["hourly"]
+            def gh(lvl):
+                v = h.get(f"geopotential_height_{lvl}hPa",[None]*5)[0]
+                return v*3.28084 if v is not None else float(STD.get(lvl,0))
+            return [
+                ("10m",     33,       h["windspeed_10m"][0],     h["winddirection_10m"][0]),
+                ("1000hPa", gh(1000), h["windspeed_1000hPa"][0], h["winddirection_1000hPa"][0]),
+                ("975hPa",  gh(975),  h["windspeed_975hPa"][0],  h["winddirection_975hPa"][0]),
+                ("950hPa",  gh(950),  h["windspeed_950hPa"][0],  h["winddirection_950hPa"][0]),
+                ("925hPa",  gh(925),  h["windspeed_925hPa"][0],  h["winddirection_925hPa"][0]),
+                ("850hPa",  gh(850),  h["windspeed_850hPa"][0],  h["winddirection_850hPa"][0]),
+                ("700hPa",  gh(700),  h["windspeed_700hPa"][0],  h["winddirection_700hPa"][0]),
+                ("600hPa",  gh(600),  h["windspeed_600hPa"][0],  h["winddirection_600hPa"][0]),
+                ("500hPa",  gh(500),  h["windspeed_500hPa"][0],  h["winddirection_500hPa"][0]),
+            ]
+        except Exception as e:
+            return [("Error", 0, None, str(e))]
 
-    rows = ""
-    for name, alt_ft, spd, dirn in levels:
-        highlight = ""
-        if alt_ft > 14500:
-            highlight = "color:#888"
-        rows += f"<tr style='{highlight}'><td>{name}</td><td>{alt_ft:,.0f} ft</td><td>{spd:.1f} kt</td><td>{dirn:.0f}°</td></tr>"
+    models = [("GFS", "gfs_seamless"), ("ECMWF", "ecmwf_ifs025"), ("ICON", "icon_seamless")]
+    results = {name: fetch_model(m) for name, m in models}
 
-    html = f"""<!DOCTYPE html><html><head>
-    <title>Debug — Raw Open-Meteo</title>
+    def make_rows(data):
+        out = ""
+        for name, alt_ft, spd, dirn in data:
+            grey = "color:#555" if alt_ft > 14500 else ""
+            spd_str  = f"{spd:.1f} kt"  if isinstance(spd,  float) else str(spd)
+            dir_str  = f"{dirn:.0f}°"   if isinstance(dirn, float) else str(dirn)
+            out += f"<tr style=\"{grey}\"><td>{name}</td><td>{alt_ft:,.0f} ft</td><td>{spd_str}</td><td>{dir_str}</td></tr>"
+        return out
+
+    cols = ""
+    for name, _ in models:
+        cols += f"""<td style="vertical-align:top;padding-right:32px">
+            <h3>{name}</h3>
+            <table>
+                <tr><th>Level</th><th>Alt MSL</th><th>Speed</th><th>Dir</th></tr>
+                {make_rows(results[name])}
+            </table></td>"""
+
+    return f"""<!DOCTYPE html><html><head><title>Model Comparison</title>
     <style>
-        body {{ font-family: monospace; background: #0d1520; color: #c8daea; padding: 20px; }}
-        table {{ border-collapse: collapse; width: 100%; max-width: 500px; }}
-        th {{ color: #00d4ff; text-align: left; padding: 6px 12px; border-bottom: 1px solid #1e3045; }}
-        td {{ padding: 6px 12px; border-bottom: 1px solid #1e3045; }}
-        h2 {{ color: #00d4ff; }}
-        .note {{ color: #5a7a96; font-size: 0.85rem; margin-top: 16px; }}
+        body{{font-family:monospace;background:#0d1520;color:#c8daea;padding:20px}}
+        h2{{color:#00d4ff}} h3{{color:#39ff89;margin-bottom:6px}}
+        table{{border-collapse:collapse}}
+        th{{color:#00d4ff;text-align:left;padding:5px 10px;border-bottom:1px solid #1e3045}}
+        td{{padding:5px 10px;border-bottom:1px solid #1e3045;white-space:nowrap}}
+        .note{{color:#5a7a96;font-size:0.85rem;margin-top:8px}}
     </style></head><body>
-    <h2>Raw Open-Meteo Pressure Levels</h2>
-    <p class="note">lat={lat}, lon={lon} | hour=0 | altitudes are MSL</p>
-    <table>
-        <tr><th>Level</th><th>Altitude MSL</th><th>Speed</th><th>Direction</th></tr>
-        {rows}
-    </table>
-    <p class="note">Levels above ~14,500ft shown in grey. Site elev at SNE ≈ 315ft.</p>
+    <h2>Wind Model Comparison — Hour 0</h2>
+    <p class="note">lat={lat}, lon={lon} | SNE elev ≈ 315ft | grey = above 14,500ft MSL</p>
+    <table><tr>{cols}</tr></table>
     </body></html>"""
-    return html
 
 
 @app.route("/clearcache")

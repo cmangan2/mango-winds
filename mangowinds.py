@@ -509,7 +509,7 @@ def debug():
         except Exception as e:
             return [("Error", 0, None, str(e))]
 
-    pressure_models = [("GFS", "gfs_seamless"), ("GFS+HRRR", "gfs_hrrr"), ("ECMWF", "ecmwf_ifs025"), ("ICON", "icon_seamless")]
+    pressure_models = [("GFS", "gfs_seamless"), ("GFS+HRRR", "gfs_hrrr"), ("RAP/GFS013", "ncep_gfs013"), ("ECMWF", "ecmwf_ifs025"), ("ICON", "icon_seamless")]
     pressure_results = {name: fetch_pressure(m) for name, m in pressure_models}
     alt_results = fetch_altitude()
 

@@ -1332,20 +1332,18 @@ async function load(){
         }
 
         // Clip polygon: remove any point past the downwind limit
-        // A point is "past the limit" if its projection onto the downwind axis > downwindLimit
-        function downwindProj(pLat, pLon) {
+        // Walk the polygon and clip segments that cross the downwind limit
+        const dpProj = (pLat, pLon) => {
             const dLat = (pLat - lat) * 111000;
             const dLon = (pLon - lon) * 111000 * cosLatC;
             return dLat * downwindUy + dLon * downwindUx;
-        }
-
-        // Walk the polygon and clip segments that cross the downwind limit
+        };
         const polyPoints = [];
         for (let i = 0; i < rawPoints.length; i++) {
             const curr = rawPoints[i];
             const next = rawPoints[(i + 1) % rawPoints.length];
-            const dCurr = downwindProj(curr[0], curr[1]);
-            const dNext = downwindProj(next[0], next[1]);
+            const dCurr = dpProj(curr[0], curr[1]);
+            const dNext = dpProj(next[0], next[1]);
 
             if (dCurr <= downwindLimit) {
                 polyPoints.push(curr);

@@ -1303,8 +1303,23 @@ async function load(){
         const wVx = windSpd * Math.sin(wFromRad);
         const wVy = windSpd * Math.cos(wFromRad);
 
-        const polyPoints = [];
-        const steps = 72;
+        // Downwind limit: the point directly downwind where net upwind groundspeed = 0
+        // i.e. canopy airspeed exactly cancels wind — beyond this you can't make it back
+        // Downwind direction = windDir + 180 (wind blows FROM windDir, pushes TO windDir+180)
+        const downwindRad = (windDir + 180) * Math.PI / 180;
+        const downwindUx = Math.sin(downwindRad);
+        const downwindUy = Math.cos(downwindRad);
+        // Max downwind reach = canopyAirspeed * descentTime in downwind direction
+        // (net speed going downwind = airspeed + windspeed, but the LIMIT is where
+        //  trying to fly upwind gives 0 net movement, so clip at airspeed * descentTime downwind)
+        const downwindLimit = canopyAirspeed * descentTime;
+        // Clip plane passes through DZ + downwindLimit in downwind direction
+        // Normal of clip plane points upwind (FROM downwind direction)
+        const clipLat = lat + (downwindUy * downwindLimit) / 111000;
+        const clipLon = lon + (downwindUx * downwindLimit) / (111000 * cosLatC);
+
+        const rawPoints = [];
+        const steps = 360;  // higher res for clean clip
         for (let i = 0; i < steps; i++) {
             const theta = (i / steps) * 2 * Math.PI;
             const ux = Math.sin(theta);
@@ -1313,7 +1328,35 @@ async function load(){
             const reach = Math.max(groundSpd * descentTime, glideR * 0.1);
             const pLat = lat + (uy * reach) / 111000;
             const pLon = lon + (ux * reach) / (111000 * cosLatC);
-            polyPoints.push([pLat, pLon]);
+            rawPoints.push([pLat, pLon]);
+        }
+
+        // Clip polygon: remove any point past the downwind limit
+        // A point is "past the limit" if its projection onto the downwind axis > downwindLimit
+        function downwindProj(pLat, pLon) {
+            const dLat = (pLat - lat) * 111000;
+            const dLon = (pLon - lon) * 111000 * cosLatC;
+            return dLat * downwindUy + dLon * downwindUx;
+        }
+
+        // Walk the polygon and clip segments that cross the downwind limit
+        const polyPoints = [];
+        for (let i = 0; i < rawPoints.length; i++) {
+            const curr = rawPoints[i];
+            const next = rawPoints[(i + 1) % rawPoints.length];
+            const dCurr = downwindProj(curr[0], curr[1]);
+            const dNext = downwindProj(next[0], next[1]);
+
+            if (dCurr <= downwindLimit) {
+                polyPoints.push(curr);
+            }
+            // If segment crosses the clip boundary, add the intersection point
+            if ((dCurr <= downwindLimit) !== (dNext <= downwindLimit)) {
+                const t = (downwindLimit - dCurr) / (dNext - dCurr);
+                const iLat = curr[0] + (next[0] - curr[0]) * t;
+                const iLon = curr[1] + (next[1] - curr[1]) * t;
+                polyPoints.push([iLat, iLon]);
+            }
         }
         polyPoints.push(polyPoints[0]);
 

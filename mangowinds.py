@@ -606,8 +606,8 @@ def data():
         resp.headers["Cache-Control"] = "no-store"
         return resp, 503
 
-    canopy_speed, canopy_dir = avg_wind_display(winds, 0, 3000)
-    free_speed, free_dir = avg_wind_display(winds, 4000, 14000)
+    canopy_speed, canopy_dir = avg_wind_display(winds, 0, 3001)
+    free_speed, free_dir = avg_wind_display(winds, 4000, 14001)
 
     time_label = ""
     try:

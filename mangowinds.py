@@ -212,10 +212,12 @@ def fetch_forecast(lat, lon, hour_offset=0):
                 print(f"Open-Meteo {model} error: {me}")
 
         if not model_data:
+            print("All ensemble models failed")
             if cached:
                 return cached["data"]
             return None
 
+        print(f"Ensemble: {len(model_data)}/{len(ensemble_models)} models loaded: {list(model_data.keys())}")
         result = {"source": "openmeteo_ensemble", "models": model_data}
         _forecast_cache[dz_key] = {"data": result, "expires": now + CACHE_TTL}
         save_cache_to_disk()
@@ -458,8 +460,17 @@ def format_winds(data, hour, lat=0, lon=0):
             # 0° spread = 100, 45°+ spread = 0
             return max(0, round(100 - (avg_spread / 45) * 100))
 
+        n_models = len(models_h)
         canopy_confidence  = layer_confidence(0,    3000)
         freefall_confidence = layer_confidence(4000, 14000)
+        # If fewer than 3 models loaded, cap confidence
+        if n_models == 1:
+            canopy_confidence   = min(canopy_confidence,  60)
+            freefall_confidence = min(freefall_confidence, 60)
+        elif n_models == 2:
+            canopy_confidence   = min(canopy_confidence,  80)
+            freefall_confidence = min(freefall_confidence, 80)
+        print(f"Ensemble confidence: canopy={canopy_confidence}% ff={freefall_confidence}% ({n_models} models)")
 
         for alt in range(1000, 15000, 1000):
             speed, direction = interpolate(ensemble_base, alt)

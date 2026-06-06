@@ -827,6 +827,15 @@ select:focus { border-color: var(--accent); }
                 <span style="font-size:0.64rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)">Winds by Altitude</span>
                 <button id="toggleCardsBtn" onclick="toggleCards()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:2px 8px;font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;letter-spacing:0.08em;cursor:pointer;-webkit-tap-highlight-color:transparent">Hide</button>
             </div>
+            <div id="modelCard" style="
+                margin: 0 14px 6px;
+                background: var(--card-bg);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 8px 12px;
+                flex-shrink: 0;
+            ">—</div>
+
             <div id="cards-wrap">
                 <div id="cards"></div>
                 <div id="attribution">
@@ -1392,11 +1401,8 @@ async function load(){
         }
         const downwindMi = maxDownwind / 1609.344;
 
-        const canopyConf = d.canopy_confidence;
-        const canopyConfStr = canopyConf !== null && canopyConf !== undefined
-            ? `<span style="color:${confidenceColor(canopyConf)};font-size:0.7rem;margin-left:4px">▲ ${canopyConf}%</span>` : '';
         document.getElementById("canopyBlock").innerHTML =
-            `<div class="sc-label">Canopy &nbsp;•&nbsp; SFC – 3 000 ft${canopyConfStr}</div>
+            `<div class="sc-label">Canopy &nbsp;•&nbsp; SFC – 3 000 ft</div>
             <div class="sc-data">
                 <div><span>SPD</span>${d.canopy.speed.toFixed(1)} kt</div>
                 <div><span>DIR</span>${d.canopy.direction.toFixed(0)}°</div>
@@ -1405,16 +1411,49 @@ async function load(){
             </div>`;
 
         const ffFromDir = (d.freefall.direction + 180) % 360;
-        const ffConf = d.freefall_confidence;
-        const ffConfStr = ffConf !== null && ffConf !== undefined
-            ? `<span style="color:${confidenceColor(ffConf)};font-size:0.7rem;margin-left:4px">▲ ${ffConf}%</span>` : '';
         document.getElementById("freefallBlock").innerHTML =
-            `<div class="sc-label">Freefall &nbsp;•&nbsp; 4 000 – 14 000 ft${ffConfStr}</div>
+            `<div class="sc-label">Freefall &nbsp;•&nbsp; 4 000 – 14 000 ft</div>
             <div class="sc-data">
                 <div><span>SPD</span>${d.freefall.speed.toFixed(1)} kt</div>
                 <div><span>DIR</span>${ffFromDir.toFixed(0)}°</div>
                 <div><span>DRIFT</span>${(d.freefall.distance / 1609.344).toFixed(2)} mi</div>
                 <div>${arrow(ffFromDir, 'var(--freefall)')}</div>
+            </div>`;
+
+        // Update model status card
+        const MODEL_LABELS = {
+            "gfs_seamless":  "GFS",
+            "icon_seamless": "ICON",
+            "ecmwf_ifs025":  "ECMWF"
+        };
+        const ml = d.models_loaded || {};
+        const loadedModels = Object.keys(ml).filter(m => ml[m]);
+        let modelDots = Object.entries(MODEL_LABELS).map(([key, label]) => {
+            const loaded = ml[key];
+            const dot = loaded
+                ? `<span style="color:var(--green);font-size:0.9rem">●</span>`
+                : `<span style="color:var(--red);font-size:0.9rem">●</span>`;
+            return `<div style="display:flex;align-items:center;gap:5px;font-family:'Share Tech Mono',monospace;font-size:0.75rem">
+                ${dot}<span style="color:${loaded ? 'var(--text)' : 'var(--muted)'}">${label}</span>
+            </div>`;
+        }).join('');
+
+        // Agreement: average spread across all altitudes between loaded models
+        let agreeStr = 'N/A';
+        const cc = d.canopy_confidence;
+        const fc = d.freefall_confidence;
+        if (loadedModels.length >= 2 && cc !== null && fc !== null) {
+            const avg = Math.round((cc + fc) / 2);
+            agreeStr = `${avg}%`;
+        }
+        const agreeColor = agreeStr === 'N/A' ? 'var(--muted)'
+            : parseInt(agreeStr) >= 80 ? 'var(--green)'
+            : parseInt(agreeStr) >= 50 ? 'var(--orange)' : 'var(--red)';
+
+        document.getElementById("modelCard").innerHTML =
+            `<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">${modelDots}</div>
+            <div style="margin-top:6px;font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--muted)">
+                Model Agreement: <span style="color:${agreeColor};font-weight:bold">${agreeStr}</span>
             </div>`;
 
         let html = '';

@@ -1259,6 +1259,13 @@ function lerpColor(a, b, t){
     return `#${((1<<24)|(rr<<16)|(rg<<8)|rb).toString(16).slice(1)}`;
 }
 
+function confidenceColor(score){
+    if (score === null || score === undefined) return 'var(--muted)';
+    if (score >= 80) return 'var(--green)';
+    if (score >= 50) return 'var(--orange)';
+    return 'var(--red)';
+}
+
 function colorClass(s){
     if (s < 10) return 'dot-green';
     if (s < 25) return 'dot-orange';
@@ -1278,6 +1285,20 @@ async function load(){
             document.getElementById("loader").classList.add("hidden");
             document.getElementById("utcLabel").innerText = "⚠️ " + d.error;
             document.getElementById("utcLabel").style.color = "var(--red)";
+            // Still show DZ marker and dashed glide circle so map isn't empty
+            if (marker) marker.remove();
+            marker = L.marker([lat, lon]).addTo(map);
+            if (canopyCircle) canopyCircle.remove();
+            // Default 22kt canopy, 120s = ~1380m no-wind glide radius
+            canopyCircle = L.circle([lat, lon], {
+                radius: 22 * 0.514444 * 120,
+                color: '#39ff89', weight: 2,
+                opacity: 0.4, fill: false, dashArray: '6,5'
+            }).addTo(map);
+            if (firstLoad) {
+                map.setView([lat, lon], 12);
+                firstLoad = false;
+            }
             return;
         }
         document.getElementById("utcLabel").style.color = "";
@@ -1371,8 +1392,11 @@ async function load(){
         }
         const downwindMi = maxDownwind / 1609.344;
 
+        const canopyConf = d.canopy_confidence;
+        const canopyConfStr = canopyConf !== null && canopyConf !== undefined
+            ? `<span style="color:${confidenceColor(canopyConf)};font-size:0.7rem;margin-left:4px">▲ ${canopyConf}%</span>` : '';
         document.getElementById("canopyBlock").innerHTML =
-            `<div class="sc-label">Canopy &nbsp;•&nbsp; SFC – 3 000 ft</div>
+            `<div class="sc-label">Canopy &nbsp;•&nbsp; SFC – 3 000 ft${canopyConfStr}</div>
             <div class="sc-data">
                 <div><span>SPD</span>${d.canopy.speed.toFixed(1)} kt</div>
                 <div><span>DIR</span>${d.canopy.direction.toFixed(0)}°</div>
@@ -1381,8 +1405,11 @@ async function load(){
             </div>`;
 
         const ffFromDir = (d.freefall.direction + 180) % 360;
+        const ffConf = d.freefall_confidence;
+        const ffConfStr = ffConf !== null && ffConf !== undefined
+            ? `<span style="color:${confidenceColor(ffConf)};font-size:0.7rem;margin-left:4px">▲ ${ffConf}%</span>` : '';
         document.getElementById("freefallBlock").innerHTML =
-            `<div class="sc-label">Freefall &nbsp;•&nbsp; 4 000 – 14 000 ft</div>
+            `<div class="sc-label">Freefall &nbsp;•&nbsp; 4 000 – 14 000 ft${ffConfStr}</div>
             <div class="sc-data">
                 <div><span>SPD</span>${d.freefall.speed.toFixed(1)} kt</div>
                 <div><span>DIR</span>${ffFromDir.toFixed(0)}°</div>
@@ -1434,6 +1461,18 @@ async function load(){
 
     } catch(e) {
         console.error("Load error:", e);
+        // Network error — still show DZ marker and default glide circle
+        if (marker) marker.remove();
+        marker = L.marker([lat, lon]).addTo(map);
+        if (canopyCircle) canopyCircle.remove();
+        canopyCircle = L.circle([lat, lon], {
+            radius: 22 * 0.514444 * 120,
+            color: '#39ff89', weight: 2,
+            opacity: 0.4, fill: false, dashArray: '6,5'
+        }).addTo(map);
+        if (firstLoad) { map.setView([lat, lon], 12); firstLoad = false; }
+        document.getElementById("utcLabel").innerText = "⚠️ Could not load winds — check connection";
+        document.getElementById("utcLabel").style.color = "var(--red)";
     } finally {
         document.getElementById("loader").classList.add("hidden");
     }

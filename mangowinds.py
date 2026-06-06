@@ -749,10 +749,21 @@ def data():
     except Exception:
         pass
 
+    # Build model status for frontend display
+    models_loaded = {}
+    if raw and raw.get("source") == "openmeteo_ensemble":
+        for m in ["gfs_seamless", "icon_seamless", "ecmwf_ifs025"]:
+            models_loaded[m] = m in raw.get("models", {})
+    elif raw:
+        models_loaded["gfs_seamless"] = True
+        models_loaded["icon_seamless"] = False
+        models_loaded["ecmwf_ifs025"] = False
+
     response = jsonify({
         "winds": winds,
         "canopy_confidence":   canopy_confidence,
         "freefall_confidence": freefall_confidence,
+        "models_loaded": models_loaded,
         "canopy": {
             "speed": canopy_speed,
             "direction": canopy_dir,

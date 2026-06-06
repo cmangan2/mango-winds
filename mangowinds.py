@@ -532,8 +532,8 @@ def avg_wind_display(winds, low, high):
 # =====================================================
 
 def canopy_data(wind_speed_kts, wind_dir):
-    descent_time = 120
-    canopy_kts = 22
+    descent_time = 190  # Sabre3 150 @ 1.5WL: open 3500ft, land 500ft = 3000ft @ 950ft/min
+    canopy_kts = 27  # Sabre3 150 @ 1.5WL trim airspeed
     canopy_ms = canopy_kts * 0.514444
     glide_radius = canopy_ms * descent_time
     wind_ms = wind_speed_kts * 0.514444

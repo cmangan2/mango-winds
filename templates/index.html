@@ -1291,7 +1291,7 @@ async function load(){
             if (canopyCircle) canopyCircle.remove();
             // Default 22kt canopy, 120s = ~1380m no-wind glide radius
             canopyCircle = L.circle([lat, lon], {
-                radius: 22 * 0.514444 * 120,
+                radius: 27 * 0.514444 * 190,
                 color: '#39ff89', weight: 2,
                 opacity: 0.4, fill: false, dashArray: '6,5'
             }).addTo(map);
@@ -1313,7 +1313,7 @@ async function load(){
         const glideR  = d.canopy.glide_radius;
         const windSpd = d.canopy.speed * 0.514444;
         const windDir = d.canopy.wind_dir;
-        const descentTime = 120;
+        const descentTime = 190;  // Sabre3 150 @ 1.5WL: 3000ft @ 950ft/min
         const canopyAirspeed = 22 * 0.514444;
 
         canopyCircle = L.circle([lat, lon], {
@@ -1466,7 +1466,7 @@ async function load(){
         marker = L.marker([lat, lon]).addTo(map);
         if (canopyCircle) canopyCircle.remove();
         canopyCircle = L.circle([lat, lon], {
-            radius: 22 * 0.514444 * 120,
+            radius: 27 * 0.514444 * 190,
             color: '#39ff89', weight: 2,
             opacity: 0.4, fill: false, dashArray: '6,5'
         }).addTo(map);

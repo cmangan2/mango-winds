@@ -13,7 +13,36 @@ app = Flask(__name__)
 # =====================================================
 _forecast_cache = {}
 CACHE_TTL = timedelta(minutes=60)
-CACHE_FILE = os.path.join(os.path.dirname(__file__), "winds_cache.json")
+CACHE_FILE  = os.path.join(os.path.dirname(__file__), "winds_cache.json")
+VISITS_FILE = os.path.join(os.path.dirname(__file__), "visits.json")
+
+# Visit tracking: {dz_name: {date: count}}
+_visit_log = {}
+
+def load_visits():
+    global _visit_log
+    try:
+        if os.path.exists(VISITS_FILE):
+            with open(VISITS_FILE) as f:
+                _visit_log = json.load(f)
+    except Exception as e:
+        print(f"Visit load error: {e}")
+
+def save_visits():
+    try:
+        with open(VISITS_FILE, "w") as f:
+            json.dump(_visit_log, f)
+    except Exception as e:
+        print(f"Visit save error: {e}")
+
+def record_visit(dz_name):
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if dz_name not in _visit_log:
+        _visit_log[dz_name] = {}
+    _visit_log[dz_name][today] = _visit_log[dz_name].get(today, 0) + 1
+    save_visits()
+
+load_visits()
 
 
 def load_cache_from_disk():
@@ -676,6 +705,89 @@ def debug():
     </body></html>"""
 
 
+@app.route("/admin")
+def admin():
+    token = request.args.get("token", "")
+    expected = os.environ.get("CACHE_TOKEN", "mango")
+    if token != expected:
+        return "<h2 style='font-family:monospace;color:red'>Unauthorized</h2>", 403
+
+    from datetime import date, timedelta as td
+    today = date.today()
+    # Build last 7 days and last 30 days
+    last7  = [(today - td(days=i)).strftime("%Y-%m-%d") for i in range(6, -1, -1)]
+    last30 = [(today - td(days=i)).strftime("%Y-%m-%d") for i in range(29, -1, -1)]
+
+    # Totals per DZ
+    dz_totals = {}
+    dz_weekly  = {}
+    for dz, days in _visit_log.items():
+        dz_totals[dz] = sum(days.values())
+        dz_weekly[dz]  = sum(days.get(d, 0) for d in last7)
+
+    # Daily totals across all DZs (last 30 days)
+    daily_totals = {d: sum(dzd.get(d, 0) for dzd in _visit_log.values()) for d in last30}
+
+    # Build DZ rows
+    dz_rows = ""
+    for dz in sorted(dz_totals, key=lambda x: dz_totals[x], reverse=True):
+        week_counts = "".join(
+            f"<td style='text-align:center;padding:4px 8px'>{_visit_log.get(dz,{}).get(d,0) or ''}</td>"
+            for d in last7
+        )
+        dz_rows += f"""<tr>
+            <td style='padding:4px 12px;white-space:nowrap'>{dz}</td>
+            {week_counts}
+            <td style='text-align:center;padding:4px 8px;color:#ffaa00'>{dz_weekly.get(dz,0)}</td>
+            <td style='text-align:center;padding:4px 8px;color:#00d4ff'>{dz_totals.get(dz,0)}</td>
+        </tr>"""
+
+    day_headers = "".join(f"<th style='padding:4px 8px'>{d[5:]}</th>" for d in last7)
+
+    # Daily chart (last 30 days sparkline as text bar)
+    max_day = max(daily_totals.values()) or 1
+    chart_rows = ""
+    for d in last30:
+        cnt = daily_totals[d]
+        bar_w = int((cnt / max_day) * 200)
+        chart_rows += f"""<tr>
+            <td style='padding:2px 8px;color:#5a7a96;font-size:0.8rem'>{d[5:]}</td>
+            <td><div style='background:#00d4ff;height:12px;width:{bar_w}px;border-radius:2px'></div></td>
+            <td style='padding:2px 8px;color:#c8daea;font-size:0.8rem'>{cnt}</td>
+        </tr>"""
+
+    total_all = sum(dz_totals.values())
+    total_week = sum(dz_weekly.values())
+
+    return f"""<!DOCTYPE html><html><head><title>Mango Wind Hub — Admin</title>
+    <style>
+        body{{font-family:monospace;background:#070b10;color:#c8daea;padding:24px}}
+        h2{{color:#00d4ff;margin-bottom:4px}} h3{{color:#ffaa00;margin:20px 0 8px}}
+        table{{border-collapse:collapse}} th{{color:#00d4ff;text-align:left;padding:4px 8px;border-bottom:1px solid #1e3045}}
+        td{{border-bottom:1px solid #0d1520}} .stat{{display:inline-block;background:#0d1520;border:1px solid #1e3045;border-radius:8px;padding:12px 20px;margin:6px}}
+        .stat .n{{font-size:2rem;color:#00d4ff;font-weight:bold}} .stat .l{{font-size:0.75rem;color:#5a7a96;text-transform:uppercase}}
+    </style></head><body>
+    <h2>🪂 Mango Wind Hub — Admin</h2>
+    <p style="color:#5a7a96;font-size:0.8rem">Visit = page load at hour=0 (unique data fetches, not refreshes)</p>
+
+    <div style="margin:16px 0">
+        <div class="stat"><div class="n">{total_week}</div><div class="l">This Week</div></div>
+        <div class="stat"><div class="n">{total_all}</div><div class="l">All Time</div></div>
+        <div class="stat"><div class="n">{len(dz_totals)}</div><div class="l">Active DZs</div></div>
+    </div>
+
+    <h3>Visits by Dropzone (last 7 days)</h3>
+    <table>
+        <tr><th>Dropzone</th>{day_headers}<th style='color:#ffaa00'>7-Day</th><th style='color:#00d4ff'>All Time</th></tr>
+        {dz_rows}
+    </table>
+
+    <h3>Daily Visits (last 30 days)</h3>
+    <table>{chart_rows}</table>
+
+    </body></html>"""
+
+
 @app.route("/clearcache")
 def clearcache():
     token = request.args.get("token", "")
@@ -701,6 +813,15 @@ def data():
         if len(dz_vals) > 2 and abs(dz_vals[0]-lat) < 0.01 and abs(dz_vals[1]-lon) < 0.01:
             icao = dz_vals[2]
             break
+
+    # Record visit — find DZ name from coords
+    dz_name = "Unknown"
+    for name, coords in DROPZONES.items():
+        if abs(coords[0]-lat) < 0.01 and abs(coords[1]-lon) < 0.01:
+            dz_name = name
+            break
+    if hour == 0:  # only count current-hour loads, not forecast scrolling
+        record_visit(dz_name)
 
     raw = fetch_forecast(lat, lon, hour)
     fw_result = format_winds(raw, hour, lat, lon)

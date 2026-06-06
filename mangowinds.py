@@ -157,10 +157,10 @@ def fetch_forecast(lat, lon, hour_offset=0):
         print(f"Cache HIT for {dz_key}")
         return cached["data"]
 
-    print(f"Fetching Open-Meteo for hour={hour_offset}")
+    print(f"Fetching Open-Meteo ensemble for hour={hour_offset}")
     try:
         api_key = os.environ.get("OPENMETEO_API_KEY")
-        url = "https://customer-api.open-meteo.com/v1/forecast" if api_key else "https://api.open-meteo.com/v1/forecast"
+        base_url = "https://customer-api.open-meteo.com/v1/forecast" if api_key else "https://api.open-meteo.com/v1/forecast"
         hourly_fields = [
             "windspeed_10m","winddirection_10m","windspeed_80m","winddirection_80m",
             "windspeed_1000hPa","winddirection_1000hPa",
@@ -181,28 +181,47 @@ def fetch_forecast(lat, lon, hour_offset=0):
             "geopotential_height_600hPa","geopotential_height_500hPa",
         ]
         hourly_str = ",".join(hourly_fields)
-        model = os.environ.get("WIND_MODEL", "gfs_seamless")
-        full_url = (f"{url}?latitude={lat}&longitude={lon}"
-                    f"&hourly={hourly_str}"
-                    f"&forecast_days=3&timezone=auto"
-                    f"&wind_speed_unit=kn"
-                    f"&models={model}")
-        if api_key:
-            full_url += f"&apikey={api_key}"
-        r = requests.get(full_url, timeout=15,
-                         headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
-        if not r.ok:
-            print(f"Open-Meteo {r.status_code}: {r.text[:300]}")
-            r.raise_for_status()
-        data = r.json()
-        result = {"source": "openmeteo", "data": data}
-        # Cache future-hour Open-Meteo data for 60 min
+        ensemble_models = ["gfs_seamless", "icon_seamless", "ecmwf_ifs025"]
+
+        model_data = {}
+        for model in ensemble_models:
+            model_key = (round(lat, 3), round(lon, 3), hour_offset, model)
+            cached_model = _forecast_cache.get(model_key)
+            if cached_model and cached_model["expires"] > now:
+                print(f"Cache HIT {model} for {model_key}")
+                model_data[model] = cached_model["data"]
+                continue
+            full_url = (f"{base_url}?latitude={lat}&longitude={lon}"
+                        f"&hourly={hourly_str}"
+                        f"&forecast_days=3&timezone=auto"
+                        f"&wind_speed_unit=kn"
+                        f"&models={model}")
+            if api_key:
+                full_url += f"&apikey={api_key}"
+            try:
+                r = requests.get(full_url, timeout=15,
+                                 headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
+                if not r.ok:
+                    print(f"Open-Meteo {model} {r.status_code}: {r.text[:200]}")
+                    continue
+                mdata = r.json()
+                model_data[model] = mdata
+                _forecast_cache[model_key] = {"data": mdata, "expires": now + CACHE_TTL}
+                print(f"Open-Meteo {model} OK")
+            except Exception as me:
+                print(f"Open-Meteo {model} error: {me}")
+
+        if not model_data:
+            if cached:
+                return cached["data"]
+            return None
+
+        result = {"source": "openmeteo_ensemble", "models": model_data}
         _forecast_cache[dz_key] = {"data": result, "expires": now + CACHE_TTL}
         save_cache_to_disk()
-        print(f"Open-Meteo OK for {dz_key} hour={hour_offset}")
         return result
     except Exception as e:
-        print(f"Open-Meteo error: {e}")
+        print(f"Open-Meteo ensemble error: {e}")
         if cached:
             return cached["data"]
         return None
@@ -284,10 +303,18 @@ def format_winds(data, hour, lat=0, lon=0):
                 "temp_f":    gtf,
             }
             print(f"format_winds (schulze): {len(result)} levels")
-            return result
+            return result, 100, 100  # Schulze = single source, no ensemble confidence
 
-        # Open-Meteo — use geopotential heights for accurate interpolation
-        h = data["data"]["hourly"]
+        # Open-Meteo ensemble — weighted average across models
+        # Get hourly data from each available model
+        models_h = {}
+        if source == "openmeteo_ensemble":
+            for mname, mdata in data["models"].items():
+                models_h[mname] = mdata.get("hourly", {})
+        else:
+            # Single model fallback
+            models_h["gfs_seamless"] = data["data"]["hourly"]
+        h = list(models_h.values())[0]  # use first for geopotential/temp
 
         # Standard atmosphere fallback heights (ft MSL) for models that don't support geopotential
         STD_HEIGHTS = {
@@ -328,19 +355,87 @@ def format_winds(data, hour, lat=0, lon=0):
             pressure_levels = [(a, s, d, t) for a, s, d, t in all_levels
                                if s is not None and d is not None and a > 0]
 
-        # Interpolation base uses pressure levels only (no 10m surface anchor)
-        base = [(p[0], p[1], p[2]) for p in pressure_levels]
+        # ── ENSEMBLE WEIGHTED AVERAGE ──
+        # For each pressure level, get speed+direction from each model
+        # Weight each model by how much it agrees with the other two
+        LEVELS = [1000, 975, 950, 925, 850, 700, 600, 500]
+        STD_H = {1000:364,975:820,950:1555,925:2500,850:4780,700:9843,600:14108,500:18289}
 
-        # SFC: average 10m and 80m AGL winds (vector average)
-        spd10  = h["windspeed_10m"][hour]
-        dir10  = h["winddirection_10m"][hour]
-        spd80  = h.get("windspeed_80m",  [spd10]*200)[hour] or spd10
-        dir80  = h.get("winddirection_80m", [dir10]*200)[hour] or dir10
-        r10 = math.radians(dir10); r80 = math.radians(dir80)
-        sin_s = (math.sin(r10)*spd10 + math.sin(r80)*spd80) / (spd10+spd80+0.001)
-        cos_s = (math.cos(r10)*spd10 + math.cos(r80)*spd80) / (spd10+spd80+0.001)
-        surf_spd = (spd10 + spd80) / 2
-        surf_dir = math.degrees(math.atan2(sin_s, cos_s)) % 360
+        def angle_diff(a, b):
+            """Shortest angular difference between two directions."""
+            d = abs(a - b) % 360
+            return d if d <= 180 else 360 - d
+
+        def weighted_avg_wind(model_speeds, model_dirs):
+            """Compute weighted average wind across models.
+            Weight each model by inverse of its mean angular distance to others."""
+            n = len(model_speeds)
+            if n == 0: return 0, 0
+            if n == 1: return model_speeds[0], model_dirs[0]
+            # Compute disagreement of each model vs others
+            disagreements = []
+            for i in range(n):
+                total_diff = sum(angle_diff(model_dirs[i], model_dirs[j])
+                                 for j in range(n) if j != i)
+                disagreements.append(total_diff + 0.1)  # avoid div/0
+            # Weight = inverse of disagreement
+            inv = [1.0/d for d in disagreements]
+            total_inv = sum(inv)
+            weights = [w/total_inv for w in inv]
+            # Weighted speed
+            avg_spd = sum(weights[i]*model_speeds[i] for i in range(n))
+            # Weighted direction (circular)
+            sin_sum = sum(weights[i]*math.sin(math.radians(model_dirs[i])) for i in range(n))
+            cos_sum = sum(weights[i]*math.cos(math.radians(model_dirs[i])) for i in range(n))
+            avg_dir = math.degrees(math.atan2(sin_sum, cos_sum)) % 360
+            return avg_spd, avg_dir
+
+        # Build ensemble pressure level base
+        ensemble_base = []
+        ensemble_spreads = {}  # alt -> direction spread across models
+        for lvl in LEVELS:
+            m_spds, m_dirs = [], []
+            alt_ft = None
+            for mh in models_h.values():
+                spd = mh.get(f"windspeed_{lvl}hPa", [None]*200)[hour]
+                dirn = mh.get(f"winddirection_{lvl}hPa", [None]*200)[hour]
+                if spd is None or dirn is None: continue
+                m_spds.append(spd); m_dirs.append(dirn)
+                if alt_ft is None:
+                    v = mh.get(f"geopotential_height_{lvl}hPa", [None]*200)[hour]
+                    alt_ft = v*3.28084 if v is not None else float(STD_H.get(lvl, 0))
+            if not m_spds or alt_ft is None: continue
+            avg_spd, avg_dir = weighted_avg_wind(m_spds, m_dirs)
+            ensemble_base.append((alt_ft, avg_spd, avg_dir))
+            # Spread = max pairwise angular difference
+            if len(m_dirs) > 1:
+                spread = max(angle_diff(m_dirs[i], m_dirs[j])
+                             for i in range(len(m_dirs))
+                             for j in range(i+1, len(m_dirs)))
+            else:
+                spread = 0
+            ensemble_spreads[int(alt_ft)] = spread
+
+        # Filter below-ground
+        ensemble_base = [(a,s,d) for a,s,d in ensemble_base if a > min_alt_ft]
+        if not ensemble_base:
+            ensemble_base = [(a,s,d) for a,s,d in ensemble_base if a > 0]
+
+        # SFC: ensemble average of 10m+80m across models
+        sfc_spds, sfc_dirs = [], []
+        for mh in models_h.values():
+            s10 = mh.get("windspeed_10m",[None]*200)[hour]
+            d10 = mh.get("winddirection_10m",[None]*200)[hour]
+            s80 = mh.get("windspeed_80m",[None]*200)[hour] or s10
+            d80 = mh.get("winddirection_80m",[None]*200)[hour] or d10
+            if s10 is None or d10 is None: continue
+            avg_spd_sfc = (s10 + s80) / 2
+            r10 = math.radians(d10); r80 = math.radians(d80 or d10)
+            sin_s = (math.sin(r10)*s10 + math.sin(r80)*s80)/(s10+s80+0.001)
+            cos_s = (math.cos(r10)*s10 + math.cos(r80)*s80)/(s10+s80+0.001)
+            sfc_spds.append(avg_spd_sfc)
+            sfc_dirs.append(math.degrees(math.atan2(sin_s, cos_s)) % 360)
+        surf_spd, surf_dir = weighted_avg_wind(sfc_spds, sfc_dirs)
 
         result = {}
         result[0] = {
@@ -350,21 +445,36 @@ def format_winds(data, hour, lat=0, lon=0):
             "color":     color(surf_spd),
             "temp_f":    tc_to_f(pressure_levels[0][3]) if pressure_levels else None,
         }
+
+        # Compute confidence scores for canopy (0-3k) and freefall (4k-14k) layers
+        def layer_confidence(low_ft, high_ft):
+            """0-100 score based on model agreement in altitude layer."""
+            spreads = []
+            for alt_key, spread in ensemble_spreads.items():
+                if low_ft <= alt_key <= high_ft:
+                    spreads.append(spread)
+            if not spreads: return 100
+            avg_spread = sum(spreads) / len(spreads)
+            # 0° spread = 100, 45°+ spread = 0
+            return max(0, round(100 - (avg_spread / 45) * 100))
+
+        canopy_confidence  = layer_confidence(0,    3000)
+        freefall_confidence = layer_confidence(4000, 14000)
+
         for alt in range(1000, 15000, 1000):
-            speed, direction = interpolate(base, alt)
-            # Interpolate temperature between bracketing pressure levels
+            speed, direction = interpolate(ensemble_base, alt)
+            # Temperature from first available model
             temp_c = None
-            for i in range(len(pressure_levels) - 1):
-                a0, _, _, t0 = pressure_levels[i]
-                a1, _, _, t1 = pressure_levels[i + 1]
-                if a0 <= alt <= a1 and t0 is not None and t1 is not None:
-                    temp_c = t0 + (t1 - t0) * (alt - a0) / (a1 - a0)
-                    break
-            if temp_c is None:
-                if alt <= pressure_levels[0][0]:
-                    temp_c = pressure_levels[0][3]
-                else:
-                    temp_c = pressure_levels[-1][3]
+            for mh in models_h.values():
+                for i in range(len(pressure_levels) - 1):
+                    a0, _, _, t0 = pressure_levels[i]
+                    a1, _, _, t1 = pressure_levels[i + 1]
+                    if a0 <= alt <= a1 and t0 is not None and t1 is not None:
+                        temp_c = t0 + (t1 - t0) * (alt - a0) / (a1 - a0)
+                        break
+                if temp_c is not None: break
+            if temp_c is None and pressure_levels:
+                temp_c = pressure_levels[0][3] if alt < pressure_levels[0][0] else pressure_levels[-1][3]
             result[alt] = {
                 "speed":     round(speed, 1),
                 "direction": round(direction % 360, 0),
@@ -372,7 +482,7 @@ def format_winds(data, hour, lat=0, lon=0):
                 "color":     color(speed),
                 "temp_f":    tc_to_f(temp_c),
             }
-        return result
+        return result, canopy_confidence, freefall_confidence
 
 
     except Exception as e:
@@ -582,7 +692,12 @@ def data():
             break
 
     raw = fetch_forecast(lat, lon, hour)
-    winds = format_winds(raw, hour, lat, lon)
+    fw_result = format_winds(raw, hour, lat, lon)
+    if isinstance(fw_result, tuple):
+        winds, canopy_confidence, freefall_confidence = fw_result
+    else:
+        winds = fw_result
+        canopy_confidence = freefall_confidence = None
 
     # Override SFC with live METAR for current conditions
     # If METAR returns calm (0kt) fall back to Open-Meteo lowest level
@@ -625,6 +740,8 @@ def data():
 
     response = jsonify({
         "winds": winds,
+        "canopy_confidence":   canopy_confidence,
+        "freefall_confidence": freefall_confidence,
         "canopy": {
             "speed": canopy_speed,
             "direction": canopy_dir,

@@ -922,6 +922,9 @@ select:focus { border-color: var(--accent); }
 <script>
 let dz = {{ dz | tojson }};
 let lat, lon;
+// Canopy defaults: Sabre3 150 @ 1.5WL
+let canopyAirspeedKt = 27;
+let canopyDescentTime = 190;
 let map, marker, canopyCircle, canopyCircleShifted, highLine;
 let loadTimeout = null;
 let firstLoad = true;
@@ -1622,9 +1625,6 @@ function closeWelcome(){
 }
 
 // ── CANOPY SETTINGS ──
-// Defaults: Sabre3 150 @ 1.5WL
-let canopyAirspeedKt = 27;
-let canopyDescentTime = 190;
 
 function getCanopyParams(){
     const size    = parseFloat(document.getElementById("advSize").value) || 150;

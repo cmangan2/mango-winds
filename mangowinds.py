@@ -1,5 +1,6 @@
 from flask import Flask, render_template, jsonify, request
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 import math
 import re
@@ -18,6 +19,10 @@ VISITS_FILE = os.path.join(os.path.dirname(__file__), "visits.json")
 
 # Visit tracking: {dz_name: {date: count}}
 _visit_log = {}
+
+# METAR cache — short TTL since surface winds change frequently
+_metar_cache = {}
+METAR_TTL = timedelta(minutes=5)
 
 def load_visits():
     global _visit_log
@@ -141,6 +146,11 @@ def fetch_metar(icao):
     """Fetch current surface wind from aviationweather.gov METAR API."""
     if not icao:
         return None
+    now = datetime.now(timezone.utc)
+    cached = _metar_cache.get(icao)
+    if cached and cached["expires"] > now:
+        print(f"METAR cache HIT for {icao}")
+        return cached["data"]
     try:
         url = "https://aviationweather.gov/api/data/metar"
         params = {"ids": icao, "format": "json"}
@@ -162,11 +172,13 @@ def fetch_metar(icao):
                     wdir_f = float(wdir)
                     wspd_f = float(wspd)
                     print(f"METAR {icao}: {wspd_f}kt @ {wdir_f}°")
-                    return {
+                    result = {
                         "wdir": wdir_f,
                         "wspd": wspd_f,
                         "temp": float(temp) if temp is not None else None,
                     }
+                    _metar_cache[icao] = {"data": result, "expires": now + METAR_TTL}
+                    return result
                 except (ValueError, TypeError) as e:
                     print(f"METAR {icao} parse error: {e} wdir={wdir} wspd={wspd}")
             else:
@@ -224,23 +236,19 @@ def fetch_forecast(lat, lon, hour_offset=0):
                 return base_url.replace("/v1/forecast", "/v1/gfs")
             return base_url
 
-        model_data = {}
-        for model in ensemble_models:
+        def fetch_one_model(model):
             model_key = (round(lat, 3), round(lon, 3), hour_offset, model)
             cached_model = _forecast_cache.get(model_key)
             if cached_model and cached_model["expires"] > now:
-                print(f"Cache HIT {model} for {model_key}")
-                model_data[model] = cached_model["data"]
-                continue
+                print(f"Cache HIT {model}")
+                return model, cached_model["data"]
             endpoint = model_endpoint(model)
-            # Cap forecast days by model capability
             if model == "hrrr_conus":
-                fcast_days = 1   # 18hr max
+                fcast_days = 1
             elif model == "nam_conus":
-                fcast_days = 2   # 60hr max
+                fcast_days = 2
             else:
                 fcast_days = 3
-            # HRRR/NAM use /v1/gfs natively — no models= param needed
             if model in ("hrrr_conus", "nam_conus"):
                 full_url = (f"{endpoint}?latitude={lat}&longitude={lon}"
                             f"&hourly={hourly_str}"
@@ -259,13 +267,23 @@ def fetch_forecast(lat, lon, hour_offset=0):
                                  headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
                 if not r.ok:
                     print(f"Open-Meteo {model} {r.status_code}: {r.text[:200]}")
-                    continue
+                    return model, None
                 mdata = r.json()
-                model_data[model] = mdata
                 _forecast_cache[model_key] = {"data": mdata, "expires": now + CACHE_TTL}
                 print(f"Open-Meteo {model} OK")
+                return model, mdata
             except Exception as me:
                 print(f"Open-Meteo {model} error: {me}")
+                return model, None
+
+        # Fetch all models in parallel
+        model_data = {}
+        with ThreadPoolExecutor(max_workers=len(ensemble_models)) as executor:
+            futures = {executor.submit(fetch_one_model, m): m for m in ensemble_models}
+            for future in as_completed(futures):
+                model, mdata = future.result()
+                if mdata is not None:
+                    model_data[model] = mdata
 
         if not model_data:
             print("All ensemble models failed")

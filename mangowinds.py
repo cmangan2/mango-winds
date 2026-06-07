@@ -210,7 +210,12 @@ def fetch_forecast(lat, lon, hour_offset=0):
             "geopotential_height_600hPa","geopotential_height_500hPa",
         ]
         hourly_str = ",".join(hourly_fields)
-        ensemble_models = ["gfs_seamless", "icon_seamless", "ecmwf_ifs025"]
+        # Short range (0-18h): GFS + ICON + HRRR + NAM — best resolution for current conditions
+        # Long range (19-72h): GFS + ICON + ECMWF — HRRR/NAM don't go that far out
+        if hour_offset <= 18:
+            ensemble_models = ["gfs_seamless", "icon_seamless", "gfs_hrrr", "nam_conus"]
+        else:
+            ensemble_models = ["gfs_seamless", "icon_seamless", "ecmwf_ifs025"]
 
         model_data = {}
         for model in ensemble_models:
@@ -479,27 +484,22 @@ def format_winds(data, hour, lat=0, lon=0):
 
         # Compute confidence scores for canopy (0-3k) and freefall (4k-14k) layers
         def layer_confidence(low_ft, high_ft):
-            """0-100 score based on model agreement in altitude layer."""
+            """Return average spread in degrees across altitude layer.
+            Frontend converts: 0-20° = High, 21-45° = Medium, 46°+ = Low"""
             spreads = []
             for alt_key, spread in ensemble_spreads.items():
                 if low_ft <= alt_key <= high_ft:
                     spreads.append(spread)
-            if not spreads: return 100
-            avg_spread = sum(spreads) / len(spreads)
-            # 0° spread = 100, 45°+ spread = 0
-            return max(0, round(100 - (avg_spread / 45) * 100))
+            if not spreads: return 0
+            return round(sum(spreads) / len(spreads), 1)
 
         n_models = len(models_h)
-        canopy_confidence  = layer_confidence(0,    3000)
-        freefall_confidence = layer_confidence(4000, 14000)
-        # If fewer than 3 models loaded, cap confidence
-        if n_models == 1:
-            canopy_confidence   = min(canopy_confidence,  60)
-            freefall_confidence = min(freefall_confidence, 60)
-        elif n_models == 2:
-            canopy_confidence   = min(canopy_confidence,  80)
-            freefall_confidence = min(freefall_confidence, 80)
-        print(f"Ensemble confidence: canopy={canopy_confidence}% ff={freefall_confidence}% ({n_models} models)")
+        canopy_spread   = layer_confidence(0,    3000)
+        freefall_spread = layer_confidence(4000, 14000)
+        # If fewer than 2 models, mark as N/A (spread=None)
+        canopy_confidence   = canopy_spread   if n_models >= 2 else None
+        freefall_confidence = freefall_spread if n_models >= 2 else None
+        print(f"Ensemble spread: canopy={canopy_confidence}° ff={freefall_confidence}° ({n_models} models)")
 
         for alt in range(1000, 15000, 1000):
             speed, direction = interpolate(ensemble_base, alt)
@@ -702,6 +702,69 @@ def debug():
     <h2>Wind Model Comparison — Hour 0</h2>
     <p class="note">lat={lat}, lon={lon} | SNE elev ≈ 315ft | grey = above 14,500ft MSL</p>
     <table><tr>{cols}{alt_col}</tr></table>
+    </body></html>"""
+
+
+@app.route("/stats")
+def stats():
+    from datetime import date, timedelta as td
+    today = date.today()
+    last7  = [(today - td(days=i)).strftime("%Y-%m-%d") for i in range(6, -1, -1)]
+
+    dz_totals = {}
+    dz_weekly  = {}
+    for dz, days in _visit_log.items():
+        dz_totals[dz] = sum(days.values())
+        dz_weekly[dz]  = sum(days.get(d, 0) for d in last7)
+
+    total_week = sum(dz_weekly.values())
+    total_all  = sum(dz_totals.values())
+
+    dz_rows = ""
+    for dz in sorted(dz_totals, key=lambda x: dz_totals[x], reverse=True):
+        week = dz_weekly.get(dz, 0)
+        total = dz_totals.get(dz, 0)
+        bar_w = int((week / max(dz_weekly.values(), default=1)) * 120)
+        dz_rows += f"""<tr>
+            <td style='padding:6px 12px;white-space:nowrap'>{dz}</td>
+            <td style='padding:6px 12px'>
+                <div style='background:#00d4ff;height:10px;width:{bar_w}px;border-radius:2px;display:inline-block'></div>
+            </td>
+            <td style='padding:6px 12px;color:#ffaa00;text-align:center'>{week}</td>
+            <td style='padding:6px 12px;color:#00d4ff;text-align:center'>{total}</td>
+        </tr>"""
+
+    return f"""<!DOCTYPE html><html><head><title>Mango Wind Hub — Stats</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <style>
+        body{{font-family:'Barlow Condensed',sans-serif;background:#070b10;color:#c8daea;padding:24px;max-width:600px;margin:0 auto}}
+        h2{{color:#00d4ff;font-size:1.6rem;letter-spacing:0.08em;text-transform:uppercase}}
+        h3{{color:#ffaa00;font-size:1rem;letter-spacing:0.1em;text-transform:uppercase;margin:20px 0 8px}}
+        table{{border-collapse:collapse;width:100%}}
+        th{{color:#5a7a96;text-align:left;padding:5px 12px;border-bottom:1px solid #1e3045;font-size:0.75rem;letter-spacing:0.1em;text-transform:uppercase}}
+        td{{border-bottom:1px solid #0d1520;font-size:0.9rem}}
+        .stat{{display:inline-block;background:#0d1520;border:1px solid #1e3045;border-radius:8px;padding:12px 20px;margin:6px 6px 6px 0}}
+        .stat .n{{font-size:2rem;color:#00d4ff;font-weight:bold;line-height:1}}
+        .stat .l{{font-size:0.7rem;color:#5a7a96;text-transform:uppercase;letter-spacing:0.1em;margin-top:2px}}
+        p{{color:#5a7a96;font-size:0.8rem;margin-top:4px}}
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;700&display=swap" rel="stylesheet">
+    </head><body>
+    <h2>🪂 Mango Wind Hub</h2>
+    <p>Community usage stats — updated in real time</p>
+
+    <div style="margin:16px 0">
+        <div class="stat"><div class="n">{total_week}</div><div class="l">This Week</div></div>
+        <div class="stat"><div class="n">{total_all}</div><div class="l">All Time</div></div>
+        <div class="stat"><div class="n">{len(dz_totals)}</div><div class="l">Active DZs</div></div>
+    </div>
+
+    <h3>Visits by Dropzone — Last 7 Days</h3>
+    <table>
+        <tr><th>Dropzone</th><th></th><th>This Week</th><th>All Time</th></tr>
+        {dz_rows}
+    </table>
+    <p style="margin-top:16px">A visit = one data load at the current forecast hour.</p>
     </body></html>"""
 
 

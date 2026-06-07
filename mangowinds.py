@@ -981,14 +981,15 @@ def data():
         pass
 
     # Build model status for frontend display
+    all_possible_models = ["gfs_seamless", "icon_seamless", "hrrr_conus", "nam_conus", "ecmwf_ifs025"]
     models_loaded = {}
     if raw and raw.get("source") == "openmeteo_ensemble":
-        for m in ["gfs_seamless", "icon_seamless", "ecmwf_ifs025"]:
-            models_loaded[m] = m in raw.get("models", {})
+        loaded = set(raw.get("models", {}).keys())
+        for m in all_possible_models:
+            models_loaded[m] = m in loaded
     elif raw:
-        models_loaded["gfs_seamless"] = True
-        models_loaded["icon_seamless"] = False
-        models_loaded["ecmwf_ifs025"] = False
+        for m in all_possible_models:
+            models_loaded[m] = (m == "gfs_seamless")
 
     response = jsonify({
         "winds": winds,

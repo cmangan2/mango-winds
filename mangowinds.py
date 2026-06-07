@@ -213,12 +213,12 @@ def fetch_forecast(lat, lon, hour_offset=0):
         # Short range (0-18h): GFS + ICON + HRRR + NAM — best resolution for current conditions
         # Long range (19-72h): GFS + ICON + ECMWF — HRRR/NAM don't go that far out
         if hour_offset <= 18:
-            ensemble_models = ["gfs_seamless", "icon_seamless", "gfs_hrrr", "nam_conus"]
+            ensemble_models = ["gfs_seamless", "icon_seamless", "hrrr_conus", "nam_conus"]
         else:
             ensemble_models = ["gfs_seamless", "icon_seamless", "ecmwf_ifs025"]
 
         # Model-to-endpoint mapping — HRRR and NAM require /v1/gfs endpoint
-        GFS_ENDPOINT_MODELS = {"gfs_hrrr", "nam_conus", "gfs_seamless"}
+        GFS_ENDPOINT_MODELS = {"hrrr_conus", "nam_conus", "gfs_seamless"}
         def model_endpoint(m):
             if m in GFS_ENDPOINT_MODELS:
                 return base_url.replace("/v1/forecast", "/v1/gfs")
@@ -676,7 +676,7 @@ def debug():
         except Exception as e:
             return [("Error", 0, None, str(e))]
 
-    pressure_models = [("GFS", "gfs_seamless"), ("GFS+HRRR", "gfs_hrrr"), ("RAP/GFS013", "ncep_gfs013"), ("ECMWF", "ecmwf_ifs025"), ("ICON", "icon_seamless")]
+    pressure_models = [("GFS", "gfs_seamless"), ("GFS+HRRR", "hrrr_conus"), ("RAP/GFS013", "ncep_gfs013"), ("ECMWF", "ecmwf_ifs025"), ("ICON", "icon_seamless")]
     pressure_results = {name: fetch_pressure(m) for name, m in pressure_models}
     alt_results = fetch_altitude()
 

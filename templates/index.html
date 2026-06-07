@@ -711,7 +711,7 @@ select:focus { border-color: var(--accent); }
 </div>
 
 <!-- ── ADVANCED CANOPY MODAL ── -->
-<div id="advancedModal" style="display:none;position:fixed;inset:0;background:rgba(7,11,16,0.88);z-index:99999;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px">
+<div id="advancedModal" style="display:none;position:fixed;inset:0;background:rgba(7,11,16,0.88);z-index:99999;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px">
     <div style="background:var(--panel-bg);border:1px solid var(--border);border-radius:16px;max-width:360px;width:100%;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.6);overflow:hidden">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px 12px;border-bottom:1px solid var(--border);font-weight:700;font-size:1rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--accent)">
             <span>⚙️ Canopy Settings</span>
@@ -739,8 +739,8 @@ select:focus { border-color: var(--accent); }
             </div>
 
             <div style="border-top:1px solid var(--border);padding-top:10px">
-                <div style="font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;cursor:pointer" onclick="toggleAdvBonus()">▶ I know more (optional)</div>
-                <div id="advBonus" style="display:none;display:flex;flex-direction:column;gap:10px">
+                <div style="font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;cursor:pointer" onclick="toggleAdvBonus(this)">▶ I know more (optional)</div>
+                <div id="advBonus" style="display:none;flex-direction:column;gap:10px">
                     <div class="df-row">
                         <label class="df-label">Opening Altitude (ft AGL)</label>
                         <input type="number" id="advOpenAlt" min="1000" max="10000" placeholder="3500" class="df-input" value="3500">
@@ -1669,19 +1669,17 @@ function updateAdvPreview(){
         `Glide ratio: ${p.glideRatio.toFixed(2)}:1`;
 }
 
-function toggleAdvBonus(){
+function toggleAdvBonus(lbl){
     const el = document.getElementById("advBonus");
-    const lbl = event.target;
     const open = el.style.display === "none" || el.style.display === "";
     el.style.display = open ? "flex" : "none";
-    el.style.flexDirection = "column";
-    el.style.gap = "10px";
+    if (open) { el.style.flexDirection = "column"; el.style.gap = "10px"; }
     lbl.textContent = (open ? "▼" : "▶") + " I know more (optional)";
 }
 
 function openAdvancedModal(){
     updateAdvPreview();
-    document.getElementById("advancedModal").style.display = "flex";
+    const am = document.getElementById("advancedModal"); am.style.display = "flex"; am.style.alignItems = "center"; am.style.justifyContent = "center";
 }
 
 function closeAdvancedModal(){

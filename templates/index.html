@@ -1394,7 +1394,7 @@ async function load(){
         const windSpd = d.canopy.speed * 0.514444;
         const windDir = d.canopy.wind_dir;
         const descentTime = canopyDescentTime;  // from canopy settings
-        const canopyAirspeed = 22 * 0.514444;
+        const canopyAirspeed = canopyAirspeedKt * 0.514444;  // from canopy settings (default: Sabre3 150 @ 1.5WL = 27kt)
 
         canopyCircle = L.circle([lat, lon], {
             radius: glideR, color: '#39ff89', weight: 2,

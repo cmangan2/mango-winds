@@ -525,6 +525,23 @@ select:focus { border-color: var(--accent); }
 }
 #refreshBtn:hover { border-color: var(--accent); color: var(--accent); }
 
+#statsBtn {
+    background: none;
+    border: 1px solid var(--muted);
+    color: var(--muted);
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: border-color 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    padding: 0;
+}
+#statsBtn:hover { border-color: var(--accent); color: var(--accent); }
+
 #helpBtn {
     background: none;
     border: 1px solid var(--muted);
@@ -813,6 +830,7 @@ select:focus { border-color: var(--accent); }
                     <span class="handle-title">🪂 Mango Wind Hub</span>
                     <div style="display:flex;gap:6px;align-items:center">
                         <button onclick="clearAndReload();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.85rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Clear cache & refresh">↺</button>
+                        <button onclick="window.open('/stats','_blank');event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Stats">📊</button>
                         <button onclick="openWelcome();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;font-weight:700;cursor:pointer;line-height:1;padding:0;flex-shrink:0">?</button>
                     </div>
                 </div>
@@ -824,6 +842,7 @@ select:focus { border-color: var(--accent); }
                 <h1>🪂 Mango Wind Hub</h1>
                 <div style="display:flex;gap:6px;align-items:center">
                     <button id="refreshBtn" onclick="clearAndReload()" title="Clear cache & refresh">↺</button>
+                    <button id="statsBtn" onclick="window.open('/stats','_blank')" title="Usage stats">📊</button>
                     <button id="helpBtn" onclick="openWelcome()" title="Quick Start Guide">?</button>
                 </div>
             </div>
@@ -1318,11 +1337,13 @@ function lerpColor(a, b, t){
     return `#${((1<<24)|(rr<<16)|(rg<<8)|rb).toString(16).slice(1)}`;
 }
 
-function confidenceColor(score){
-    if (score === null || score === undefined) return 'var(--muted)';
-    if (score >= 80) return 'var(--green)';
-    if (score >= 50) return 'var(--orange)';
-    return 'var(--red)';
+function agreementLabel(spreadDeg){
+    // spreadDeg = average angular spread between models
+    // null = only 1 model loaded (N/A)
+    if (spreadDeg === null || spreadDeg === undefined) return { text: 'N/A', color: 'var(--muted)' };
+    if (spreadDeg <= 20) return { text: 'High',   color: 'var(--green)' };
+    if (spreadDeg <= 45) return { text: 'Medium', color: 'var(--orange)' };
+    return                      { text: 'Low',    color: 'var(--red)' };
 }
 
 function colorClass(s){
@@ -1474,6 +1495,8 @@ async function load(){
         const MODEL_LABELS = {
             "gfs_seamless":  "GFS",
             "icon_seamless": "ICON",
+            "gfs_hrrr":      "HRRR",
+            "nam_conus":     "NAM",
             "ecmwf_ifs025":  "ECMWF"
         };
         const ml = d.models_loaded || {};
@@ -1496,14 +1519,21 @@ async function load(){
             const avg = Math.round((cc + fc) / 2);
             agreeStr = `${avg}%`;
         }
-        const agreeColor = agreeStr === 'N/A' ? 'var(--muted)'
-            : parseInt(agreeStr) >= 80 ? 'var(--green)'
-            : parseInt(agreeStr) >= 50 ? 'var(--orange)' : 'var(--red)';
+        // Average spread across canopy and freefall layers
+        let agreeLabel = { text: 'N/A', color: 'var(--muted)' };
+        const cc = d.canopy_confidence;
+        const fc = d.freefall_confidence;
+        if (loadedModels.length >= 2 && cc !== null && fc !== null) {
+            const avgSpread = (cc + fc) / 2;
+            agreeLabel = agreementLabel(avgSpread);
+        } else if (loadedModels.length < 2) {
+            agreeLabel = { text: 'N/A', color: 'var(--muted)' };
+        }
 
         document.getElementById("modelCard").innerHTML =
             `<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">${modelDots}</div>
             <div style="margin-top:6px;font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--muted)">
-                Model Agreement: <span style="color:${agreeColor};font-weight:bold">${agreeStr}</span>
+                Model Agreement: <span style="color:${agreeLabel.color};font-weight:bold">${agreeLabel.text}</span>
             </div>`;
 
         let html = '';

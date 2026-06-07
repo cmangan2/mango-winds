@@ -1524,10 +1524,10 @@ async function load(){
         }
         // Average spread across canopy and freefall layers
         let agreeLabel = { text: 'N/A', color: 'var(--muted)' };
-        const cc = d.canopy_confidence;
-        const fc = d.freefall_confidence;
-        if (loadedModels.length >= 2 && cc !== null && fc !== null) {
-            const avgSpread = (cc + fc) / 2;
+        const ccSpread = d.canopy_confidence;
+        const fcSpread = d.freefall_confidence;
+        if (loadedModels.length >= 2 && ccSpread !== null && fcSpread !== null) {
+            const avgSpread = (ccSpread + fcSpread) / 2;
             agreeLabel = agreementLabel(avgSpread);
         } else if (loadedModels.length < 2) {
             agreeLabel = { text: 'N/A', color: 'var(--muted)' };

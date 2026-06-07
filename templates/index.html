@@ -77,18 +77,21 @@ body {
         align-items: center;
         justify-content: space-between;
         padding: 10px 16px 6px;
-        cursor: pointer;
+        cursor: grab;
         flex-shrink: 0;
         height: var(--drawer-h);
         border-bottom: 1px solid var(--border);
         user-select: none;
+        touch-action: none;
     }
     #panel-handle .handle-bar {
         width: 36px; height: 4px;
         background: var(--muted);
         border-radius: 2px;
         margin: 0 auto 4px;
+        transition: background 0.2s;
     }
+    #panel-handle:active .handle-bar { background: var(--accent); }
     #panel-handle .handle-title {
         font-weight: 700;
         font-size: 1rem;
@@ -823,7 +826,7 @@ select:focus { border-color: var(--accent); }
 
     <div id="panel">
 
-        <div id="panel-handle" onclick="togglePanel()">
+        <div id="panel-handle">
             <div id="panel-handle-inner">
                 <div class="handle-bar"></div>
                 <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
@@ -1798,6 +1801,75 @@ function initMap(){
     mapEl.addEventListener('touchmove',  onTouchMove,  { passive: false });
     mapEl.addEventListener('touchend',   onTouchEnd,   { passive: false });
 }
+
+// ── MOBILE PANEL DRAG ──
+(function(){
+    const panel  = document.getElementById("panel");
+    const handle = document.getElementById("panel-handle");
+    if (!handle) return;
+
+    let startY = 0, startOpen = false, dragging = false, moved = false;
+    const SNAP_THRESHOLD = 40; // px
+
+    function onStart(e){
+        if (window.innerWidth >= 600) return;
+        const touch = e.touches ? e.touches[0] : e;
+        startY    = touch.clientY;
+        startOpen = panelOpen;
+        dragging  = true;
+        moved     = false;
+        panel.style.transition = "none";
+    }
+
+    function onMove(e){
+        if (!dragging || window.innerWidth >= 600) return;
+        e.preventDefault();
+        const touch = e.touches ? e.touches[0] : e;
+        const dy = touch.clientY - startY;
+        if (Math.abs(dy) > 5) moved = true;
+
+        // Translate the panel live while dragging
+        if (startOpen) {
+            // Dragging down to close — only allow downward movement
+            const clamp = Math.max(0, dy);
+            panel.style.transform = `translateY(${clamp}px)`;
+        } else {
+            // Dragging up to open — only allow upward movement
+            const maxUp = panel.offsetHeight - parseInt(getComputedStyle(document.documentElement).getPropertyValue("--drawer-h"));
+            const clamp = Math.max(-maxUp, Math.min(0, dy));
+            panel.style.transform = `translateY(calc(100% - var(--drawer-h) + ${clamp}px))`;
+        }
+    }
+
+    function onEnd(e){
+        if (!dragging || window.innerWidth >= 600) return;
+        dragging = false;
+        panel.style.transition = "";
+        panel.style.transform  = "";
+
+        if (!moved) {
+            // Tap — toggle
+            togglePanel();
+            return;
+        }
+
+        const touch = (e.changedTouches ? e.changedTouches[0] : e);
+        const dy = touch.clientY - startY;
+
+        if (startOpen && dy > SNAP_THRESHOLD) {
+            // Dragged down enough — close
+            panelOpen = true; togglePanel();
+        } else if (!startOpen && dy < -SNAP_THRESHOLD) {
+            // Dragged up enough — open
+            panelOpen = false; togglePanel();
+        }
+        // Otherwise snap back to original state (togglePanel already handles this)
+    }
+
+    handle.addEventListener("touchstart", onStart, { passive: true });
+    handle.addEventListener("touchmove",  onMove,  { passive: false });
+    handle.addEventListener("touchend",   onEnd,   { passive: true });
+})();
 
 function initDZ(){
     const sel = document.getElementById("dz");

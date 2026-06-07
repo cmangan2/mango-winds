@@ -191,7 +191,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
         api_key = os.environ.get("OPENMETEO_API_KEY")
         base_url = "https://customer-api.open-meteo.com/v1/forecast" if api_key else "https://api.open-meteo.com/v1/forecast"
         hourly_fields = [
-            "windspeed_10m","winddirection_10m","windspeed_80m","winddirection_80m",
+            "windspeed_10m","winddirection_10m","windspeed_80m","winddirection_80m","temperature_2m",
             "windspeed_1000hPa","winddirection_1000hPa",
             "windspeed_975hPa","winddirection_975hPa",
             "windspeed_950hPa","winddirection_950hPa",
@@ -474,12 +474,19 @@ def format_winds(data, hour, lat=0, lon=0):
         surf_spd, surf_dir = weighted_avg_wind(sfc_spds, sfc_dirs)
 
         result = {}
+        # Use 2m temperature for surface display — much more accurate than pressure level temp
+        temp2m = None
+        for mh in models_h.values():
+            t = mh.get("temperature_2m", [None]*200)[hour]
+            if t is not None:
+                temp2m = t
+                break
         result[0] = {
             "speed":     round(surf_spd, 1),
             "direction": round(surf_dir % 360, 0),
             "arrow":     wind_arrow(surf_dir),
             "color":     color(surf_spd),
-            "temp_f":    tc_to_f(pressure_levels[0][3]) if pressure_levels else None,
+            "temp_f":    tc_to_f(temp2m) if temp2m is not None else (tc_to_f(pressure_levels[0][3]) if pressure_levels else None),
         }
 
         # Compute confidence scores for canopy (0-3k) and freefall (4k-14k) layers
@@ -898,17 +905,17 @@ def data():
     # If METAR returns calm (0kt) fall back to Open-Meteo lowest level
     if hour == 0 and icao and winds:
         metar = fetch_metar(icao)
-        if metar and metar["wspd"] > 0:
+        if metar:
             winds[0] = {
                 "speed":     round(metar["wspd"], 1),
                 "direction": round(metar["wdir"] % 360, 0),
                 "arrow":     wind_arrow(metar["wdir"]),
                 "color":     color(metar["wspd"]),
-                "temp_f":    round(metar["temp"] * 9/5 + 32) if metar["temp"] is not None else None,
+                "temp_f":    round(metar["temp"] * 9/5 + 32) if metar["temp"] is not None else winds[0].get("temp_f"),
             }
-            print(f"SFC: using METAR {icao} {metar['wspd']}kt/{metar['wdir']}°")
+            print(f"SFC: using METAR {icao} {metar['wspd']}kt/{metar['wdir']}° temp={metar.get('temp')}°C")
         else:
-            print(f"SFC: METAR calm or unavailable, using Open-Meteo lowest level")
+            print(f"SFC: METAR unavailable, using Open-Meteo surface")
 
     if not winds:
         print(f"ERROR: winds empty for lat={lat} lon={lon} hour={hour}")

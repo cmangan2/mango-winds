@@ -233,9 +233,16 @@ def fetch_forecast(lat, lon, hour_offset=0):
                 model_data[model] = cached_model["data"]
                 continue
             endpoint = model_endpoint(model)
+            # Cap forecast days by model capability
+            if model == "hrrr_conus":
+                fcast_days = 1   # 18hr max
+            elif model == "nam_conus":
+                fcast_days = 2   # 60hr max
+            else:
+                fcast_days = 3
             full_url = (f"{endpoint}?latitude={lat}&longitude={lon}"
                         f"&hourly={hourly_str}"
-                        f"&forecast_days=3&timezone=auto"
+                        f"&forecast_days={fcast_days}&timezone=auto"
                         f"&wind_speed_unit=kn"
                         f"&models={model}")
             if api_key:

@@ -217,6 +217,13 @@ def fetch_forecast(lat, lon, hour_offset=0):
         else:
             ensemble_models = ["gfs_seamless", "icon_seamless", "ecmwf_ifs025"]
 
+        # Model-to-endpoint mapping — HRRR and NAM require /v1/gfs endpoint
+        GFS_ENDPOINT_MODELS = {"gfs_hrrr", "nam_conus", "gfs_seamless"}
+        def model_endpoint(m):
+            if m in GFS_ENDPOINT_MODELS:
+                return base_url.replace("/v1/forecast", "/v1/gfs")
+            return base_url
+
         model_data = {}
         for model in ensemble_models:
             model_key = (round(lat, 3), round(lon, 3), hour_offset, model)
@@ -225,7 +232,8 @@ def fetch_forecast(lat, lon, hour_offset=0):
                 print(f"Cache HIT {model} for {model_key}")
                 model_data[model] = cached_model["data"]
                 continue
-            full_url = (f"{base_url}?latitude={lat}&longitude={lon}"
+            endpoint = model_endpoint(model)
+            full_url = (f"{endpoint}?latitude={lat}&longitude={lon}"
                         f"&hourly={hourly_str}"
                         f"&forecast_days=3&timezone=auto"
                         f"&wind_speed_unit=kn"

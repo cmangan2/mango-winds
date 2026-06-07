@@ -240,11 +240,18 @@ def fetch_forecast(lat, lon, hour_offset=0):
                 fcast_days = 2   # 60hr max
             else:
                 fcast_days = 3
-            full_url = (f"{endpoint}?latitude={lat}&longitude={lon}"
-                        f"&hourly={hourly_str}"
-                        f"&forecast_days={fcast_days}&timezone=auto"
-                        f"&wind_speed_unit=kn"
-                        f"&models={model}")
+            # HRRR/NAM use /v1/gfs natively — no models= param needed
+            if model in ("hrrr_conus", "nam_conus"):
+                full_url = (f"{endpoint}?latitude={lat}&longitude={lon}"
+                            f"&hourly={hourly_str}"
+                            f"&forecast_days={fcast_days}&timezone=auto"
+                            f"&wind_speed_unit=kn")
+            else:
+                full_url = (f"{endpoint}?latitude={lat}&longitude={lon}"
+                            f"&hourly={hourly_str}"
+                            f"&forecast_days={fcast_days}&timezone=auto"
+                            f"&wind_speed_unit=kn"
+                            f"&models={model}")
             if api_key:
                 full_url += f"&apikey={api_key}"
             try:

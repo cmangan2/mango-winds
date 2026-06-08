@@ -746,7 +746,7 @@ select:focus { border-color: var(--accent); }
                 <div id="advBonus" style="display:none;flex-direction:column;gap:10px">
                     <div class="df-row">
                         <label class="df-label">Opening Altitude (ft AGL)</label>
-                        <input type="number" id="advOpenAlt" min="1000" max="10000" placeholder="3500" class="df-input" value="3500">
+                        <input type="number" id="advOpenAlt" min="1000" max="10000" placeholder="3000" class="df-input" value="3000">
                     </div>
                     <div class="df-row">
                         <label class="df-label">Known Glide Ratio (e.g. 3.0)</label>
@@ -927,7 +927,7 @@ let dz = {{ dz | tojson }};
 let lat, lon;
 // Canopy defaults: Sabre3 150 @ 1.5WL
 let canopyAirspeedKt = 27;
-let canopyDescentTime = 190;
+let canopyDescentTime = 158;
 let map, marker, canopyCircle, canopyCircleShifted, highLine;
 let loadTimeout = null;
 let firstLoad = true;

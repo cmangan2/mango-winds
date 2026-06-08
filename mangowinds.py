@@ -766,7 +766,7 @@ def stats():
     dz_weekly  = {}
     for dz, days in _visit_log.items():
         dz_totals[dz] = sum(days.values())
-        dz_weekly[dz]  = sum(days.get(d, 0) for d in last7)
+        dz_weekly[dz]  = sum(days.get(d, 0) for d in this_week)
 
     total_week = sum(dz_weekly.values())
     total_all  = sum(dz_totals.values())

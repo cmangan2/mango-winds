@@ -866,6 +866,30 @@ select:focus { border-color: var(--accent); }
 
                 <button id="drawBtn" onclick="toggleDrawMode()">✏️ Draw Jump Run</button>
                 <button id="defineBtn" onclick="openDefineModal()">📐 Define Jump Run</button>
+                <button id="patternBtn" onclick="togglePatternMode()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid #ff4f4f;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🎯 Place Landing Spot</button>
+                <div id="patternControls" style="display:none;margin-top:6px;background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px">
+                    <div style="display:flex;gap:8px;margin-bottom:6px">
+                        <div style="flex:1">
+                            <label class="df-label">Final Heading</label>
+                            <select id="patternHeading" style="width:100%;background:var(--card-bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:5px 8px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem" onchange="updatePattern()">
+                                <option value="wind">Into Wind</option>
+                                <option value="custom">Custom °</option>
+                            </select>
+                        </div>
+                        <div style="flex:1">
+                            <label class="df-label">Traffic</label>
+                            <select id="patternTraffic" style="width:100%;background:var(--card-bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:5px 8px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem" onchange="updatePattern()">
+                                <option value="left">Left Hand</option>
+                                <option value="right">Right Hand</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="customHeadingRow" style="display:none;margin-bottom:6px">
+                        <label class="df-label">Final Heading (°)</label>
+                        <input type="number" id="patternCustomHdg" min="0" max="360" placeholder="e.g. 360" class="df-input" oninput="updatePattern()">
+                    </div>
+                    <button onclick="clearPattern()" style="width:100%;padding:5px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.85rem;cursor:pointer">✕ Clear Pattern</button>
+                </div>
                 <button id="replayBtn" onclick="startPlaneAnimation()" style="display:none">▶ Replay</button>
                 <button id="clearBtn" onclick="clearJumpRun()" style="display:none">✕ Clear</button>
                 <div id="sepRow" style="margin-top:8px">
@@ -1201,6 +1225,148 @@ function clearJumpRun(){
     document.getElementById("clearBtn").style.display    = "none";
 }
 
+// ── LANDING PATTERN ──
+let patternMode = false;
+let landingSpot = null;
+let patternLines = [];
+let landingMarker = null;
+let lastCanopyWind = null;  // stored from load() for pattern use
+
+function togglePatternMode(){
+    patternMode = !patternMode;
+    const btn = document.getElementById("patternBtn");
+    const controls = document.getElementById("patternControls");
+    if (patternMode){
+        btn.textContent = "✕ Cancel Placement";
+        btn.style.background = "#ff4f4f";
+        btn.style.color = "var(--bg)";
+        map.getContainer().style.cursor = "crosshair";
+    } else {
+        btn.textContent = "🎯 Place Landing Spot";
+        btn.style.background = "var(--card-bg)";
+        btn.style.color = "#ff4f4f";
+        map.getContainer().style.cursor = "";
+        if (!landingSpot) controls.style.display = "none";
+    }
+}
+
+function clearPattern(){
+    patternLines.forEach(l => l.remove());
+    patternLines = [];
+    if (landingMarker) { landingMarker.remove(); landingMarker = null; }
+    landingSpot = null;
+    document.getElementById("patternControls").style.display = "none";
+    document.getElementById("patternBtn").textContent = "🎯 Place Landing Spot";
+    document.getElementById("patternBtn").style.background = "var(--card-bg)";
+    document.getElementById("patternBtn").style.color = "#ff4f4f";
+}
+
+function getFinalHeading(){
+    const sel = document.getElementById("patternHeading").value;
+    if (sel === "wind" && lastCanopyWind) {
+        // Into the wind = wind FROM direction (canopy faces into wind)
+        return lastCanopyWind.direction;
+    }
+    if (sel === "custom") {
+        return parseFloat(document.getElementById("patternCustomHdg").value) || 0;
+    }
+    return lastCanopyWind ? lastCanopyWind.direction : 0;
+}
+
+function drawPattern(){
+    if (!landingSpot) return;
+    patternLines.forEach(l => l.remove());
+    patternLines = [];
+
+    const finalHdg = getFinalHeading() % 360;
+    const traffic  = document.getElementById("patternTraffic").value; // left or right
+    const turnDir  = traffic === "left" ? -90 : 90;  // degrees to turn for base
+
+    const R = 6378137;
+    function offsetPt(baseLat, baseLon, bearingDeg, distM){
+        const rad = bearingDeg * Math.PI / 180;
+        const lat1 = baseLat * Math.PI / 180;
+        const lon1 = baseLon * Math.PI / 180;
+        const lat2 = Math.asin(Math.sin(lat1)*Math.cos(distM/R) +
+                               Math.cos(lat1)*Math.sin(distM/R)*Math.cos(rad));
+        const lon2 = lon1 + Math.atan2(Math.sin(rad)*Math.sin(distM/R)*Math.cos(lat1),
+                                        Math.cos(distM/R)-Math.sin(lat1)*Math.sin(lat2));
+        return [lat2*180/Math.PI, lon2*180/Math.PI];
+    }
+
+    // Pattern geometry (distances in metres)
+    const FINAL_LEN   = 300 * 0.3048;   // 300ft
+    const BASE_LEN    = 600 * 0.3048;   // 600ft
+    const DOWNWIND_LEN = 1000 * 0.3048; // 1000ft
+
+    // Key points
+    const target    = landingSpot;  // touchdown
+
+    // Final: fly finalHdg TO target → start of final is BEHIND target (opposite heading)
+    const finalStart = offsetPt(target[0], target[1], (finalHdg + 180) % 360, FINAL_LEN);
+
+    // Base turn point: from finalStart, turn left/right 90°
+    const baseHdg  = (finalHdg + turnDir + 360) % 360;
+    const baseStart = offsetPt(finalStart[0], finalStart[1], (baseHdg + 180) % 360, BASE_LEN);
+
+    // Downwind: parallel to final, opposite direction
+    const downwindHdg  = (finalHdg + 180) % 360;
+    const downwindStart = offsetPt(baseStart[0], baseStart[1], (downwindHdg + 180) % 360, DOWNWIND_LEN);
+
+    const patternColor = 'rgba(255,79,79,0.75)';
+    const labelStyle = 'background:rgba(255,79,79,0.75);color:#fff;font-size:11px;font-family:monospace;padding:2px 5px;border-radius:3px;white-space:nowrap';
+
+    function addArrow(from, to, label, altLabel){
+        const line = L.polyline([from, to], {
+            color: patternColor, weight: 3, opacity: 0.75
+        }).addTo(map);
+        patternLines.push(line);
+
+        // Arrowhead at destination
+        const hdg = bearing(from, to);
+        const tipPx = map.latLngToLayerPoint(L.latLng(to));
+        const r = (hdg - 90) * Math.PI / 180;
+        const left  = map.layerPointToLatLng(L.point(tipPx.x + 10*Math.cos(r+2.5), tipPx.y + 10*Math.sin(r+2.5)));
+        const right = map.layerPointToLatLng(L.point(tipPx.x + 10*Math.cos(r-2.5), tipPx.y + 10*Math.sin(r-2.5)));
+        const arrow = L.polygon([to, left, right], {
+            color: patternColor, fillColor: patternColor, fillOpacity: 0.75, weight: 0
+        }).addTo(map);
+        patternLines.push(arrow);
+
+        // Altitude label at midpoint
+        const midLat = (from[0]+to[0])/2;
+        const midLon = (from[1]+to[1])/2;
+        const lbl = L.marker([midLat, midLon], {
+            icon: L.divIcon({ html: `<div style="${labelStyle}">${altLabel}</div>`, className: '', iconAnchor: [0,10] })
+        }).addTo(map);
+        patternLines.push(lbl);
+    }
+
+    // Draw legs: downwind → base → final
+    addArrow(downwindStart, baseStart,  "downwind", "1000ft");
+    addArrow(baseStart,     finalStart, "base",     "600ft");
+    addArrow(finalStart,    target,     "final",    "300ft");
+
+    // Landing spot marker
+    if (landingMarker) landingMarker.remove();
+    const spotIcon = L.divIcon({
+        html: `<div style="width:14px;height:14px;background:rgba(255,79,79,0.9);border:2px solid #fff;border-radius:50%"></div>`,
+        className: '', iconAnchor: [7,7]
+    });
+    landingMarker = L.marker(target, { icon: spotIcon, zIndexOffset: 800 }).addTo(map);
+    patternLines.push(landingMarker);
+}
+
+function updatePattern(){
+    // Show/hide custom heading input
+    const sel = document.getElementById("patternHeading").value;
+    document.getElementById("customHeadingRow").style.display = sel === "custom" ? "block" : "none";
+    if (landingSpot) drawPattern();
+}
+
+// Click handler for placing landing spot
+map && map.on && (function(){})(); // placeholder — attached in initMap
+
 function clearAnimation(){
     animGeneration++;
     if (planeAnimId) { cancelAnimationFrame(planeAnimId); planeAnimId = null; }
@@ -1435,7 +1601,9 @@ async function load(){
         if (firstLoad){ fitToCanopy(glideR, polyPoints); firstLoad = false; }
 
         lastFreefall = { distance: d.freefall.distance, direction: d.freefall.direction };
-        lastWind14k = d.wind_14k;
+        lastWind14k  = d.wind_14k;
+        lastCanopyWind = { speed: d.canopy.speed, direction: d.canopy.direction };
+        if (landingSpot) drawPattern();  // redraw pattern if wind data updates
         if (jrStart && jrEnd) drawFreefallParallel();
 
         if (d.time_label) {
@@ -1796,6 +1964,13 @@ function initMap(){
     map.on('mousemove', onMapMouseMove);
     map.on('mouseup',   onMapMouseUp);
     map.on('click',     onMapClick);
+    map.on('click', function(e){
+        if (!patternMode) return;
+        landingSpot = [e.latlng.lat, e.latlng.lng];
+        togglePatternMode();  // exit placement mode
+        document.getElementById("patternControls").style.display = "block";
+        drawPattern();
+    });
     const mapEl = map.getContainer();
     mapEl.addEventListener('touchstart', onTouchStart, { passive: false });
     mapEl.addEventListener('touchmove',  onTouchMove,  { passive: false });

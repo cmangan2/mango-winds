@@ -29,93 +29,53 @@
     --panel-w: 320px;
     --drawer-h: 56px;
 }
-
 * { box-sizing: border-box; margin: 0; padding: 0; }
-
 body {
     font-family: 'Barlow Condensed', sans-serif;
     background: var(--bg);
     color: var(--text);
-    height: 100vh;
-    height: 100dvh;
+    height: 100vh; height: 100dvh;
     overflow: hidden;
     -webkit-tap-highlight-color: transparent;
 }
-
 #wrap { display: flex; height: 100vh; height: 100dvh; }
 #map { flex: 1; min-width: 0; }
-
 #panel {
     width: var(--panel-w);
     background: var(--panel-bg);
-    display: flex;
-    flex-direction: column;
+    display: flex; flex-direction: column;
     border-left: 1px solid var(--border);
     overflow: hidden;
     transition: transform 0.3s ease;
 }
-
 @media (max-width: 599px) {
     #wrap { flex-direction: column; position: relative; }
     #map { position: absolute; inset: 0; z-index: 1; }
     #panel {
-        position: absolute;
-        bottom: 0; left: 0; right: 0;
-        width: 100%;
-        max-height: 88dvh;
-        border-left: none;
+        position: absolute; bottom: 0; left: 0; right: 0; width: 100%;
+        max-height: 88dvh; border-left: none;
         border-top: 2px solid var(--border);
-        border-radius: 18px 18px 0 0;
-        z-index: 10;
+        border-radius: 18px 18px 0 0; z-index: 10;
         transform: translateY(calc(100% - var(--drawer-h)));
         transition: transform 0.35s cubic-bezier(.4,0,.2,1);
         box-shadow: 0 -8px 32px rgba(0,0,0,0.6);
     }
     #panel.open { transform: translateY(0); }
     #panel-handle {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 10px 16px 6px;
-        cursor: grab;
-        flex-shrink: 0;
-        height: var(--drawer-h);
-        border-bottom: 1px solid var(--border);
-        user-select: none;
-        touch-action: none;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 10px 16px 6px; cursor: grab; flex-shrink: 0;
+        height: var(--drawer-h); border-bottom: 1px solid var(--border);
+        user-select: none; touch-action: none;
     }
     #panel-handle .handle-bar {
-        width: 36px; height: 4px;
-        background: var(--muted);
-        border-radius: 2px;
-        margin: 0 auto 4px;
-        transition: background 0.2s;
+        width: 36px; height: 4px; background: var(--muted);
+        border-radius: 2px; margin: 0 auto 4px; transition: background 0.2s;
     }
     #panel-handle:active .handle-bar { background: var(--accent); }
-    #panel-handle .handle-title {
-        font-weight: 700;
-        font-size: 1rem;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--accent);
-    }
-    #panel-handle .handle-summary {
-        font-family: 'Share Tech Mono', monospace;
-        font-size: 0.68rem;
-        color: var(--muted);
-    }
-    #panel-handle-inner {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        width: 100%;
-    }
+    #panel-handle .handle-title { font-weight: 700; font-size: 1rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+    #panel-handle-inner { display: flex; flex-direction: column; align-items: center; width: 100%; }
     #panel-header { display: none; }
-    #panel-body {
-        overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
-        flex: 1;
-    }
+    #panel-body { overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1; }
     select { padding: 10px 12px; font-size: 1rem; }
     #hour { height: 28px; }
     #drawBtn, #replayBtn { padding: 12px 10px; font-size: 1.05rem; }
@@ -123,543 +83,113 @@ body {
     .summary-card { padding: 10px 14px; }
     .sc-data { font-size: 0.85rem !important; gap: 10px !important; }
 }
-
 @media (min-width: 600px) {
     #panel-handle { display: none; }
     #panel-body { display: contents; }
 }
-
-#panel-header {
-    padding: 14px 16px 10px;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-}
-#panel-header h1 {
-    font-weight: 700;
-    font-size: 1.35rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--accent);
-}
-#panel-header p {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--muted);
-    margin-top: 2px;
-}
-
-#controls {
-    padding: 12px 14px;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-}
-
-label {
-    font-size: 0.72rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--muted);
-    display: block;
-    margin-bottom: 4px;
-}
-
+#panel-header { padding: 14px 16px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+#panel-header h1 { font-weight: 700; font-size: 1.35rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+#panel-header p { font-family: 'Share Tech Mono', monospace; font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+#controls { padding: 12px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+label { font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 4px; }
 select {
-    width: 100%;
-    background: var(--card-bg);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 7px 10px;
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 0.95rem;
-    outline: none;
-    cursor: pointer;
-    appearance: none;
+    width: 100%; background: var(--card-bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px;
+    font-family: 'Barlow Condensed', sans-serif; font-size: 0.95rem;
+    outline: none; cursor: pointer; appearance: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235a7a96' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 10px center;
+    background-repeat: no-repeat; background-position: right 10px center;
 }
 select:focus { border-color: var(--accent); }
-
-.time-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: 10px;
-    margin-bottom: 4px;
-}
+.time-row { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; margin-bottom: 4px; }
 .time-row label { margin: 0; }
-
-#timeLabel {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 0.72rem;
-    color: var(--accent);
-    white-space: nowrap;
-}
-
-#hour {
-    width: 100%;
-    accent-color: var(--accent);
-    cursor: pointer;
-    height: 6px;
-    border-radius: 3px;
-}
-
-#summaries {
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.summary-card {
-    background: var(--card-bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 9px 12px;
-    position: relative;
-    overflow: hidden;
-}
-.summary-card::before {
-    content: '';
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    width: 3px;
-}
+#timeLabel { font-family: 'Share Tech Mono', monospace; font-size: 0.72rem; color: var(--accent); white-space: nowrap; }
+#hour { width: 100%; accent-color: var(--accent); cursor: pointer; height: 6px; border-radius: 3px; }
+#summaries { padding: 10px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; }
+.summary-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; position: relative; overflow: hidden; }
+.summary-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
 .summary-card.canopy::before { background: var(--canopy); }
 .summary-card.freefall::before { background: var(--freefall); }
-.summary-card .sc-label {
-    font-size: 0.68rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    margin-bottom: 5px;
-}
+.summary-card .sc-label { font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 5px; }
 .summary-card.canopy .sc-label { color: var(--canopy); }
 .summary-card.freefall .sc-label { color: var(--freefall); }
-.summary-card .sc-data {
-    display: flex;
-    gap: 16px;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--text);
-    flex-wrap: wrap;
-}
+.summary-card .sc-data { display: flex; gap: 16px; font-family: 'Share Tech Mono', monospace; font-size: 0.8rem; color: var(--text); flex-wrap: wrap; }
 .summary-card .sc-data span { color: var(--muted); font-size: 0.7rem; margin-right: 2px; }
-
-#cards-wrap {
-    flex: 1;
-    overflow-y: auto;
-    padding: 10px 14px 14px;
-    -webkit-overflow-scrolling: touch;
-}
+#cards-wrap { flex: 1; overflow-y: auto; padding: 10px 14px 14px; -webkit-overflow-scrolling: touch; }
 #cards-wrap::-webkit-scrollbar { width: 4px; }
 #cards-wrap::-webkit-scrollbar-track { background: transparent; }
 #cards-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-.alt-section-title {
-    font-size: 0.64rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin: 10px 0 4px;
-}
+.alt-section-title { font-size: 0.64rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin: 10px 0 4px; }
 .alt-section-title.upper { color: var(--freefall); }
 .alt-section-title.lower { color: var(--canopy); }
-
-.wind-card {
-    display: grid;
-    grid-template-columns: 56px 1fr auto auto auto;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 10px;
-    margin: 2px 0;
-    border-radius: 6px;
-    background: var(--card-alt);
-    border: 1px solid transparent;
-    transition: border-color 0.15s;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 0.78rem;
-}
+.wind-card { display: grid; grid-template-columns: 56px 1fr auto auto auto; align-items: center; gap: 6px; padding: 6px 10px; margin: 2px 0; border-radius: 6px; background: var(--card-alt); border: 1px solid transparent; transition: border-color 0.15s; font-family: 'Share Tech Mono', monospace; font-size: 0.78rem; }
 .wind-card:hover { border-color: var(--border); }
 .wind-card.upper { background: rgba(255,170,0,0.06); }
 .wind-card.upper .alt { color: var(--freefall); opacity: 0.75; }
 .wind-card .alt { color: var(--muted); font-size: 0.7rem; }
 .wind-card:not(.upper) .alt { color: var(--canopy); opacity: 0.85; }
-.wind-card .arrow { font-size: 1rem; }
 .wind-card .speed { text-align: right; font-weight: bold; }
 .wind-card .dir { color: var(--muted); font-size: 0.72rem; text-align: right; }
 .wind-card .temp { color: var(--muted); font-size: 0.68rem; text-align: right; }
-
 .dot-green { color: var(--green); }
 .dot-orange { color: var(--orange); }
 .dot-red { color: var(--red); }
-
-#loader {
-    position: fixed;
-    inset: 0;
-    background: rgba(7,11,16,0.75);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 9999;
-    backdrop-filter: blur(2px);
-    transition: opacity 0.3s;
-}
+#loader { position: fixed; inset: 0; background: rgba(7,11,16,0.75); display: flex; align-items: center; justify-content: center; z-index: 9999; backdrop-filter: blur(2px); transition: opacity 0.3s; }
 #loader.hidden { opacity: 0; pointer-events: none; }
-.spinner {
-    width: 32px; height: 32px;
-    border: 3px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-}
+.spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-
-#welcomeModal {
-    position: fixed;
-    inset: 0;
-    background: rgba(7,11,16,0.88);
-    z-index: 99999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    backdrop-filter: blur(4px);
-    padding: 16px;
-}
-#welcomeBox {
-    background: var(--panel-bg);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    max-width: 480px;
-    width: 100%;
-    max-height: 90dvh;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 24px 64px rgba(0,0,0,0.6);
-    overflow: hidden;
-}
-#welcomeHeader {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px 20px 12px;
-    border-bottom: 1px solid var(--border);
-    font-weight: 700;
-    font-size: 1.1rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--accent);
-    flex-shrink: 0;
-}
-#welcomeVersion {
-    font-size: 0.65rem;
-    color: var(--muted);
-    letter-spacing: 0.1em;
-    font-weight: 400;
-}
-#welcomeBody {
-    overflow-y: auto;
-    padding: 14px 20px;
-    flex: 1;
-    -webkit-overflow-scrolling: touch;
-}
-.wc-section {
-    display: flex;
-    gap: 14px;
-    align-items: flex-start;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border);
-}
+#welcomeModal { position: fixed; inset: 0; background: rgba(7,11,16,0.88); z-index: 99999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); padding: 16px; }
+#welcomeBox { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 16px; max-width: 480px; width: 100%; max-height: 90dvh; display: flex; flex-direction: column; box-shadow: 0 24px 64px rgba(0,0,0,0.6); overflow: hidden; }
+#welcomeHeader { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px 12px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 1.1rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); flex-shrink: 0; }
+#welcomeVersion { font-size: 0.65rem; color: var(--muted); letter-spacing: 0.1em; font-weight: 400; }
+#welcomeBody { overflow-y: auto; padding: 14px 20px; flex: 1; -webkit-overflow-scrolling: touch; }
+.wc-section { display: flex; gap: 14px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .wc-section:last-child { border-bottom: none; }
-.wc-icon {
-    font-size: 1.4rem;
-    flex-shrink: 0;
-    width: 28px;
-    text-align: center;
-    margin-top: 2px;
-}
-.wc-title {
-    font-weight: 700;
-    font-size: 0.85rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text);
-    margin-bottom: 4px;
-}
-.wc-text {
-    font-size: 0.82rem;
-    color: var(--muted);
-    line-height: 1.55;
-    font-family: 'Barlow Condensed', sans-serif;
-}
+.wc-icon { font-size: 1.4rem; flex-shrink: 0; width: 28px; text-align: center; margin-top: 2px; }
+.wc-title { font-weight: 700; font-size: 0.85rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text); margin-bottom: 4px; }
+.wc-text { font-size: 0.82rem; color: var(--muted); line-height: 1.55; font-family: 'Barlow Condensed', sans-serif; }
 .wc-text b { color: var(--text); font-weight: 600; }
-#welcomeClose {
-    margin: 14px 20px 16px;
-    padding: 12px;
-    background: var(--accent);
-    color: var(--bg);
-    border: none;
-    border-radius: 8px;
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 1.05rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: opacity 0.15s;
-    -webkit-tap-highlight-color: transparent;
-}
+#welcomeClose { margin: 14px 20px 16px; padding: 12px; background: var(--accent); color: var(--bg); border: none; border-radius: 8px; font-family: 'Barlow Condensed', sans-serif; font-size: 1.05rem; font-weight: 700; letter-spacing: 0.08em; cursor: pointer; flex-shrink: 0; transition: opacity 0.15s; -webkit-tap-highlight-color: transparent; }
 #welcomeClose:hover { opacity: 0.85; }
-
-/* ── DEFINE MODAL ── */
-#defineModal {
-    position: fixed;
-    inset: 0;
-    background: rgba(7,11,16,0.88);
-    z-index: 99999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    backdrop-filter: blur(4px);
-    padding: 16px;
-}
-#defineBox {
-    background: var(--panel-bg);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    max-width: 360px;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 24px 64px rgba(0,0,0,0.6);
-    overflow: hidden;
-}
-#defineHeader {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 14px 18px 12px;
-    border-bottom: 1px solid var(--border);
-    font-weight: 700;
-    font-size: 1rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--accent);
-}
-#defineCloseBtn {
-    background: none;
-    border: none;
-    color: var(--muted);
-    font-size: 1.1rem;
-    cursor: pointer;
-    padding: 0 4px;
-    line-height: 1;
-}
+#defineModal { position: fixed; inset: 0; background: rgba(7,11,16,0.88); z-index: 99999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); padding: 16px; }
+#defineBox { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 16px; max-width: 360px; width: 100%; display: flex; flex-direction: column; box-shadow: 0 24px 64px rgba(0,0,0,0.6); overflow: hidden; }
+#defineHeader { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px 12px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 1rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+#defineCloseBtn { background: none; border: none; color: var(--muted); font-size: 1.1rem; cursor: pointer; padding: 0 4px; line-height: 1; }
 #defineCloseBtn:hover { color: var(--text); }
 #defineBody { padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; }
 .df-row { display: flex; flex-direction: column; gap: 4px; }
-.df-label {
-    font-size: 0.72rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--muted);
-}
+.df-label { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .df-pair { display: flex; gap: 8px; }
-.df-input {
-    background: var(--card-bg);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 8px 10px;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 0.9rem;
-    outline: none;
-    width: 100%;
-}
+.df-input { background: var(--card-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-family: 'Share Tech Mono', monospace; font-size: 0.9rem; outline: none; width: 100%; }
 .df-input:focus { border-color: var(--accent); }
 .df-short { width: 90px; flex-shrink: 0; }
-.df-select {
-    background: var(--card-bg);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 8px 10px;
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 0.9rem;
-    outline: none;
-    cursor: pointer;
-    flex: 1;
-    appearance: none;
-}
+.df-select { background: var(--card-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.9rem; outline: none; cursor: pointer; flex: 1; appearance: none; }
 .df-select:focus { border-color: var(--accent); }
-#dfSubmitBtn {
-    margin: 6px 18px 16px;
-    padding: 11px;
-    background: var(--accent);
-    color: var(--bg);
-    border: none;
-    border-radius: 8px;
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 1rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    cursor: pointer;
-    transition: opacity 0.15s;
-    -webkit-tap-highlight-color: transparent;
-}
+#dfSubmitBtn { margin: 6px 18px 16px; padding: 11px; background: var(--accent); color: var(--bg); border: none; border-radius: 8px; font-family: 'Barlow Condensed', sans-serif; font-size: 1rem; font-weight: 700; letter-spacing: 0.08em; cursor: pointer; transition: opacity 0.15s; -webkit-tap-highlight-color: transparent; }
 #dfSubmitBtn:hover { opacity: 0.85; }
-
-#refreshBtn {
-    background: none;
-    border: 1px solid var(--muted);
-    color: var(--muted);
-    border-radius: 50%;
-    width: 22px;
-    height: 22px;
-    font-size: 1rem;
-    cursor: pointer;
-    line-height: 1;
-    flex-shrink: 0;
-    transition: border-color 0.15s, color 0.15s;
-    -webkit-tap-highlight-color: transparent;
-    padding: 0;
-}
+#refreshBtn { background: none; border: 1px solid var(--muted); color: var(--muted); border-radius: 50%; width: 22px; height: 22px; font-size: 1rem; cursor: pointer; line-height: 1; flex-shrink: 0; transition: border-color 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; padding: 0; }
 #refreshBtn:hover { border-color: var(--accent); color: var(--accent); }
-
-#statsBtn {
-    background: none;
-    border: 1px solid var(--muted);
-    color: var(--muted);
-    border-radius: 50%;
-    width: 22px;
-    height: 22px;
-    font-size: 0.75rem;
-    cursor: pointer;
-    line-height: 1;
-    flex-shrink: 0;
-    transition: border-color 0.15s, color 0.15s;
-    -webkit-tap-highlight-color: transparent;
-    padding: 0;
-}
+#statsBtn { background: none; border: 1px solid var(--muted); color: var(--muted); border-radius: 50%; width: 22px; height: 22px; font-size: 0.75rem; cursor: pointer; line-height: 1; flex-shrink: 0; transition: border-color 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; padding: 0; }
 #statsBtn:hover { border-color: var(--accent); color: var(--accent); }
-
-#helpBtn {
-    background: none;
-    border: 1px solid var(--muted);
-    color: var(--muted);
-    border-radius: 50%;
-    width: 22px;
-    height: 22px;
-    font-size: 0.8rem;
-    font-weight: 700;
-    cursor: pointer;
-    line-height: 1;
-    flex-shrink: 0;
-    transition: border-color 0.15s, color 0.15s;
-    -webkit-tap-highlight-color: transparent;
-    padding: 0;
-}
+#helpBtn { background: none; border: 1px solid var(--muted); color: var(--muted); border-radius: 50%; width: 22px; height: 22px; font-size: 0.8rem; font-weight: 700; cursor: pointer; line-height: 1; flex-shrink: 0; transition: border-color 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; padding: 0; }
 #helpBtn:hover { border-color: var(--accent); color: var(--accent); }
-
-#defineBtn {
-    margin-top: 6px;
-    width: 100%;
-    padding: 7px 10px;
-    background: var(--card-bg);
-    color: var(--accent);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 0.95rem;
-    cursor: pointer;
-    letter-spacing: 0.06em;
-    transition: background 0.15s, color 0.15s;
-    -webkit-tap-highlight-color: transparent;
-}
+#defineBtn { margin-top: 6px; width: 100%; padding: 7px 10px; background: var(--card-bg); color: var(--accent); border: 1px solid var(--border); border-radius: 6px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.95rem; cursor: pointer; letter-spacing: 0.06em; transition: background 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; }
 #defineBtn:hover, #defineBtn:active { background: var(--border); color: var(--text); }
-
-#drawBtn {
-    margin-top: 10px;
-    width: 100%;
-    padding: 7px 10px;
-    background: var(--card-bg);
-    color: var(--accent);
-    border: 1px solid var(--accent);
-    border-radius: 6px;
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 0.95rem;
-    cursor: pointer;
-    letter-spacing: 0.06em;
-    transition: background 0.15s, color 0.15s;
-    -webkit-tap-highlight-color: transparent;
-}
+#drawBtn { margin-top: 10px; width: 100%; padding: 7px 10px; background: var(--card-bg); color: var(--accent); border: 1px solid var(--accent); border-radius: 6px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.95rem; cursor: pointer; letter-spacing: 0.06em; transition: background 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; }
 #drawBtn:hover, #drawBtn:active { background: var(--accent); color: var(--bg); }
 #drawBtn.active { background: var(--accent); color: var(--bg); }
-
-#replayBtn {
-    margin-top: 6px;
-    width: 100%;
-    padding: 6px 10px;
-    background: var(--card-bg);
-    color: var(--freefall);
-    border: 1px solid var(--freefall);
-    border-radius: 6px;
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 0.95rem;
-    cursor: pointer;
-    letter-spacing: 0.06em;
-    transition: background 0.15s, color 0.15s;
-    -webkit-tap-highlight-color: transparent;
-}
+#replayBtn { margin-top: 6px; width: 100%; padding: 6px 10px; background: var(--card-bg); color: var(--freefall); border: 1px solid var(--freefall); border-radius: 6px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.95rem; cursor: pointer; letter-spacing: 0.06em; transition: background 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; }
 #replayBtn:hover, #replayBtn:active { background: var(--freefall); color: var(--bg); }
-
-#clearBtn {
-    margin-top: 6px;
-    width: 100%;
-    padding: 6px 10px;
-    background: var(--card-bg);
-    color: var(--muted);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 0.95rem;
-    cursor: pointer;
-    letter-spacing: 0.06em;
-    transition: background 0.15s, color 0.15s;
-    -webkit-tap-highlight-color: transparent;
-}
+#clearBtn { margin-top: 6px; width: 100%; padding: 6px 10px; background: var(--card-bg); color: var(--muted); border: 1px solid var(--border); border-radius: 6px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.95rem; cursor: pointer; letter-spacing: 0.06em; transition: background 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; }
 #clearBtn:hover, #clearBtn:active { background: var(--border); color: var(--text); }
-
-#attribution {
-    padding: 10px 4px 4px;
-    font-size: 0.62rem;
-    color: var(--muted);
-    text-align: center;
-    line-height: 1.8;
-    border-top: 1px solid var(--border);
-    margin-top: 8px;
-}
-#attribution a {
-    color: var(--muted);
-    text-decoration: none;
-}
+#attribution { padding: 10px 4px 4px; font-size: 0.62rem; color: var(--muted); text-align: center; line-height: 1.8; border-top: 1px solid var(--border); margin-top: 8px; }
+#attribution a { color: var(--muted); text-decoration: none; }
 #attribution a:hover { color: var(--accent); }
-
-#jumpRunInfo {
-    margin-top: 6px;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 0.72rem;
-    color: var(--muted);
-    line-height: 1.6;
-}
+#jumpRunInfo { margin-top: 6px; font-family: 'Share Tech Mono', monospace; font-size: 0.72rem; color: var(--muted); line-height: 1.6; }
 </style>
 </head>
-
 <body>
 
-<!-- ── WELCOME MODAL ── -->
 <div id="welcomeModal">
     <div id="welcomeBox">
         <div id="welcomeHeader">
@@ -667,7 +197,6 @@ select:focus { border-color: var(--accent); }
             <span id="welcomeVersion">Quick Start Guide</span>
         </div>
         <div id="welcomeBody">
-
             <div class="wc-section">
                 <div class="wc-icon" style="color:var(--canopy)">◉</div>
                 <div>
@@ -675,7 +204,6 @@ select:focus { border-color: var(--accent); }
                     <div class="wc-text">The <b>dashed circle</b> is your maximum canopy reach in <b>zero wind</b>. The <b>solid shape</b> shifts upwind to show your <b>real wind-adjusted reach</b> — we display max upwind reach and min downwind reach. If you open in the shape you should make it back for a landing pattern!</div>
                 </div>
             </div>
-
             <div class="wc-section">
                 <div class="wc-icon" style="color:#fff">✏️</div>
                 <div>
@@ -683,7 +211,6 @@ select:focus { border-color: var(--accent); }
                     <div class="wc-text">Click <b>Draw Jump Run</b>, then <b>click and drag</b> on the map to draw the aircraft's flight path — OR — <b>Define Jump Run</b> with direction, prior/past, offset and length. An <b>orange parallel line</b> appears showing approximate freefall drift. A <b>red plane</b> animates the run, dropping jumpers at your chosen separation interval.</div>
                 </div>
             </div>
-
             <div class="wc-section">
                 <div class="wc-icon" style="color:var(--red)">◎</div>
                 <div>
@@ -691,7 +218,6 @@ select:focus { border-color: var(--accent); }
                     <div class="wc-text">When each jumper group opens, a <b>translucent red circle</b> (500 ft radius) appears, representing the <b>maximum tracking distance</b> a jumper can cover at breakoff.</div>
                 </div>
             </div>
-
             <div class="wc-section">
                 <div class="wc-icon" style="color:var(--accent)">⏱</div>
                 <div>
@@ -699,7 +225,6 @@ select:focus { border-color: var(--accent); }
                     <div class="wc-text">Use the <b>Forecast Offset</b> slider to scroll up to <b>72 hours</b> into the future. Wind circles, drift lines, and all wind cards update automatically — great for planning a jump day in advance.</div>
                 </div>
             </div>
-
             <div class="wc-section">
                 <div class="wc-icon" style="color:var(--muted)">📍</div>
                 <div>
@@ -707,13 +232,11 @@ select:focus { border-color: var(--accent); }
                     <div class="wc-text">Switch between dropzones using the <b>Dropzone</b> dropdown. The map recenters and all wind data updates for the new location.</div>
                 </div>
             </div>
-
         </div>
         <button id="welcomeClose" onclick="closeWelcome()">Got it — Let's Jump! 🪂</button>
     </div>
 </div>
 
-<!-- ── ADVANCED CANOPY MODAL ── -->
 <div id="advancedModal" style="display:none;position:fixed;inset:0;background:rgba(7,11,16,0.88);z-index:99999;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px">
     <div style="background:var(--panel-bg);border:1px solid var(--border);border-radius:16px;max-width:360px;width:100%;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.6);overflow:hidden">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px 12px;border-bottom:1px solid var(--border);font-weight:700;font-size:1rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--accent)">
@@ -721,48 +244,28 @@ select:focus { border-color: var(--accent); }
             <button onclick="closeAdvancedModal()" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:0 4px">✕</button>
         </div>
         <div style="padding:14px 18px;display:flex;flex-direction:column;gap:12px">
-
-            <div class="df-row">
-                <label class="df-label">Canopy Size (sq ft)</label>
-                <input type="number" id="advSize" min="50" max="400" placeholder="e.g. 150" class="df-input" value="150">
-            </div>
-
-            <div class="df-row">
-                <label class="df-label">Exit Weight (lbs)</label>
-                <input type="number" id="advWeight" min="100" max="400" placeholder="e.g. 225" class="df-input" value="225">
-            </div>
-
-            <div class="df-row">
-                <label class="df-label">Canopy Type</label>
+            <div class="df-row"><label class="df-label">Canopy Size (sq ft)</label><input type="number" id="advSize" min="50" max="400" placeholder="e.g. 150" class="df-input" value="150"></div>
+            <div class="df-row"><label class="df-label">Exit Weight (lbs)</label><input type="number" id="advWeight" min="100" max="400" placeholder="e.g. 225" class="df-input" value="225"></div>
+            <div class="df-row"><label class="df-label">Canopy Type</label>
                 <select id="advType" class="df-select">
                     <option value="student">Student / Rental (7-cell)</option>
                     <option value="sport" selected>Sport 9-cell (Sabre, Pilot)</option>
                     <option value="hp">High Performance (Katana, Velocity)</option>
                 </select>
             </div>
-
             <div style="border-top:1px solid var(--border);padding-top:10px">
                 <div style="font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;cursor:pointer" onclick="toggleAdvBonus(this)">▶ I know more (optional)</div>
                 <div id="advBonus" style="display:none;flex-direction:column;gap:10px">
-                    <div class="df-row">
-                        <label class="df-label">Opening Altitude (ft AGL)</label>
-                        <input type="number" id="advOpenAlt" min="1000" max="10000" placeholder="3000" class="df-input" value="3000">
-                    </div>
-                    <div class="df-row">
-                        <label class="df-label">Known Glide Ratio (e.g. 3.0)</label>
-                        <input type="number" id="advGlide" min="1" max="6" step="0.1" placeholder="leave blank to calculate" class="df-input">
-                    </div>
+                    <div class="df-row"><label class="df-label">Opening Altitude (ft AGL)</label><input type="number" id="advOpenAlt" min="1000" max="10000" placeholder="3000" class="df-input" value="3000"></div>
+                    <div class="df-row"><label class="df-label">Known Glide Ratio (e.g. 3.0)</label><input type="number" id="advGlide" min="1" max="6" step="0.1" placeholder="leave blank to calculate" class="df-input"></div>
                 </div>
             </div>
-
             <div id="advPreview" style="background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:'Share Tech Mono',monospace;font-size:0.72rem;color:var(--muted);line-height:1.8"></div>
-
         </div>
         <button onclick="applyAdvancedSettings()" style="margin:6px 18px 16px;padding:11px;background:var(--accent);color:var(--bg);border:none;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">Apply to Map</button>
     </div>
 </div>
 
-<!-- ── DEFINE JUMP RUN MODAL ── -->
 <div id="defineModal" style="display:none">
     <div id="defineBox">
         <div id="defineHeader">
@@ -770,43 +273,21 @@ select:focus { border-color: var(--accent); }
             <button id="defineCloseBtn" onclick="closeDefineModal()">✕</button>
         </div>
         <div id="defineBody">
-
-            <div class="df-row">
-                <label class="df-label">Direction (°)</label>
-                <input type="number" id="dfDir" min="0" max="360" placeholder="e.g. 270" class="df-input">
-            </div>
-
-            <div class="df-row">
-                <label class="df-label">Distance from DZ (mi)</label>
+            <div class="df-row"><label class="df-label">Direction (°)</label><input type="number" id="dfDir" min="0" max="360" placeholder="e.g. 270" class="df-input"></div>
+            <div class="df-row"><label class="df-label">Distance from DZ (mi)</label>
                 <div class="df-pair">
                     <input type="number" id="dfDist" min="0" step="0.1" placeholder="0.0" class="df-input df-short">
-                    <select id="dfDistDir" class="df-select">
-                        <option value="prior">Prior</option>
-                        <option value="past">Past</option>
-                    </select>
+                    <select id="dfDistDir" class="df-select"><option value="prior">Prior</option><option value="past">Past</option></select>
                 </div>
             </div>
-
-            <div class="df-row">
-                <label class="df-label">Offset from DZ (mi)</label>
+            <div class="df-row"><label class="df-label">Offset from DZ (mi)</label>
                 <div class="df-pair">
                     <input type="number" id="dfOffset" min="0" step="0.1" placeholder="0.0" class="df-input df-short">
-                    <select id="dfOffsetDir" class="df-select">
-                        <option value="N">North</option>
-                        <option value="S">South</option>
-                        <option value="E">East</option>
-                        <option value="W">West</option>
-                    </select>
+                    <select id="dfOffsetDir" class="df-select"><option value="N">North</option><option value="S">South</option><option value="E">East</option><option value="W">West</option></select>
                 </div>
             </div>
-
-            <div class="df-row">
-                <label class="df-label">Jump Run Length (mi)</label>
-                <input type="number" id="dfLength" min="0" step="0.1" placeholder="e.g. 2.0" class="df-input">
-            </div>
-
+            <div class="df-row"><label class="df-label">Jump Run Length (mi)</label><input type="number" id="dfLength" min="0" step="0.1" placeholder="e.g. 2.0" class="df-input"></div>
             <div id="dfError" style="display:none;color:var(--red);font-size:0.8rem;margin-top:6px"></div>
-
         </div>
         <button id="dfSubmitBtn" onclick="submitDefineJumpRun()">✈️ Draw Jump Run</button>
         <script>
@@ -821,11 +302,8 @@ select:focus { border-color: var(--accent); }
 <div id="loader"><div class="spinner"></div></div>
 
 <div id="wrap">
-
     <div id="map"></div>
-
     <div id="panel">
-
         <div id="panel-handle">
             <div id="panel-handle-inner">
                 <div class="handle-bar"></div>
@@ -839,7 +317,6 @@ select:focus { border-color: var(--accent); }
                 </div>
             </div>
         </div>
-
         <div id="panel-header">
             <div style="display:flex;justify-content:space-between;align-items:flex-start">
                 <h1>🪂 Mango Wind Hub</h1>
@@ -851,19 +328,15 @@ select:focus { border-color: var(--accent); }
             </div>
             <p id="utcLabel"></p>
         </div>
-
         <div id="panel-body">
-
             <div id="controls">
                 <label>Dropzone</label>
                 <select id="dz"></select>
-
                 <div class="time-row">
                     <label>Forecast Offset</label>
                     <span id="timeLabel">+0h</span>
                 </div>
                 <input type="range" min="0" max="71" value="0" id="hour">
-
                 <button id="drawBtn" onclick="toggleDrawMode()">✏️ Draw Jump Run</button>
                 <button id="defineBtn" onclick="openDefineModal()">📐 Define Jump Run</button>
                 <button id="patternBtn" onclick="togglePatternMode()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid #ff4f4f;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🎯 Place Landing Spot</button>
@@ -895,43 +368,24 @@ select:focus { border-color: var(--accent); }
                 <div id="sepRow" style="margin-top:8px">
                     <label style="margin-bottom:3px">Jumper Separation</label>
                     <select id="sepSelect">
-                        <option value="8">8 sec</option>
-                        <option value="10">10 sec</option>
-                        <option value="12">12 sec</option>
-                        <option value="14">14 sec</option>
-                        <option value="16">16 sec</option>
-                        <option value="18">18 sec</option>
+                        <option value="8">8 sec</option><option value="10">10 sec</option>
+                        <option value="12">12 sec</option><option value="14">14 sec</option>
+                        <option value="16">16 sec</option><option value="18">18 sec</option>
                         <option value="20">20 sec</option>
                     </select>
                 </div>
                 <button id="advancedBtn" onclick="openAdvancedModal()" style="margin-top:6px;width:100%;padding:6px 10px;background:var(--card-bg);color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">⚙️ Canopy Settings</button>
                 <div id="jumpRunInfo" style="display:none"></div>
             </div>
-
             <div id="summaries">
-                <div class="summary-card canopy" id="canopyBlock">
-                    <div class="sc-label">Canopy  •  SFC – 3 000 ft</div>
-                    <div class="sc-data">—</div>
-                </div>
-                <div class="summary-card freefall" id="freefallBlock">
-                    <div class="sc-label">Freefall  •  4 000 – 14 000 ft</div>
-                    <div class="sc-data">—</div>
-                </div>
+                <div class="summary-card canopy" id="canopyBlock"><div class="sc-label">Canopy  •  SFC – 3 000 ft</div><div class="sc-data">—</div></div>
+                <div class="summary-card freefall" id="freefallBlock"><div class="sc-label">Freefall  •  4 000 – 14 000 ft</div><div class="sc-data">—</div></div>
             </div>
-
             <div id="cards-header" style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px 0">
                 <span style="font-size:0.64rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)">Winds by Altitude</span>
                 <button id="toggleCardsBtn" onclick="toggleCards()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:2px 8px;font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;letter-spacing:0.08em;cursor:pointer;-webkit-tap-highlight-color:transparent">Hide</button>
             </div>
-            <div id="modelCard" style="
-                margin: 0 14px 6px;
-                background: var(--card-bg);
-                border: 1px solid var(--border);
-                border-radius: 8px;
-                padding: 8px 12px;
-                flex-shrink: 0;
-            ">—</div>
-
+            <div id="modelCard" style="margin:0 14px 6px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;flex-shrink:0">—</div>
             <div id="cards-wrap">
                 <div id="cards"></div>
                 <div id="attribution">
@@ -940,33 +394,25 @@ select:focus { border-color: var(--accent); }
                     &nbsp;|&nbsp; Maps: <a href="https://www.esri.com" target="_blank">Esri</a>
                 </div>
             </div>
-
         </div>
-
     </div>
 </div>
 
 <script>
 let dz = {{ dz | tojson }};
 let lat, lon;
-// Canopy defaults: Sabre3 150 @ 1.5WL
 let canopyAirspeedKt = 27;
 let canopyDescentTime = 158;
 let map, marker, canopyCircle, canopyCircleShifted, highLine;
 let loadTimeout = null;
 let firstLoad = true;
-
 let drawMode = false;
-let jumpRunLine = null;
-let freefallLine = null;
-let jrStart = null;
-let jrEnd = null;
-let lastFreefall = null;
-let lastWind14k = null;
-let lastGndSpeedKts = null;
-let planeMarker = null;
-let planeAnimId = null;
+let jumpRunLine = null, freefallLine = null;
+let jrStart = null, jrEnd = null;
+let lastFreefall = null, lastWind14k = null, lastGndSpeedKts = null;
+let planeMarker = null, planeAnimId = null;
 let animGeneration = 0;
+let patternMode = false, landingSpot = null, patternLines = [], landingMarker = null, lastCanopyWind = null;
 
 function renderTime(){
     const h = +document.getElementById("hour").value;
@@ -982,31 +428,49 @@ function renderTime(){
     document.getElementById("timeLabel").innerText = label;
 }
 
+function windAtAlt(altFt){
+    if (!window._lastWinds) return { speed: 0, direction: 0 };
+    const alts = Object.keys(window._lastWinds).map(Number).sort((a,b)=>a-b);
+    for (let i = 0; i < alts.length-1; i++){
+        if (alts[i] <= altFt && alts[i+1] >= altFt){
+            const t = (altFt - alts[i]) / (alts[i+1] - alts[i]);
+            const w0 = window._lastWinds[alts[i]], w1 = window._lastWinds[alts[i+1]];
+            const spd = w0.speed + (w1.speed - w0.speed) * t;
+            const r0 = w0.direction * Math.PI/180, r1 = w1.direction * Math.PI/180;
+            const sinA = Math.sin(r0) + (Math.sin(r1)-Math.sin(r0))*t;
+            const cosA = Math.cos(r0) + (Math.cos(r1)-Math.cos(r0))*t;
+            return { speed: spd, direction: Math.atan2(sinA,cosA)*180/Math.PI };
+        }
+    }
+    if (altFt <= alts[0]) return window._lastWinds[alts[0]];
+    return window._lastWinds[alts[alts.length-1]];
+}
+
+function groundSpeedForLeg(flyingHdgDeg, altFt){
+    const canopyMs = canopyAirspeedKt * 0.514444;
+    const w = windAtAlt(altFt);
+    const wMs = w.speed * 0.514444;
+    const diff = ((w.direction - flyingHdgDeg + 180 + 360) % 360) - 180;
+    const hw = wMs * Math.cos(diff * Math.PI/180);
+    return Math.max(canopyMs - hw, canopyMs * 0.3);
+}
+
 function drawFreefallParallel(){
     if (!jrStart || !jrEnd || !lastFreefall) return;
     if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
-
     const ff = lastFreefall;
     const ffDist = Math.min(ff.distance, 8000);
     const ffRad = ff.direction * Math.PI / 180;
     const cosLat = Math.cos(jrStart[0] * Math.PI / 180);
     const dlatFF = Math.cos(ffRad) * ffDist / 111000;
     const dlonFF = Math.sin(ffRad) * ffDist / (111000 * cosLat);
-
     const pStart = [jrStart[0] + dlatFF, jrStart[1] + dlonFF];
     const pEnd = [jrEnd[0] + dlatFF, jrEnd[1] + dlonFF];
-
-    const connector = L.polyline([jrStart, pStart], {
-        color: '#ffaa00', weight: 2, opacity: 0.45, dashArray: '5,6'
-    }).addTo(map);
-    const parallel = L.polyline([pStart, pEnd], {
-        color: '#ffaa00', weight: 4, opacity: 0.9
-    }).addTo(map);
+    const connector = L.polyline([jrStart, pStart], { color: '#ffaa00', weight: 2, opacity: 0.45, dashArray: '5,6' }).addTo(map);
+    const parallel = L.polyline([pStart, pEnd], { color: '#ffaa00', weight: 4, opacity: 0.9 }).addTo(map);
     freefallLine = [connector, parallel];
-
     const jrLenM = distMeters(jrStart, jrEnd);
     const bear = bearing(jrStart, jrEnd);
-    // Calculate ground speed fresh each time using current wind data
     let gndKts = '—';
     if (lastWind14k) {
         const airspeedMs = 110 * 0.514444;
@@ -1019,27 +483,18 @@ function drawFreefallParallel(){
     }
     document.getElementById("jumpRunInfo").style.display = "block";
     document.getElementById("jumpRunInfo").innerHTML =
-        `JR heading: ${bear.toFixed(0)}°<br>` +
-        `JR length:  ${(jrLenM / 1609.344).toFixed(2)} mi<br>` +
-        `JR speed:   ${gndKts}<br>` +
-        `FF drift:   ${(ffDist / 1609.344).toFixed(2)} mi @ ${ff.direction.toFixed(0)}°`;
+        `JR heading: ${bear.toFixed(0)}°<br>JR length: ${(jrLenM/1609.344).toFixed(2)} mi<br>JR speed: ${gndKts}<br>FF drift: ${(ffDist/1609.344).toFixed(2)} mi @ ${ff.direction.toFixed(0)}°`;
 }
 
 function drawJumpRun(){
     if (jumpRunLine) jumpRunLine.forEach(l => l.remove());
     clearAnimation();
-
-    const jrLine = L.polyline([jrStart, jrEnd], {
-        color: '#fff', weight: 3, opacity: 0.85, dashArray: '8,5'
-    }).addTo(map);
-
+    const jrLine = L.polyline([jrStart, jrEnd], { color: '#fff', weight: 3, opacity: 0.85, dashArray: '8,5' }).addTo(map);
     const bear = bearing(jrStart, jrEnd);
     const arrowHead = makeArrowhead(jrEnd, bear);
     jumpRunLine = [jrLine, arrowHead];
-
     drawFreefallParallel();
     startPlaneAnimation();
-
     document.getElementById("replayBtn").style.display = "block";
     document.getElementById("clearBtn").style.display = "block";
 }
@@ -1047,33 +502,22 @@ function drawJumpRun(){
 function makeArrowhead(tip, hdg){
     const tipPx = map.latLngToLayerPoint(L.latLng(tip));
     const r = (hdg - 90) * Math.PI / 180;
-    function pt(dist, ang){
-        return map.layerPointToLatLng(L.point(
-            tipPx.x + dist * Math.cos(r + ang),
-            tipPx.y + dist * Math.sin(r + ang)
-        ));
-    }
-    const left = pt(14, 2.5);
-    const right = pt(14, -2.5);
-    return L.polygon([tip, left, right], {
-        color: '#fff', fillColor: '#fff', fillOpacity: 1, weight: 0
-    }).addTo(map);
+    function pt(dist, ang){ return map.layerPointToLatLng(L.point(tipPx.x + dist*Math.cos(r+ang), tipPx.y + dist*Math.sin(r+ang))); }
+    return L.polygon([tip, pt(14,2.5), pt(14,-2.5)], { color: '#fff', fillColor: '#fff', fillOpacity: 1, weight: 0 }).addTo(map);
 }
 
-let jumperMarkers = [];
-let jumperTimers = [];
+let jumperMarkers = [], jumperTimers = [];
 
 function planeIcon(hdg){
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="-18 -18 36 36"
-        style="transform:rotate(${hdg}deg);overflow:visible">
-      <ellipse cx="0" cy="0"    rx="2.5" ry="9"   fill="#ff4f4f"/>
-      <ellipse cx="0" cy="-10" rx="1.8" ry="3"   fill="#cc2222"/>
-      <ellipse cx="0" cy="-1"  rx="14"  ry="2.2" fill="#ff6666"/>
-      <ellipse cx="0" cy="-1"  rx="16"  ry="1.1" fill="#dd4444" opacity="0.6"/>
-      <ellipse cx="0" cy="8"   rx="6"   ry="1.3" fill="#ff6666"/>
-      <ellipse cx="0" cy="6.5" rx="1"   ry="2.5" fill="#cc2222"/>
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="-18 -18 36 36" style="transform:rotate(${hdg}deg);overflow:visible">
+      <ellipse cx="0" cy="0" rx="2.5" ry="9" fill="#ff4f4f"/>
+      <ellipse cx="0" cy="-10" rx="1.8" ry="3" fill="#cc2222"/>
+      <ellipse cx="0" cy="-1" rx="14" ry="2.2" fill="#ff6666"/>
+      <ellipse cx="0" cy="-1" rx="16" ry="1.1" fill="#dd4444" opacity="0.6"/>
+      <ellipse cx="0" cy="8" rx="6" ry="1.3" fill="#ff6666"/>
+      <ellipse cx="0" cy="6.5" rx="1" ry="2.5" fill="#cc2222"/>
       <ellipse cx="0" cy="-11.5" rx="1.2" ry="1.8" fill="#aa2222"/>
-      <ellipse cx="0" cy="-13" rx="4"   ry="0.6" fill="#ff4f4f" opacity="0.7"/>
+      <ellipse cx="0" cy="-13" rx="4" ry="0.6" fill="#ff4f4f" opacity="0.7"/>
     </svg>`;
     return L.divIcon({ html: svg, className: '', iconSize: [36,36], iconAnchor: [18,18] });
 }
@@ -1081,12 +525,12 @@ function planeIcon(hdg){
 function parachuteIcon(){
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="28" viewBox="0 0 24 28">
       <path d="M2,13 Q2,2 12,2 Q22,2 22,13 Z" fill="#ff4f4f" stroke="#cc2222" stroke-width="0.8"/>
-      <line x1="12" y1="2"  x2="12" y2="13" stroke="#cc2222" stroke-width="0.5"/>
-      <line x1="7"  y1="3"  x2="10" y2="13" stroke="#cc2222" stroke-width="0.5"/>
-      <line x1="17" y1="3"  x2="14" y2="13" stroke="#cc2222" stroke-width="0.5"/>
-      <line x1="3"  y1="7"  x2="8"  y2="13" stroke="#cc2222" stroke-width="0.5"/>
-      <line x1="21" y1="7"  x2="16" y2="13" stroke="#cc2222" stroke-width="0.5"/>
-      <line x1="8"  y1="13" x2="11" y2="22" stroke="#cc2222" stroke-width="0.7"/>
+      <line x1="12" y1="2" x2="12" y2="13" stroke="#cc2222" stroke-width="0.5"/>
+      <line x1="7" y1="3" x2="10" y2="13" stroke="#cc2222" stroke-width="0.5"/>
+      <line x1="17" y1="3" x2="14" y2="13" stroke="#cc2222" stroke-width="0.5"/>
+      <line x1="3" y1="7" x2="8" y2="13" stroke="#cc2222" stroke-width="0.5"/>
+      <line x1="21" y1="7" x2="16" y2="13" stroke="#cc2222" stroke-width="0.5"/>
+      <line x1="8" y1="13" x2="11" y2="22" stroke="#cc2222" stroke-width="0.7"/>
       <line x1="16" y1="13" x2="13" y2="22" stroke="#cc2222" stroke-width="0.7"/>
       <ellipse cx="12" cy="24" rx="2" ry="3" fill="#cc2222"/>
     </svg>`;
@@ -1097,16 +541,13 @@ function stopPlane(){
     animGeneration++;
     if (planeAnimId) { cancelAnimationFrame(planeAnimId); planeAnimId = null; }
     if (planeMarker) { planeMarker.remove(); planeMarker = null; }
-    jumperTimers.forEach(t => clearTimeout(t));
-    jumperTimers = [];
-    jumperMarkers.forEach(m => m.remove());
-    jumperMarkers = [];
+    jumperTimers.forEach(t => clearTimeout(t)); jumperTimers = [];
+    jumperMarkers.forEach(m => m.remove()); jumperMarkers = [];
 }
 
 function startPlaneAnimation(){
     stopPlane();
     if (!jrStart || !jrEnd || !lastWind14k || !lastFreefall) return;
-
     const hdg = bearing(jrStart, jrEnd);
     const jrDist = distMeters(jrStart, jrEnd);
     const airspeed = 110 * 0.514444;
@@ -1115,22 +556,16 @@ function startPlaneAnimation(){
     const angleDiff = ((wDir - hdg + 180 + 360) % 360) - 180;
     const headwind = wSpd * Math.cos(angleDiff * Math.PI / 180);
     const gndSpeed = Math.max(airspeed - headwind, airspeed * 0.4);
-    lastGndSpeedKts = gndSpeed / 0.514444;  // store in knots for display
-
+    lastGndSpeedKts = gndSpeed / 0.514444;
     const realisticDuration = (jrDist / gndSpeed) * 1000;
-    const displayDuration   = 10000;
-    const timeScale         = displayDuration / realisticDuration;
-
+    const displayDuration = 10000;
+    const timeScale = displayDuration / realisticDuration;
     const ffDist = lastFreefall.distance;
     const ffRad = lastFreefall.direction * Math.PI / 180;
-
     const sepSec = +(document.getElementById("sepSelect")?.value || 8);
-
     const realisticDropTimes = [];
-    for (let t = 2000; t < realisticDuration; t += sepSec * 1000)
-        realisticDropTimes.push(t);
+    for (let t = 2000; t < realisticDuration; t += sepSec * 1000) realisticDropTimes.push(t);
     const dropTimes = realisticDropTimes.map(t => t * timeScale);
-
     dropTimes.forEach((dropMs, idx) => {
         const tid = setTimeout(() => {
             const frac = realisticDropTimes[idx] / realisticDuration;
@@ -1138,121 +573,78 @@ function startPlaneAnimation(){
             const exitLon = jrStart[1] + (jrEnd[1] - jrStart[1]) * frac;
             const dlatFF = Math.cos(ffRad) * ffDist / 111000;
             const dlonFF = Math.sin(ffRad) * ffDist / (111000 * Math.cos(exitLat * Math.PI / 180));
-            const landLat = exitLat + dlatFF;
-            const landLon = exitLon + dlonFF;
-
-            const jumper = L.marker([exitLat, exitLon], {
-                icon: parachuteIcon(), zIndexOffset: 900
-            }).addTo(map);
+            const landLat = exitLat + dlatFF, landLon = exitLon + dlonFF;
+            const jumper = L.marker([exitLat, exitLon], { icon: parachuteIcon(), zIndexOffset: 900 }).addTo(map);
             jumperMarkers.push(jumper);
-
             const animDuration = Math.min(4000, Math.max(1000, 8000 * timeScale));
             const jStart = performance.now();
             const myGen = animGeneration;
-
             function driftAnimate(now){
                 if (animGeneration !== myGen) return;
                 const jt = Math.min((now - jStart) / animDuration, 1);
-                jumper.setLatLng([
-                    exitLat + (landLat - exitLat) * jt,
-                    exitLon + (landLon - exitLon) * jt
-                ]);
-                if (jt < 1){
-                    requestAnimationFrame(driftAnimate);
-                } else {
+                jumper.setLatLng([exitLat + (landLat-exitLat)*jt, exitLon + (landLon-exitLon)*jt]);
+                if (jt < 1) { requestAnimationFrame(driftAnimate); }
+                else {
                     if (animGeneration !== myGen) return;
-                    const landingCircle = L.circle([landLat, landLon], {
-                        radius: 152.4,
-                        color: '#ff4f4f',
-                        weight: 1,
-                        opacity: 0.7,
-                        fill: true,
-                        fillColor: '#ff4f4f',
-                        fillOpacity: 0.18
-                    }).addTo(map);
-                    jumperMarkers.push(landingCircle);
+                    const lc = L.circle([landLat, landLon], { radius: 152.4, color: '#ff4f4f', weight: 1, opacity: 0.7, fill: true, fillColor: '#ff4f4f', fillOpacity: 0.18 }).addTo(map);
+                    jumperMarkers.push(lc);
                 }
             }
             requestAnimationFrame(driftAnimate);
         }, dropMs);
         jumperTimers.push(tid);
     });
-
     planeMarker = L.marker(jrStart, { icon: planeIcon(hdg), zIndexOffset: 1000 }).addTo(map);
     const startTime = performance.now();
-
     function animate(now){
         const t = Math.min((now - startTime) / displayDuration, 1);
-        planeMarker.setLatLng([
-            jrStart[0] + (jrEnd[0] - jrStart[0]) * t,
-            jrStart[1] + (jrEnd[1] - jrStart[1]) * t
-        ]);
-        if (t < 1){
-            planeAnimId = requestAnimationFrame(animate);
-        } else {
-            planeAnimId = null;
-            document.getElementById("replayBtn").style.display = "block";
-        }
+        planeMarker.setLatLng([jrStart[0]+(jrEnd[0]-jrStart[0])*t, jrStart[1]+(jrEnd[1]-jrStart[1])*t]);
+        if (t < 1) { planeAnimId = requestAnimationFrame(animate); }
+        else { planeAnimId = null; document.getElementById("replayBtn").style.display = "block"; }
     }
     planeAnimId = requestAnimationFrame(animate);
 }
 
 function distMeters(a, b){
     const R = 6378137;
-    const dLat = (b[0]-a[0]) * Math.PI/180;
-    const dLon = (b[1]-a[1]) * Math.PI/180;
-    const s = Math.sin(dLat/2)*Math.sin(dLat/2) +
-              Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*
-              Math.sin(dLon/2)*Math.sin(dLon/2);
+    const dLat = (b[0]-a[0]) * Math.PI/180, dLon = (b[1]-a[1]) * Math.PI/180;
+    const s = Math.sin(dLat/2)**2 + Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.sin(dLon/2)**2;
     return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
 }
 
 function bearing(a, b){
     const dLon = (b[1]-a[1]) * Math.PI/180;
     const y = Math.sin(dLon) * Math.cos(b[0]*Math.PI/180);
-    const x = Math.cos(a[0]*Math.PI/180)*Math.sin(b[0]*Math.PI/180) -
-               Math.sin(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.cos(dLon);
+    const x = Math.cos(a[0]*Math.PI/180)*Math.sin(b[0]*Math.PI/180) - Math.sin(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.cos(dLon);
     return (Math.atan2(y, x) * 180/Math.PI + 360) % 360;
 }
 
 function clearJumpRun(){
-    if (jumpRunLine)  { jumpRunLine.forEach(l => l.remove());  jumpRunLine = null; }
+    if (jumpRunLine) { jumpRunLine.forEach(l => l.remove()); jumpRunLine = null; }
     if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
-    stopPlane();
-    jrStart = null; jrEnd = null;
+    stopPlane(); jrStart = null; jrEnd = null;
     document.getElementById("jumpRunInfo").style.display = "none";
-    document.getElementById("replayBtn").style.display   = "none";
-    document.getElementById("clearBtn").style.display    = "none";
+    document.getElementById("replayBtn").style.display = "none";
+    document.getElementById("clearBtn").style.display = "none";
 }
-
-// ── LANDING PATTERN ──
-let patternMode = false;
-let landingSpot = null;
-let patternLines = [];
-let landingMarker = null;
-let lastCanopyWind = null;  // stored from load() for pattern use
 
 function togglePatternMode(){
     patternMode = !patternMode;
     const btn = document.getElementById("patternBtn");
-    const controls = document.getElementById("patternControls");
     if (patternMode){
         btn.textContent = "✕ Cancel Placement";
-        btn.style.background = "#ff4f4f";
-        btn.style.color = "var(--bg)";
+        btn.style.background = "#ff4f4f"; btn.style.color = "var(--bg)";
         map.getContainer().style.cursor = "crosshair";
     } else {
         btn.textContent = "🎯 Place Landing Spot";
-        btn.style.background = "var(--card-bg)";
-        btn.style.color = "#ff4f4f";
+        btn.style.background = "var(--card-bg)"; btn.style.color = "#ff4f4f";
         map.getContainer().style.cursor = "";
-        if (!landingSpot) controls.style.display = "none";
+        if (!landingSpot) document.getElementById("patternControls").style.display = "none";
     }
 }
 
 function clearPattern(){
-    patternLines.forEach(l => l.remove());
-    patternLines = [];
+    patternLines.forEach(l => l.remove()); patternLines = [];
     if (landingMarker) { landingMarker.remove(); landingMarker = null; }
     landingSpot = null;
     document.getElementById("patternControls").style.display = "none";
@@ -1263,838 +655,428 @@ function clearPattern(){
 
 function getFinalHeading(){
     const sel = document.getElementById("patternHeading").value;
-    if (sel === "wind" && lastCanopyWind) {
-        // Into the wind = wind FROM direction (canopy faces into wind)
-        return lastCanopyWind.direction;
-    }
-    if (sel === "custom") {
-        return parseFloat(document.getElementById("patternCustomHdg").value) || 0;
-    }
+    if (sel === "wind" && lastCanopyWind) return lastCanopyWind.direction;
+    if (sel === "custom") return parseFloat(document.getElementById("patternCustomHdg").value) || 0;
     return lastCanopyWind ? lastCanopyWind.direction : 0;
 }
 
 function drawPattern(){
     if (!landingSpot) return;
-    patternLines.forEach(l => l.remove());
-    patternLines = [];
-
+    patternLines.forEach(l => l.remove()); patternLines = [];
     const finalHdg = getFinalHeading() % 360;
-    const traffic  = document.getElementById("patternTraffic").value; // left or right
-    const turnDir  = traffic === "left" ? -90 : 90;  // degrees to turn for base
-
+    const traffic = document.getElementById("patternTraffic").value;
+    const turnDir = traffic === "left" ? -90 : 90;
     const R = 6378137;
-    function offsetPt(baseLat, baseLon, bearingDeg, distM){
-        const rad = bearingDeg * Math.PI / 180;
-        const lat1 = baseLat * Math.PI / 180;
-        const lon1 = baseLon * Math.PI / 180;
-        const lat2 = Math.asin(Math.sin(lat1)*Math.cos(distM/R) +
-                               Math.cos(lat1)*Math.sin(distM/R)*Math.cos(rad));
-        const lon2 = lon1 + Math.atan2(Math.sin(rad)*Math.sin(distM/R)*Math.cos(lat1),
-                                        Math.cos(distM/R)-Math.sin(lat1)*Math.sin(lat2));
+    function offsetPt(bLat, bLon, bearDeg, distM){
+        const rad = bearDeg * Math.PI/180, lat1 = bLat*Math.PI/180, lon1 = bLon*Math.PI/180;
+        const lat2 = Math.asin(Math.sin(lat1)*Math.cos(distM/R) + Math.cos(lat1)*Math.sin(distM/R)*Math.cos(rad));
+        const lon2 = lon1 + Math.atan2(Math.sin(rad)*Math.sin(distM/R)*Math.cos(lat1), Math.cos(distM/R)-Math.sin(lat1)*Math.sin(lat2));
         return [lat2*180/Math.PI, lon2*180/Math.PI];
     }
-
-    // Pattern geometry (distances in metres)
-    const FINAL_LEN   = 300 * 0.3048;   // 300ft
-    const BASE_LEN    = 600 * 0.3048;   // 600ft
-    const DOWNWIND_LEN = 1000 * 0.3048; // 1000ft
-
-    // Key points
-    const target    = landingSpot;  // touchdown
-
-    // Final: fly finalHdg TO target → start of final is BEHIND target (opposite heading)
-    const finalStart = offsetPt(target[0], target[1], (finalHdg + 180) % 360, FINAL_LEN);
-
-    // Base turn point: from finalStart, turn left/right 90°
-    const baseHdg  = (finalHdg + turnDir + 360) % 360;
-    const baseStart = offsetPt(finalStart[0], finalStart[1], (baseHdg + 180) % 360, BASE_LEN);
-
-    // Downwind: parallel to final, opposite direction
-    const downwindHdg  = (finalHdg + 180) % 360;
-    const downwindStart = offsetPt(baseStart[0], baseStart[1], (downwindHdg + 180) % 360, DOWNWIND_LEN);
-
+    const downwindHdgDeg = (finalHdg + 180) % 360;
+    const baseHdgDeg = (finalHdg + turnDir + 360) % 360;
+    const descentFpm = 2500 / canopyDescentTime * 60;
+    const tDownwind = (1000-600) / descentFpm * 60;
+    const tBase = (600-300) / descentFpm * 60;
+    const tFinal = (300-0) / descentFpm * 60;
+    const DOWNWIND_LEN = groundSpeedForLeg(downwindHdgDeg, 800) * tDownwind;
+    const BASE_LEN = groundSpeedForLeg(baseHdgDeg, 450) * tBase;
+    const FINAL_LEN = groundSpeedForLeg(finalHdg, 150) * tFinal;
+    const target = landingSpot;
+    const finalStart = offsetPt(target[0], target[1], (finalHdg+180)%360, FINAL_LEN);
+    const baseStart = offsetPt(finalStart[0], finalStart[1], (baseHdgDeg+180)%360, BASE_LEN);
+    const downwindStart = offsetPt(baseStart[0], baseStart[1], (downwindHdgDeg+180)%360, DOWNWIND_LEN);
     const patternColor = 'rgba(255,79,79,0.75)';
     const labelStyle = 'background:rgba(255,79,79,0.85);color:#fff;font-size:22px;font-family:monospace;font-weight:bold;padding:3px 8px;border-radius:4px;white-space:nowrap';
-
-    function addArrow(from, to, label, altLabel){
-        const line = L.polyline([from, to], {
-            color: patternColor, weight: 9, opacity: 0.75
-        }).addTo(map);
+    function addArrow(from, to, altLabel){
+        const line = L.polyline([from, to], { color: patternColor, weight: 9, opacity: 0.75 }).addTo(map);
         patternLines.push(line);
-
-        // Arrowhead at destination
         const hdg = bearing(from, to);
         const tipPx = map.latLngToLayerPoint(L.latLng(to));
-        const r = (hdg - 90) * Math.PI / 180;
-        const left  = map.layerPointToLatLng(L.point(tipPx.x + 10*Math.cos(r+2.5), tipPx.y + 10*Math.sin(r+2.5)));
-        const right = map.layerPointToLatLng(L.point(tipPx.x + 10*Math.cos(r-2.5), tipPx.y + 10*Math.sin(r-2.5)));
-        const arrow = L.polygon([to, left, right], {
-            color: patternColor, fillColor: patternColor, fillOpacity: 0.75, weight: 0
-        }).addTo(map);
+        const r = (hdg-90)*Math.PI/180;
+        const left = map.layerPointToLatLng(L.point(tipPx.x+10*Math.cos(r+2.5), tipPx.y+10*Math.sin(r+2.5)));
+        const right = map.layerPointToLatLng(L.point(tipPx.x+10*Math.cos(r-2.5), tipPx.y+10*Math.sin(r-2.5)));
+        const arrow = L.polygon([to, left, right], { color: patternColor, fillColor: patternColor, fillOpacity: 0.75, weight: 0 }).addTo(map);
         patternLines.push(arrow);
-
-        // Altitude label at start of leg
-        const lbl = L.marker(from, {
-            icon: L.divIcon({ html: `<div style="${labelStyle}">${altLabel}</div>`, className: '', iconAnchor: [0,10] })
-        }).addTo(map);
+        const lbl = L.marker(from, { icon: L.divIcon({ html: `<div style="${labelStyle}">${altLabel}</div>`, className: '', iconAnchor: [0,10] }) }).addTo(map);
         patternLines.push(lbl);
     }
-
-    // Draw legs: downwind → base → final
-    addArrow(downwindStart, baseStart,  "downwind", "1000ft");
-    addArrow(baseStart,     finalStart, "base",     "600ft");
-    addArrow(finalStart,    target,     "final",    "300ft");
-
-    // Landing spot marker
+    addArrow(downwindStart, baseStart, "1000ft");
+    addArrow(baseStart, finalStart, "600ft");
+    addArrow(finalStart, target, "300ft");
     if (landingMarker) landingMarker.remove();
-    const spotIcon = L.divIcon({
-        html: `<div style="width:14px;height:14px;background:rgba(255,79,79,0.9);border:2px solid #fff;border-radius:50%"></div>`,
-        className: '', iconAnchor: [7,7]
-    });
+    const spotIcon = L.divIcon({ html: '<div style="width:14px;height:14px;background:rgba(255,79,79,0.9);border:2px solid #fff;border-radius:50%"></div>', className: '', iconAnchor: [7,7] });
     landingMarker = L.marker(target, { icon: spotIcon, zIndexOffset: 800 }).addTo(map);
     patternLines.push(landingMarker);
 }
 
 function updatePattern(){
-    // Show/hide custom heading input
-    const sel = document.getElementById("patternHeading").value;
-    document.getElementById("customHeadingRow").style.display = sel === "custom" ? "block" : "none";
+    document.getElementById("customHeadingRow").style.display = document.getElementById("patternHeading").value === "custom" ? "block" : "none";
     if (landingSpot) drawPattern();
 }
-
-// Click handler for placing landing spot
-map && map.on && (function(){})(); // placeholder — attached in initMap
 
 function clearAnimation(){
     animGeneration++;
     if (planeAnimId) { cancelAnimationFrame(planeAnimId); planeAnimId = null; }
     if (planeMarker) { planeMarker.remove(); planeMarker = null; }
-    jumperTimers.forEach(t => clearTimeout(t));
-    jumperTimers = [];
-    jumperMarkers.forEach(m => m.remove());
-    jumperMarkers = [];
+    jumperTimers.forEach(t => clearTimeout(t)); jumperTimers = [];
+    jumperMarkers.forEach(m => m.remove()); jumperMarkers = [];
 }
 
 function toggleDrawMode(){
     drawMode = !drawMode;
     const btn = document.getElementById("drawBtn");
     if (drawMode){
-        btn.classList.add("active");
-        btn.textContent = "✕ Cancel Draw";
+        btn.classList.add("active"); btn.textContent = "✕ Cancel Draw";
         map.getContainer().style.cursor = "crosshair";
-        clearAnimation();
-        jrStart = null; jrEnd = null;
-        // Auto-collapse panel on mobile so user can draw
+        clearAnimation(); jrStart = null; jrEnd = null;
         if (window.innerWidth < 600 && panelOpen) togglePanel();
     } else {
-        btn.classList.remove("active");
-        btn.textContent = "✏️ Draw Jump Run";
+        btn.classList.remove("active"); btn.textContent = "✏️ Draw Jump Run";
         map.getContainer().style.cursor = "";
     }
 }
 
-// ── MAP DRAG HANDLER ──
-let dragLine  = null;
-let isDragging = false;
+let dragLine = null, isDragging = false;
 
 function touchToLatLng(touch){
     const rect = map.getContainer().getBoundingClientRect();
-    const pt   = L.point(touch.clientX - rect.left, touch.clientY - rect.top);
-    return map.containerPointToLatLng(pt);
+    return map.containerPointToLatLng(L.point(touch.clientX-rect.left, touch.clientY-rect.top));
 }
 
 function startDraw(ll){
-    isDragging = true;
-    jrStart = [ll.lat, ll.lng];
-    if (jumpRunLine)  { jumpRunLine.forEach(l => l.remove());  jumpRunLine = null; }
+    isDragging = true; jrStart = [ll.lat, ll.lng];
+    if (jumpRunLine) { jumpRunLine.forEach(l => l.remove()); jumpRunLine = null; }
     if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
-    if (dragLine)     { dragLine.remove(); dragLine = null; }
+    if (dragLine) { dragLine.remove(); dragLine = null; }
     document.getElementById("jumpRunInfo").style.display = "none";
-    map.dragging.disable();
-    map.touchZoom.disable();
+    map.dragging.disable(); map.touchZoom.disable();
 }
 
 function moveDraw(ll){
     if (!isDragging || !jrStart) return;
     if (dragLine) dragLine.remove();
-    dragLine = L.polyline([jrStart, [ll.lat, ll.lng]], {
-        color: '#fff', weight: 3, opacity: 0.6, dashArray: '8,5'
-    }).addTo(map);
+    dragLine = L.polyline([jrStart, [ll.lat, ll.lng]], { color: '#fff', weight: 3, opacity: 0.6, dashArray: '8,5' }).addTo(map);
 }
 
 function endDraw(ll){
     if (!isDragging || !jrStart) return;
-    isDragging = false;
-    map.dragging.enable();
-    map.touchZoom.enable();
+    isDragging = false; map.dragging.enable(); map.touchZoom.enable();
     if (dragLine) { dragLine.remove(); dragLine = null; }
-    const endPt   = [ll.lat, ll.lng];
+    const endPt = [ll.lat, ll.lng];
     const startPx = map.latLngToContainerPoint(L.latLng(jrStart));
-    const endPx   = map.latLngToContainerPoint(L.latLng(endPt));
-    const dist    = Math.sqrt(Math.pow(startPx.x-endPx.x,2)+Math.pow(startPx.y-endPx.y,2));
+    const endPx = map.latLngToContainerPoint(L.latLng(endPt));
+    const dist = Math.sqrt((startPx.x-endPx.x)**2+(startPx.y-endPx.y)**2);
     if (dist < 15) { jrStart = null; return; }
-    jrEnd = endPt;
-    drawJumpRun();
-    toggleDrawMode();
+    jrEnd = endPt; drawJumpRun(); toggleDrawMode();
 }
 
 function onMapMouseDown(e){ if (!drawMode) return; startDraw(e.latlng); }
 function onMapMouseMove(e){ if (!drawMode) return; moveDraw(e.latlng); }
-function onMapMouseUp(e){   if (!drawMode) return; endDraw(e.latlng); }
-function onMapClick(e){     if (!drawMode || isDragging) return; }
-
-function onTouchStart(e){
-    if (!drawMode) return;
-    e.preventDefault();
-    const ll = touchToLatLng(e.touches[0]);
-    startDraw(ll);
-}
-function onTouchMove(e){
-    if (!drawMode || !isDragging) return;
-    e.preventDefault();
-    const ll = touchToLatLng(e.touches[0]);
-    moveDraw(ll);
-}
-function onTouchEnd(e){
-    if (!drawMode || !isDragging) return;
-    e.preventDefault();
-    const ll = touchToLatLng(e.changedTouches[0]);
-    endDraw(ll);
-}
+function onMapMouseUp(e){ if (!drawMode) return; endDraw(e.latlng); }
+function onMapClick(e){ if (!drawMode || isDragging) return; }
+function onTouchStart(e){ if (!drawMode) return; e.preventDefault(); startDraw(touchToLatLng(e.touches[0])); }
+function onTouchMove(e){ if (!drawMode || !isDragging) return; e.preventDefault(); moveDraw(touchToLatLng(e.touches[0])); }
+function onTouchEnd(e){ if (!drawMode || !isDragging) return; e.preventDefault(); endDraw(touchToLatLng(e.changedTouches[0])); }
 
 function fitToCanopy(glideR, polyPoints){
-    const er  = 6378137;
-    const pad = 1.18;
+    const er = 6378137, pad = 1.18;
     if (polyPoints && polyPoints.length > 1) {
-        let minLat =  90, maxLat = -90, minLon =  180, maxLon = -180;
-        const dLat = (glideR / er) * (180 / Math.PI);
-        const dLon = dLat / Math.cos(lat * Math.PI / 180);
-        minLat = Math.min(minLat, lat - dLat);
-        maxLat = Math.max(maxLat, lat + dLat);
-        minLon = Math.min(minLon, lon - dLon);
-        maxLon = Math.max(maxLon, lon + dLon);
-        for (const [pLat, pLon] of polyPoints) {
-            minLat = Math.min(minLat, pLat);
-            maxLat = Math.max(maxLat, pLat);
-            minLon = Math.min(minLon, pLon);
-            maxLon = Math.max(maxLon, pLon);
-        }
-        const latPad = (maxLat - minLat) * (pad - 1);
-        const lonPad = (maxLon - minLon) * (pad - 1);
-        map.fitBounds(
-            [[minLat - latPad, minLon - lonPad],
-             [maxLat + latPad, maxLon + lonPad]],
-            { animate: true }
-        );
+        let minLat=90, maxLat=-90, minLon=180, maxLon=-180;
+        const dLat = (glideR/er)*(180/Math.PI), dLon = dLat/Math.cos(lat*Math.PI/180);
+        minLat=Math.min(minLat,lat-dLat); maxLat=Math.max(maxLat,lat+dLat);
+        minLon=Math.min(minLon,lon-dLon); maxLon=Math.max(maxLon,lon+dLon);
+        for (const [pLat,pLon] of polyPoints){ minLat=Math.min(minLat,pLat); maxLat=Math.max(maxLat,pLat); minLon=Math.min(minLon,pLon); maxLon=Math.max(maxLon,pLon); }
+        const latPad=(maxLat-minLat)*(pad-1), lonPad=(maxLon-minLon)*(pad-1);
+        map.fitBounds([[minLat-latPad,minLon-lonPad],[maxLat+latPad,maxLon+lonPad]], { animate: true });
     } else {
-        const dLat = (glideR * pad / er) * (180 / Math.PI);
-        const dLon = dLat / Math.cos(lat * Math.PI / 180);
-        map.fitBounds(
-            [[lat - dLat, lon - dLon],[lat + dLat, lon + dLon]],
-            { animate: true }
-        );
+        const dLat=(glideR*pad/er)*(180/Math.PI), dLon=dLat/Math.cos(lat*Math.PI/180);
+        map.fitBounds([[lat-dLat,lon-dLon],[lat+dLat,lon+dLon]], { animate: true });
     }
 }
 
 function lerpColor(a, b, t){
-    const ah = parseInt(a.slice(1), 16);
-    const bh = parseInt(b.slice(1), 16);
-    const ar = (ah >> 16) & 0xff, ag = (ah >> 8) & 0xff, ab = ah & 0xff;
-    const br = (bh >> 16) & 0xff, bg = (bh >> 8) & 0xff, bb = bh & 0xff;
-    const rr = Math.round(ar + (br-ar)*t);
-    const rg = Math.round(ag + (bg-ag)*t);
-    const rb = Math.round(ab + (bb-ab)*t);
+    const ah=parseInt(a.slice(1),16), bh=parseInt(b.slice(1),16);
+    const ar=(ah>>16)&0xff, ag=(ah>>8)&0xff, ab=ah&0xff;
+    const br=(bh>>16)&0xff, bg=(bh>>8)&0xff, bb=bh&0xff;
+    const rr=Math.round(ar+(br-ar)*t), rg=Math.round(ag+(bg-ag)*t), rb=Math.round(ab+(bb-ab)*t);
     return `#${((1<<24)|(rr<<16)|(rg<<8)|rb).toString(16).slice(1)}`;
 }
 
 function agreementLabel(spreadDeg){
-    // spreadDeg = average angular spread between models
-    // null = only 1 model loaded (N/A)
-    if (spreadDeg === null || spreadDeg === undefined) return { text: 'N/A', color: 'var(--muted)' };
-    if (spreadDeg <= 20) return { text: 'High',   color: 'var(--green)' };
-    if (spreadDeg <= 45) return { text: 'Medium', color: 'var(--orange)' };
-    return                      { text: 'Low',    color: 'var(--red)' };
+    if (spreadDeg===null||spreadDeg===undefined) return { text: 'N/A', color: 'var(--muted)' };
+    if (spreadDeg<=20) return { text: 'High', color: 'var(--green)' };
+    if (spreadDeg<=45) return { text: 'Medium', color: 'var(--orange)' };
+    return { text: 'Low', color: 'var(--red)' };
 }
 
-function colorClass(s){
-    if (s < 10) return 'dot-green';
-    if (s < 25) return 'dot-orange';
-    return 'dot-red';
-}
+function colorClass(s){ if (s<10) return 'dot-green'; if (s<25) return 'dot-orange'; return 'dot-red'; }
 
 async function load(){
     document.getElementById("loader").classList.remove("hidden");
     const hour = document.getElementById("hour").value;
-
     try {
         const r = await fetch(`/data?lat=${lat}&lon=${lon}&hour=${hour}`);
         const d = await r.json();
-
         if (d.error) {
-            console.error("Data error:", d.error);
             document.getElementById("loader").classList.add("hidden");
             document.getElementById("utcLabel").innerText = "⚠️ " + d.error;
             document.getElementById("utcLabel").style.color = "var(--red)";
-            // Still show DZ marker and dashed glide circle so map isn't empty
             if (marker) marker.remove();
             marker = L.marker([lat, lon]).addTo(map);
             if (canopyCircle) canopyCircle.remove();
-            // Default 22kt canopy, 120s = ~1380m no-wind glide radius
-            canopyCircle = L.circle([lat, lon], {
-                radius: canopyAirspeedKt * 0.514444 * canopyDescentTime,
-                color: '#39ff89', weight: 2,
-                opacity: 0.4, fill: false, dashArray: '6,5'
-            }).addTo(map);
-            if (firstLoad) {
-                map.setView([lat, lon], 12);
-                firstLoad = false;
-            }
+            canopyCircle = L.circle([lat,lon],{radius:canopyAirspeedKt*0.514444*canopyDescentTime,color:'#39ff89',weight:2,opacity:0.4,fill:false,dashArray:'6,5'}).addTo(map);
+            if (firstLoad) { map.setView([lat,lon],12); firstLoad=false; }
             return;
         }
         document.getElementById("utcLabel").style.color = "";
-
-        if (marker)              marker.remove();
-        if (canopyCircle)        canopyCircle.remove();
+        if (marker) marker.remove();
+        if (canopyCircle) canopyCircle.remove();
         if (canopyCircleShifted) canopyCircleShifted.remove();
-        if (highLine)            highLine.remove();
-
+        if (highLine) highLine.remove();
         marker = L.marker([lat, lon]).addTo(map);
-
-        const glideR  = d.canopy.glide_radius;
+        const glideR = d.canopy.glide_radius;
         const windSpd = d.canopy.speed * 0.514444;
         const windDir = d.canopy.wind_dir;
-        const descentTime = canopyDescentTime;  // from canopy settings
-        const canopyAirspeed = canopyAirspeedKt * 0.514444;  // from canopy settings (default: Sabre3 150 @ 1.5WL = 27kt)
-
-        canopyCircle = L.circle([lat, lon], {
-            radius: glideR, color: '#39ff89', weight: 2,
-            opacity: 0.4, fill: false, dashArray: '6,5'
-        }).addTo(map);
-
-        const cosLatC = Math.cos(lat * Math.PI / 180);
-        const wFromRad = windDir * Math.PI / 180;
-        const wVx = windSpd * Math.sin(wFromRad);
-        const wVy = windSpd * Math.cos(wFromRad);
-
+        const descentTime = canopyDescentTime;
+        const canopyAirspeed = canopyAirspeedKt * 0.514444;
+        canopyCircle = L.circle([lat,lon],{radius:glideR,color:'#39ff89',weight:2,opacity:0.4,fill:false,dashArray:'6,5'}).addTo(map);
+        const cosLatC = Math.cos(lat*Math.PI/180);
+        const wFromRad = windDir*Math.PI/180;
+        const wVx = windSpd*Math.sin(wFromRad), wVy = windSpd*Math.cos(wFromRad);
         const polyPoints = [];
-        const steps = 72;
-        for (let i = 0; i < steps; i++) {
-            const theta = (i / steps) * 2 * Math.PI;
-            const ux = Math.sin(theta);
-            const uy = Math.cos(theta);
-            const groundSpd = canopyAirspeed + (wVx * ux + wVy * uy);
-            const reach = Math.max(groundSpd * descentTime, glideR * 0.1);
-            const pLat = lat + (uy * reach) / 111000;
-            const pLon = lon + (ux * reach) / (111000 * cosLatC);
-            polyPoints.push([pLat, pLon]);
+        for (let i=0; i<72; i++){
+            const theta=(i/72)*2*Math.PI, ux=Math.sin(theta), uy=Math.cos(theta);
+            const groundSpd = canopyAirspeed + (wVx*ux + wVy*uy);
+            const reach = Math.max(groundSpd*descentTime, glideR*0.1);
+            polyPoints.push([lat+(uy*reach)/111000, lon+(ux*reach)/(111000*cosLatC)]);
         }
         polyPoints.push(polyPoints[0]);
-        const finalPoints = polyPoints;
-
-        canopyCircleShifted = L.polygon(polyPoints, {
-            color: '#39ff89', weight: 3, opacity: 0.85,
-            fill: true, fillColor: '#39ff89', fillOpacity: 0.08
-        }).addTo(map);
-
-        if (firstLoad){ fitToCanopy(glideR, polyPoints); firstLoad = false; }
-
+        canopyCircleShifted = L.polygon(polyPoints,{color:'#39ff89',weight:3,opacity:0.85,fill:true,fillColor:'#39ff89',fillOpacity:0.08}).addTo(map);
+        if (firstLoad){ fitToCanopy(glideR, polyPoints); firstLoad=false; }
         lastFreefall = { distance: d.freefall.distance, direction: d.freefall.direction };
-        lastWind14k  = d.wind_14k;
+        lastWind14k = d.wind_14k;
         lastCanopyWind = { speed: d.canopy.speed, direction: d.canopy.direction };
-        if (landingSpot) drawPattern();  // redraw pattern if wind data updates
+        window._lastWinds = d.winds;
+        if (landingSpot) drawPattern();
         if (jrStart && jrEnd) drawFreefallParallel();
-
-        if (d.time_label) {
-            document.getElementById("utcLabel").innerText = d.time_label;
-        }
-        updateHandleSummary(d.canopy.speed, d.canopy.direction,
-            document.getElementById("timeLabel").innerText);
-
+        if (d.time_label) document.getElementById("utcLabel").innerText = d.time_label;
+        updateHandleSummary(d.canopy.speed, d.canopy.direction, document.getElementById("timeLabel").innerText);
         function arrow(dir, color='var(--text)'){
-            const blowTo = (dir + 180) % 360;
-            return `<svg width="18" height="18" viewBox="0 0 16 16" style="display:inline-block;vertical-align:middle;transform:rotate(${blowTo}deg)">
-                <polygon points="8,1 11,13 8,11 5,13" fill="${color}"/>
-            </svg>`;
+            const blowTo=(dir+180)%360;
+            return `<svg width="18" height="18" viewBox="0 0 16 16" style="display:inline-block;vertical-align:middle;transform:rotate(${blowTo}deg)"><polygon points="8,1 11,13 8,11 5,13" fill="${color}"/></svg>`;
         }
-
-        const windFromRad = windDir * Math.PI / 180;
-        const upwindUx = Math.sin(windFromRad);
-        const upwindUy = Math.cos(windFromRad);
-        let maxUpwind = 0;
-        for (let i = 0; i < polyPoints.length - 1; i++) {
-            const pLat = polyPoints[i][0];
-            const pLon = polyPoints[i][1];
-            const dLat = (pLat - lat) * 111000;
-            const dLon = (pLon - lon) * 111000 * cosLatC;
-            const proj = dLat * upwindUy + dLon * upwindUx;
-            if (proj > maxUpwind) maxUpwind = proj;
+        const windFromRad=windDir*Math.PI/180, upwindUx=Math.sin(windFromRad), upwindUy=Math.cos(windFromRad);
+        let maxUpwind=0;
+        for (let i=0; i<polyPoints.length-1; i++){
+            const dLat=(polyPoints[i][0]-lat)*111000, dLon=(polyPoints[i][1]-lon)*111000*cosLatC;
+            const proj=dLat*upwindUy+dLon*upwindUx;
+            if (proj>maxUpwind) maxUpwind=proj;
         }
-        const upwindMi = maxUpwind / 1609.344;
-
-        const downwindUx = -upwindUx;
-        const downwindUy = -upwindUy;
-        let maxDownwind = 0;
-        for (let i = 0; i < polyPoints.length - 1; i++) {
-            const pLat = polyPoints[i][0];
-            const pLon = polyPoints[i][1];
-            const dLat = (pLat - lat) * 111000;
-            const dLon = (pLon - lon) * 111000 * cosLatC;
-            const proj = dLat * downwindUy + dLon * downwindUx;
-            if (proj > maxDownwind) maxDownwind = proj;
+        const downwindUx=-upwindUx, downwindUy=-upwindUy;
+        let maxDownwind=0;
+        for (let i=0; i<polyPoints.length-1; i++){
+            const dLat=(polyPoints[i][0]-lat)*111000, dLon=(polyPoints[i][1]-lon)*111000*cosLatC;
+            const proj=dLat*downwindUy+dLon*downwindUx;
+            if (proj>maxDownwind) maxDownwind=proj;
         }
-        const downwindMi = maxDownwind / 1609.344;
-
         document.getElementById("canopyBlock").innerHTML =
             `<div class="sc-label">Canopy &nbsp;•&nbsp; SFC – 3 000 ft</div>
             <div class="sc-data">
                 <div><span>SPD</span>${d.canopy.speed.toFixed(1)} kt</div>
                 <div><span>DIR</span>${d.canopy.direction.toFixed(0)}°</div>
-                <div><span>UPWIND</span>${upwindMi.toFixed(2)} mi</div>
-                <div><span>DWNWIND</span>${downwindMi.toFixed(2)} mi</div>
+                <div><span>UPWIND</span>${(maxUpwind/1609.344).toFixed(2)} mi</div>
+                <div><span>DWNWIND</span>${(maxDownwind/1609.344).toFixed(2)} mi</div>
             </div>`;
-
-        const ffFromDir = (d.freefall.direction + 180) % 360;
+        const ffFromDir=(d.freefall.direction+180)%360;
         document.getElementById("freefallBlock").innerHTML =
             `<div class="sc-label">Freefall &nbsp;•&nbsp; 4 000 – 14 000 ft</div>
             <div class="sc-data">
                 <div><span>SPD</span>${d.freefall.speed.toFixed(1)} kt</div>
                 <div><span>DIR</span>${ffFromDir.toFixed(0)}°</div>
-                <div><span>DRIFT</span>${(d.freefall.distance / 1609.344).toFixed(2)} mi</div>
-                <div>${arrow(ffFromDir, 'var(--freefall)')}</div>
+                <div><span>DRIFT</span>${(d.freefall.distance/1609.344).toFixed(2)} mi</div>
+                <div>${arrow(ffFromDir,'var(--freefall)')}</div>
             </div>`;
-
-        // Update model status card
-        const MODEL_LABELS = {
-            "gfs_seamless":  "GFS",
-            "icon_seamless": "ICON",
-            "hrrr_conus":    "HRRR",
-            "nam_conus":     "NAM",
-            "ecmwf_ifs025":  "ECMWF"
-        };
-        const ml = d.models_loaded || {};
-        const loadedModels = Object.keys(ml).filter(m => ml[m]);
-        let modelDots = Object.entries(MODEL_LABELS).map(([key, label]) => {
-            const loaded = ml[key];
-            const dot = loaded
-                ? `<span style="color:var(--green);font-size:0.9rem">●</span>`
-                : `<span style="color:var(--red);font-size:0.9rem">●</span>`;
-            return `<div style="display:flex;align-items:center;gap:5px;font-family:'Share Tech Mono',monospace;font-size:0.75rem">
-                ${dot}<span style="color:${loaded ? 'var(--text)' : 'var(--muted)'}">${label}</span>
-            </div>`;
+        const MODEL_LABELS={"gfs_seamless":"GFS","icon_seamless":"ICON","hrrr_conus":"HRRR","nam_conus":"NAM","ecmwf_ifs025":"ECMWF"};
+        const ml=d.models_loaded||{};
+        const loadedModels=Object.keys(ml).filter(m=>ml[m]);
+        let modelDots=Object.entries(MODEL_LABELS).map(([key,label])=>{
+            const loaded=ml[key];
+            const dot=loaded?`<span style="color:var(--green);font-size:0.9rem">●</span>`:`<span style="color:var(--red);font-size:0.9rem">●</span>`;
+            return `<div style="display:flex;align-items:center;gap:5px;font-family:'Share Tech Mono',monospace;font-size:0.75rem">${dot}<span style="color:${loaded?'var(--text)':'var(--muted)'}">${label}</span></div>`;
         }).join('');
-
-        // Agreement: average spread across all altitudes between loaded models
-        let agreeStr = 'N/A';
-        const cc = d.canopy_confidence;
-        const fc = d.freefall_confidence;
-        if (loadedModels.length >= 2 && cc !== null && fc !== null) {
-            const avg = Math.round((cc + fc) / 2);
-            agreeStr = `${avg}%`;
-        }
-        // Average spread across canopy and freefall layers
-        let agreeLabel = { text: 'N/A', color: 'var(--muted)' };
-        const ccSpread = d.canopy_confidence;
-        const fcSpread = d.freefall_confidence;
-        if (loadedModels.length >= 2 && ccSpread !== null && fcSpread !== null) {
-            const avgSpread = (ccSpread + fcSpread) / 2;
-            agreeLabel = agreementLabel(avgSpread);
-        } else if (loadedModels.length < 2) {
-            agreeLabel = { text: 'N/A', color: 'var(--muted)' };
-        }
-
-        document.getElementById("modelCard").innerHTML =
+        let agreeLabel={text:'N/A',color:'var(--muted)'};
+        const ccSpread=d.canopy_confidence, fcSpread=d.freefall_confidence;
+        if (loadedModels.length>=2 && ccSpread!==null && fcSpread!==null)
+            agreeLabel=agreementLabel((ccSpread+fcSpread)/2);
+        document.getElementById("modelCard").innerHTML=
             `<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">${modelDots}</div>
             <div style="margin-top:6px;font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--muted)">
                 Model Agreement: <span style="color:${agreeLabel.color};font-weight:bold">${agreeLabel.text}</span>
             </div>`;
-
-        let html = '';
-        const alts = Object.keys(d.winds).map(Number).sort((a,b)=>a-b);
-        html += `<div class="alt-section-title lower">Surface & Low</div>`;
-        let lastGroup = 'low';
-
+        let html='';
+        const alts=Object.keys(d.winds).map(Number).sort((a,b)=>a-b);
+        html+=`<div class="alt-section-title lower">Surface & Low</div>`;
+        let lastGroup='low';
         for (const a of alts){
-            const w = d.winds[a];
-            const group = a < 4000 ? 'low' : 'high';
-            if (group === 'high' && lastGroup === 'low'){
-                html += `<div class="alt-section-title upper">Upper Winds</div>`;
-                lastGroup = 'high';
+            const w=d.winds[a], group=a<4000?'low':'high';
+            if (group==='high'&&lastGroup==='low'){ html+=`<div class="alt-section-title upper">Upper Winds</div>`; lastGroup='high'; }
+            const blowTo=(w.direction+180)%360, cls=colorClass(w.speed);
+            const clsColor=cls==='dot-green'?'var(--green)':cls==='dot-orange'?'var(--orange)':'var(--red)';
+            const svgArrow=`<svg width="16" height="16" viewBox="0 0 16 16" style="display:inline-block;vertical-align:middle;transform:rotate(${blowTo}deg)"><polygon points="8,1 11,13 8,11 5,13" fill="${clsColor}"/></svg>`;
+            const altLabel=a===0?'SFC':`${a.toLocaleString()} ft`;
+            const tf=w.temp_f; let tempStr='', tempColor='var(--muted)';
+            if (tf!==null&&tf!==undefined){
+                tempStr=`${tf}°F`;
+                if (tf>=85) tempColor='#ff4f4f';
+                else if (tf>=75) tempColor=lerpColor('#ff8c00','#ff4f4f',(tf-75)/10);
+                else if (tf>=60) tempColor='#39ff89';
+                else if (tf>=45) tempColor=lerpColor('#ffe033','#39ff89',(tf-45)/15);
+                else if (tf>=35) tempColor=lerpColor('#4488ff','#ffe033',(tf-35)/10);
+                else tempColor='#1a3a8a';
             }
-            const blowTo = (w.direction + 180) % 360;
-            const cls = colorClass(w.speed);
-            const clsColor = cls === 'dot-green' ? 'var(--green)' : cls === 'dot-orange' ? 'var(--orange)' : 'var(--red)';
-            const svgArrow = `<svg width="16" height="16" viewBox="0 0 16 16" style="display:inline-block;vertical-align:middle;transform:rotate(${blowTo}deg)">
-                <polygon points="8,1 11,13 8,11 5,13" fill="${clsColor}"/>
-            </svg>`;
-            const altLabel = a === 0 ? 'SFC' : `${a.toLocaleString()} ft`;
-            const tf = w.temp_f;
-            let tempStr = '';
-            let tempColor = 'var(--muted)';
-            if (tf !== null && tf !== undefined) {
-                tempStr = `${tf}°F`;
-                // >80 red, 70-80 orange, 40-70 green, 30-40 blue, <30 dark blue
-                if      (tf >= 85) tempColor = '#ff4f4f';
-                else if (tf >= 75) tempColor = lerpColor('#ff8c00', '#ff4f4f', (tf-75)/10);
-                else if (tf >= 60) tempColor = '#39ff89';
-                else if (tf >= 45) tempColor = lerpColor('#ffe033', '#39ff89', (tf-45)/15);
-                else if (tf >= 35) tempColor = lerpColor('#4488ff', '#ffe033', (tf-35)/10);
-                else               tempColor = '#1a3a8a';
-            }
-            html += `<div class="wind-card ${group === 'high' ? 'upper' : ''}">
-                <span class="alt">${altLabel}</span>
-                <span class="arrow">${svgArrow}</span>
-                <span class="speed ${cls}">${w.speed.toFixed(1)} kt</span>
-                <span class="dir">${w.direction.toFixed(0)}°</span>
-                <span class="temp" style="color:${tempColor};font-weight:bold">${tempStr}</span>
-            </div>`;
+            html+=`<div class="wind-card ${group==='high'?'upper':''}"><span class="alt">${altLabel}</span><span class="arrow">${svgArrow}</span><span class="speed ${cls}">${w.speed.toFixed(1)} kt</span><span class="dir">${w.direction.toFixed(0)}°</span><span class="temp" style="color:${tempColor};font-weight:bold">${tempStr}</span></div>`;
         }
-        document.getElementById("cards").innerHTML = html;
-
+        document.getElementById("cards").innerHTML=html;
     } catch(e) {
         console.error("Load error:", e);
-        // Network error — still show DZ marker and default glide circle
         if (marker) marker.remove();
-        marker = L.marker([lat, lon]).addTo(map);
+        marker=L.marker([lat,lon]).addTo(map);
         if (canopyCircle) canopyCircle.remove();
-        canopyCircle = L.circle([lat, lon], {
-            radius: canopyAirspeedKt * 0.514444 * canopyDescentTime,
-            color: '#39ff89', weight: 2,
-            opacity: 0.4, fill: false, dashArray: '6,5'
-        }).addTo(map);
-        if (firstLoad) { map.setView([lat, lon], 12); firstLoad = false; }
-        document.getElementById("utcLabel").innerText = "⚠️ Could not load winds — check connection";
-        document.getElementById("utcLabel").style.color = "var(--red)";
+        canopyCircle=L.circle([lat,lon],{radius:canopyAirspeedKt*0.514444*canopyDescentTime,color:'#39ff89',weight:2,opacity:0.4,fill:false,dashArray:'6,5'}).addTo(map);
+        if (firstLoad){ map.setView([lat,lon],12); firstLoad=false; }
+        document.getElementById("utcLabel").innerText="⚠️ Could not load winds — check connection";
+        document.getElementById("utcLabel").style.color="var(--red)";
     } finally {
         document.getElementById("loader").classList.add("hidden");
     }
 }
 
-let panelOpen = false;
-function togglePanel(){
-    panelOpen = !panelOpen;
-    document.getElementById("panel").classList.toggle("open", panelOpen);
-    setTimeout(() => map.invalidateSize(), 350);
-}
-function updateHandleSummary(canopySpd, canopyDir, timeStr){
-    const el = document.getElementById("handleSummary");
-    if (el) el.textContent = `${timeStr}  •  ${canopySpd.toFixed(0)}kt ${canopyDir.toFixed(0)}°`;
-}
-
-function toggleCards(){
-    const wrap = document.getElementById("cards-wrap");
-    const btn  = document.getElementById("toggleCardsBtn");
-    const hdr  = document.getElementById("cards-header");
-    const hidden = wrap.style.display === "none";
-    wrap.style.display = hidden ? "" : "none";
-    btn.textContent = hidden ? "Hide" : "Show";
-}
-
-function closeWelcome(){
-    document.getElementById("welcomeModal").style.display = "none";
-}
-
-// ── CANOPY SETTINGS ──
+let panelOpen=false;
+function togglePanel(){ panelOpen=!panelOpen; document.getElementById("panel").classList.toggle("open",panelOpen); setTimeout(()=>map.invalidateSize(),350); }
+function updateHandleSummary(canopySpd,canopyDir,timeStr){ const el=document.getElementById("handleSummary"); if(el) el.textContent=`${timeStr}  •  ${canopySpd.toFixed(0)}kt ${canopyDir.toFixed(0)}°`; }
+function toggleCards(){ const wrap=document.getElementById("cards-wrap"),btn=document.getElementById("toggleCardsBtn"),hidden=wrap.style.display==="none"; wrap.style.display=hidden?"":"none"; btn.textContent=hidden?"Hide":"Show"; }
+function closeWelcome(){ document.getElementById("welcomeModal").style.display="none"; }
+function openWelcome(){ document.getElementById("welcomeModal").style.display="flex"; }
 
 function getCanopyParams(){
-    const size    = parseFloat(document.getElementById("advSize").value) || 150;
-    const weight  = parseFloat(document.getElementById("advWeight").value) || 225;
-    const type    = document.getElementById("advType").value;
-    const openAlt = parseFloat(document.getElementById("advOpenAlt").value) || 3500;
-    const glide   = parseFloat(document.getElementById("advGlide").value) || null;
-    const wl = weight / size;
-
-    // Airspeed lookup by type + wing loading (kt)
+    const size=parseFloat(document.getElementById("advSize").value)||150;
+    const weight=parseFloat(document.getElementById("advWeight").value)||225;
+    const type=document.getElementById("advType").value;
+    const openAlt=parseFloat(document.getElementById("advOpenAlt").value)||3000;
+    const glide=parseFloat(document.getElementById("advGlide").value)||null;
+    const wl=weight/size;
     let airspeedKt, descentFpm;
-    if (type === "student") {
-        airspeedKt  = wl < 0.8 ? 18 : wl < 1.0 ? 20 : 22;
-        descentFpm  = 800 + wl * 100;
-    } else if (type === "sport") {
-        airspeedKt  = wl < 1.0 ? 22 : wl < 1.3 ? 24 : wl < 1.6 ? 27 : wl < 1.9 ? 30 : 32;
-        descentFpm  = 850 + wl * 150;
-    } else {
-        airspeedKt  = wl < 1.5 ? 30 : wl < 1.8 ? 34 : wl < 2.1 ? 38 : 42;
-        descentFpm  = 900 + wl * 200;
-    }
-
-    // Override with known glide ratio if provided
-    if (glide) {
-        const descentFps = descentFpm / 60;
-        airspeedKt = (glide * descentFps) / 1.68781;
-    }
-
-    const descentTime = (openAlt - 500) / (descentFpm / 60);
-    const glideRatio  = (airspeedKt * 1.68781) / (descentFpm / 60);
-
+    if (type==="student"){ airspeedKt=wl<0.8?18:wl<1.0?20:22; descentFpm=800+wl*100; }
+    else if (type==="sport"){ airspeedKt=wl<1.0?22:wl<1.3?24:wl<1.6?27:wl<1.9?30:32; descentFpm=850+wl*150; }
+    else { airspeedKt=wl<1.5?30:wl<1.8?34:wl<2.1?38:42; descentFpm=900+wl*200; }
+    if (glide){ const fps=descentFpm/60; airspeedKt=(glide*fps)/1.68781; }
+    const descentTime=(openAlt-500)/(descentFpm/60);
+    const glideRatio=(airspeedKt*1.68781)/(descentFpm/60);
     return { wl, airspeedKt, descentFpm, descentTime, glideRatio, openAlt };
 }
-
 function updateAdvPreview(){
-    const p = getCanopyParams();
-    document.getElementById("advPreview").innerHTML =
-        `WL: ${p.wl.toFixed(2)} lbs/sqft<br>` +
-        `Airspeed: ${p.airspeedKt.toFixed(1)} kt<br>` +
-        `Descent: ${p.descentFpm.toFixed(0)} ft/min<br>` +
-        `Flight time: ${p.descentTime.toFixed(0)} sec<br>` +
-        `Glide ratio: ${p.glideRatio.toFixed(2)}:1`;
+    const p=getCanopyParams();
+    document.getElementById("advPreview").innerHTML=`WL: ${p.wl.toFixed(2)} lbs/sqft<br>Airspeed: ${p.airspeedKt.toFixed(1)} kt<br>Descent: ${p.descentFpm.toFixed(0)} ft/min<br>Flight time: ${p.descentTime.toFixed(0)} sec<br>Glide ratio: ${p.glideRatio.toFixed(2)}:1`;
 }
-
-function toggleAdvBonus(lbl){
-    const el = document.getElementById("advBonus");
-    const open = el.style.display === "none" || el.style.display === "";
-    el.style.display = open ? "flex" : "none";
-    if (open) { el.style.flexDirection = "column"; el.style.gap = "10px"; }
-    lbl.textContent = (open ? "▼" : "▶") + " I know more (optional)";
+function toggleAdvBonus(lbl){ const el=document.getElementById("advBonus"),open=el.style.display==="none"||el.style.display===""; el.style.display=open?"flex":"none"; if(open){el.style.flexDirection="column";el.style.gap="10px";} lbl.textContent=(open?"▼":"▶")+" I know more (optional)"; }
+function openAdvancedModal(){ updateAdvPreview(); const am=document.getElementById("advancedModal"); am.style.display="flex"; am.style.alignItems="center"; am.style.justifyContent="center"; }
+function closeAdvancedModal(){ document.getElementById("advancedModal").style.display="none"; }
+function applyAdvancedSettings(){ const p=getCanopyParams(); canopyAirspeedKt=p.airspeedKt; canopyDescentTime=p.descentTime; closeAdvancedModal(); load(); }
+["advSize","advWeight","advType","advOpenAlt","advGlide"].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener("input",updateAdvPreview); });
+async function clearAndReload(){ try{ await fetch('/clearcache?token=mango'); }catch(e){} load(); }
+function openDefineModal(){ document.getElementById("defineModal").style.display="flex"; document.getElementById("dfDir").focus(); }
+function closeDefineModal(){ document.getElementById("defineModal").style.display="none"; document.getElementById("dfError").style.display="none"; }
+function miToMeters(mi){ return mi*1609.344; }
+function offsetLatLon(baseLat,baseLon,bearingDeg,distanceMi){
+    const R=6378137, d=miToMeters(distanceMi), rad=bearingDeg*Math.PI/180;
+    const lat1=baseLat*Math.PI/180, lon1=baseLon*Math.PI/180;
+    const lat2=Math.asin(Math.sin(lat1)*Math.cos(d/R)+Math.cos(lat1)*Math.sin(d/R)*Math.cos(rad));
+    const lon2=lon1+Math.atan2(Math.sin(rad)*Math.sin(d/R)*Math.cos(lat1),Math.cos(d/R)-Math.sin(lat1)*Math.sin(lat2));
+    return [lat2*180/Math.PI, lon2*180/Math.PI];
 }
-
-function openAdvancedModal(){
-    updateAdvPreview();
-    const am = document.getElementById("advancedModal"); am.style.display = "flex"; am.style.alignItems = "center"; am.style.justifyContent = "center";
-}
-
-function closeAdvancedModal(){
-    document.getElementById("advancedModal").style.display = "none";
-}
-
-function applyAdvancedSettings(){
-    const p = getCanopyParams();
-    canopyAirspeedKt   = p.airspeedKt;
-    canopyDescentTime  = p.descentTime;
-    closeAdvancedModal();
-    // Reload wind data to redraw circles with new canopy params
-    load();
-}
-
-// Input listeners to update preview live
-["advSize","advWeight","advType","advOpenAlt","advGlide"].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener("input", updateAdvPreview);
-});
-
-async function clearAndReload(){
-    try {
-        await fetch('/clearcache?token=mango');
-    } catch(e) {}
-    load();
-}
-
-function openWelcome(){
-    document.getElementById("welcomeModal").style.display = "flex";
-}
-
-// ── DEFINE JUMP RUN MODAL ──
-function openDefineModal(){
-    document.getElementById("defineModal").style.display = "flex";
-    document.getElementById("dfDir").focus();
-}
-
-function closeDefineModal(){
-    document.getElementById("defineModal").style.display = "none";
-    document.getElementById("dfError").style.display = "none";
-}
-
-function miToMeters(mi){ return mi * 1609.344; }
-
-function offsetLatLon(baseLat, baseLon, bearingDeg, distanceMi){
-    // Move baseLat/baseLon by distanceMi in bearingDeg direction
-    const R = 6378137;
-    const d = miToMeters(distanceMi);
-    const rad = bearingDeg * Math.PI / 180;
-    const lat1 = baseLat * Math.PI / 180;
-    const lon1 = baseLon * Math.PI / 180;
-    const lat2 = Math.asin(Math.sin(lat1)*Math.cos(d/R) +
-                           Math.cos(lat1)*Math.sin(d/R)*Math.cos(rad));
-    const lon2 = lon1 + Math.atan2(Math.sin(rad)*Math.sin(d/R)*Math.cos(lat1),
-                                   Math.cos(d/R)-Math.sin(lat1)*Math.sin(lat2));
-    return [lat2 * 180/Math.PI, lon2 * 180/Math.PI];
-}
-
 function submitDefineJumpRun(){
-    const errEl = document.getElementById("dfError");
-    errEl.style.display = "none";
-
-    const dir     = parseFloat(document.getElementById("dfDir").value);
-    const dist    = parseFloat(document.getElementById("dfDist").value) || 0;
-    const distDir = document.getElementById("dfDistDir").value;
-    const offset  = parseFloat(document.getElementById("dfOffset").value) || 0;
-    const offDir  = document.getElementById("dfOffsetDir").value;
-    const length  = parseFloat(document.getElementById("dfLength").value);
-
-    if (isNaN(dir) || dir < 0 || dir > 360) {
-        errEl.textContent = "Please enter a valid direction (0–360°).";
-        errEl.style.display = "block";
-        return;
-    }
-    if (isNaN(length) || length <= 0) {
-        errEl.textContent = "Please enter a valid jump run length.";
-        errEl.style.display = "block";
-        return;
-    }
-
-    // Prior = start is 180° from direction (plane approaches from behind)
-    // Past  = start is in the direction (plane has already passed DZ)
-    const startBearing = distDir === "prior" ? (dir + 180) % 360 : dir;
-    let startPt = offsetLatLon(lat, lon, startBearing, dist);
-
-    // Apply N/S/E/W offset
-    const offBearing = { N: 0, S: 180, E: 90, W: 270 }[offDir];
-    if (offset > 0) {
-        startPt = offsetLatLon(startPt[0], startPt[1], offBearing, offset);
-    }
-
-    // End point = start + length in the jump run direction
-    const endPt = offsetLatLon(startPt[0], startPt[1], dir, length);
-
-    jrStart = startPt;
-    jrEnd   = endPt;
-
-    closeDefineModal();
-    drawJumpRun();
-    // Auto-collapse panel on mobile so user can see the animation
-    if (window.innerWidth < 600 && panelOpen) togglePanel();
+    const errEl=document.getElementById("dfError"); errEl.style.display="none";
+    const dir=parseFloat(document.getElementById("dfDir").value);
+    const dist=parseFloat(document.getElementById("dfDist").value)||0;
+    const distDir=document.getElementById("dfDistDir").value;
+    const offset=parseFloat(document.getElementById("dfOffset").value)||0;
+    const offDir=document.getElementById("dfOffsetDir").value;
+    const length=parseFloat(document.getElementById("dfLength").value);
+    if (isNaN(dir)||dir<0||dir>360){ errEl.textContent="Please enter a valid direction (0–360°)."; errEl.style.display="block"; return; }
+    if (isNaN(length)||length<=0){ errEl.textContent="Please enter a valid jump run length."; errEl.style.display="block"; return; }
+    const startBearing=distDir==="prior"?(dir+180)%360:dir;
+    let startPt=offsetLatLon(lat,lon,startBearing,dist);
+    const offBearing={N:0,S:180,E:90,W:270}[offDir];
+    if (offset>0) startPt=offsetLatLon(startPt[0],startPt[1],offBearing,offset);
+    jrStart=startPt; jrEnd=offsetLatLon(startPt[0],startPt[1],dir,length);
+    closeDefineModal(); drawJumpRun();
+    if (window.innerWidth<600&&panelOpen) togglePanel();
 }
 
 function initMap(){
-    map = L.map('map', { zoomSnap: 0.25, zoomDelta: 0.25, wheelPxPerZoomLevel: 120 }).setView([lat, lon], 9);
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Tiles © Esri'
-    }).addTo(map);
-    map.on('mousedown', onMapMouseDown);
-    map.on('mousemove', onMapMouseMove);
-    map.on('mouseup',   onMapMouseUp);
-    map.on('click',     onMapClick);
-    map.on('click', function(e){
+    map=L.map('map',{zoomSnap:0.25,zoomDelta:0.25,wheelPxPerZoomLevel:120}).setView([lat,lon],9);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'Tiles © Esri'}).addTo(map);
+    map.on('mousedown',onMapMouseDown);
+    map.on('mousemove',onMapMouseMove);
+    map.on('mouseup',onMapMouseUp);
+    map.on('click',onMapClick);
+    map.on('click',function(e){
         if (!patternMode) return;
-        landingSpot = [e.latlng.lat, e.latlng.lng];
-        togglePatternMode();  // exit placement mode
-        document.getElementById("patternControls").style.display = "block";
+        landingSpot=[e.latlng.lat,e.latlng.lng];
+        togglePatternMode();
+        document.getElementById("patternControls").style.display="block";
         drawPattern();
     });
-    const mapEl = map.getContainer();
-    mapEl.addEventListener('touchstart', onTouchStart, { passive: false });
-    mapEl.addEventListener('touchmove',  onTouchMove,  { passive: false });
-    mapEl.addEventListener('touchend',   onTouchEnd,   { passive: false });
+    const mapEl=map.getContainer();
+    mapEl.addEventListener('touchstart',onTouchStart,{passive:false});
+    mapEl.addEventListener('touchmove',onTouchMove,{passive:false});
+    mapEl.addEventListener('touchend',onTouchEnd,{passive:false});
 }
 
-// ── MOBILE PANEL DRAG ──
 (function(){
-    const panel  = document.getElementById("panel");
-    const handle = document.getElementById("panel-handle");
+    const panel=document.getElementById("panel"), handle=document.getElementById("panel-handle");
     if (!handle) return;
-
-    let startY = 0, startOpen = false, dragging = false, moved = false;
-    const SNAP_THRESHOLD = 40; // px
-
-    function onStart(e){
-        if (window.innerWidth >= 600) return;
-        const touch = e.touches ? e.touches[0] : e;
-        startY    = touch.clientY;
-        startOpen = panelOpen;
-        dragging  = true;
-        moved     = false;
-        panel.style.transition = "none";
-    }
-
-    function onMove(e){
-        if (!dragging || window.innerWidth >= 600) return;
-        e.preventDefault();
-        const touch = e.touches ? e.touches[0] : e;
-        const dy = touch.clientY - startY;
-        if (Math.abs(dy) > 5) moved = true;
-
-        // Translate the panel live while dragging
-        if (startOpen) {
-            // Dragging down to close — only allow downward movement
-            const clamp = Math.max(0, dy);
-            panel.style.transform = `translateY(${clamp}px)`;
-        } else {
-            // Dragging up to open — only allow upward movement
-            const maxUp = panel.offsetHeight - parseInt(getComputedStyle(document.documentElement).getPropertyValue("--drawer-h"));
-            const clamp = Math.max(-maxUp, Math.min(0, dy));
-            panel.style.transform = `translateY(calc(100% - var(--drawer-h) + ${clamp}px))`;
-        }
-    }
-
-    function onEnd(e){
-        if (!dragging || window.innerWidth >= 600) return;
-        dragging = false;
-        panel.style.transition = "";
-        panel.style.transform  = "";
-
-        if (!moved) {
-            // Tap — toggle
-            togglePanel();
-            return;
-        }
-
-        const touch = (e.changedTouches ? e.changedTouches[0] : e);
-        const dy = touch.clientY - startY;
-
-        if (startOpen && dy > SNAP_THRESHOLD) {
-            // Dragged down enough — close
-            panelOpen = true; togglePanel();
-        } else if (!startOpen && dy < -SNAP_THRESHOLD) {
-            // Dragged up enough — open
-            panelOpen = false; togglePanel();
-        }
-        // Otherwise snap back to original state (togglePanel already handles this)
-    }
-
-    handle.addEventListener("touchstart", onStart, { passive: true });
-    handle.addEventListener("touchmove",  onMove,  { passive: false });
-    handle.addEventListener("touchend",   onEnd,   { passive: true });
+    let startY=0, startOpen=false, dragging=false, moved=false;
+    const SNAP=40;
+    function onStart(e){ if(window.innerWidth>=600)return; const touch=e.touches?e.touches[0]:e; startY=touch.clientY; startOpen=panelOpen; dragging=true; moved=false; panel.style.transition="none"; }
+    function onMove(e){ if(!dragging||window.innerWidth>=600)return; e.preventDefault(); const touch=e.touches?e.touches[0]:e; const dy=touch.clientY-startY; if(Math.abs(dy)>5)moved=true; if(startOpen){ panel.style.transform=`translateY(${Math.max(0,dy)}px)`; } else { const maxUp=panel.offsetHeight-parseInt(getComputedStyle(document.documentElement).getPropertyValue("--drawer-h")); panel.style.transform=`translateY(calc(100% - var(--drawer-h) + ${Math.max(-maxUp,Math.min(0,dy))}px))`; } }
+    function onEnd(e){ if(!dragging||window.innerWidth>=600)return; dragging=false; panel.style.transition=""; panel.style.transform=""; if(!moved){togglePanel();return;} const touch=e.changedTouches?e.changedTouches[0]:e; const dy=touch.clientY-startY; if(startOpen&&dy>SNAP){panelOpen=true;togglePanel();} else if(!startOpen&&dy<-SNAP){panelOpen=false;togglePanel();} }
+    handle.addEventListener("touchstart",onStart,{passive:true});
+    handle.addEventListener("touchmove",onMove,{passive:false});
+    handle.addEventListener("touchend",onEnd,{passive:true});
 })();
 
 function initDZ(){
-    const sel = document.getElementById("dz");
-    const keys = Object.keys(dz);
-    const defaultDz = keys.find(k => k.toLowerCase().includes("skydive new england")) || keys[0];
-
-    for (const k of keys){
-        const o = document.createElement("option");
-        o.value = k; o.text = k;
-        sel.appendChild(o);
-    }
-
-    sel.value = defaultDz;
-    lat = dz[defaultDz][0];
-    lon = dz[defaultDz][1];
-
-    sel.onchange = () => {
-        const v = sel.value;
-        lat = dz[v][0];
-        lon = dz[v][1];
-        if (jumpRunLine)  { jumpRunLine.forEach(l => l.remove());  jumpRunLine = null; }
-        if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
-        stopPlane();
-        jrStart = null; jrEnd = null;
-        document.getElementById("jumpRunInfo").style.display = "none";
-        document.getElementById("replayBtn").style.display  = "none";
-        document.getElementById("clearBtn").style.display   = "none";
-        firstLoad = true;
-        load();
+    const sel=document.getElementById("dz");
+    const keys=Object.keys(dz);
+    const defaultDz=keys.find(k=>k.toLowerCase().includes("skydive new england"))||keys[0];
+    for (const k of keys){ const o=document.createElement("option"); o.value=k; o.text=k; sel.appendChild(o); }
+    sel.value=defaultDz; lat=dz[defaultDz][0]; lon=dz[defaultDz][1];
+    sel.onchange=()=>{
+        const v=sel.value; lat=dz[v][0]; lon=dz[v][1];
+        if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}
+        if(freefallLine){freefallLine.forEach(l=>l.remove());freefallLine=null;}
+        stopPlane(); jrStart=null; jrEnd=null;
+        document.getElementById("jumpRunInfo").style.display="none";
+        document.getElementById("replayBtn").style.display="none";
+        document.getElementById("clearBtn").style.display="none";
+        firstLoad=true; load();
     };
-
-    initMap();
-    load();
-
-    document.getElementById("hour").oninput = () => {
+    initMap(); load();
+    document.getElementById("hour").oninput=()=>{
         renderTime();
-        if (jumpRunLine)  { jumpRunLine.forEach(l => l.remove());  jumpRunLine = null; }
-        if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
-        stopPlane();
-        jrStart = null; jrEnd = null;
-        document.getElementById("jumpRunInfo").style.display = "none";
-        document.getElementById("replayBtn").style.display  = "none";
-        document.getElementById("clearBtn").style.display   = "none";
-        clearTimeout(loadTimeout);
-        loadTimeout = setTimeout(load, 2000);
+        if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}
+        if(freefallLine){freefallLine.forEach(l=>l.remove());freefallLine=null;}
+        stopPlane(); jrStart=null; jrEnd=null;
+        document.getElementById("jumpRunInfo").style.display="none";
+        document.getElementById("replayBtn").style.display="none";
+        document.getElementById("clearBtn").style.display="none";
+        clearTimeout(loadTimeout); loadTimeout=setTimeout(load,2000);
     };
-
     renderTime();
 }
-
 initDZ();
 </script>
-
 </body>
 </html>

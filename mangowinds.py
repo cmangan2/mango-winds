@@ -755,8 +755,12 @@ def debug():
 @app.route("/stats")
 def stats():
     from datetime import date, timedelta as td
-    today = date.today()
-    last7  = [(today - td(days=i)).strftime("%Y-%m-%d") for i in range(6, -1, -1)]
+    import pytz
+    est = pytz.timezone("America/New_York")
+    today_est = datetime.now(est).date()
+    days_since_sunday = (today_est.weekday() + 1) % 7
+    week_start = today_est - td(days=days_since_sunday)
+    this_week = [(week_start + td(days=i)).strftime("%Y-%m-%d") for i in range(days_since_sunday + 1)]
 
     dz_totals = {}
     dz_weekly  = {}
@@ -825,7 +829,13 @@ def admin():
     from datetime import date, timedelta as td
     today = date.today()
     # Build last 7 days and last 30 days
-    last7  = [(today - td(days=i)).strftime("%Y-%m-%d") for i in range(6, -1, -1)]
+    import pytz
+    est = pytz.timezone("America/New_York")
+    today_est = datetime.now(est).date()
+    today = today_est
+    days_since_sunday = (today_est.weekday() + 1) % 7
+    week_start = today_est - td(days=days_since_sunday)
+    this_week = [(week_start + td(days=i)).strftime("%Y-%m-%d") for i in range(days_since_sunday + 1)]
     last30 = [(today - td(days=i)).strftime("%Y-%m-%d") for i in range(29, -1, -1)]
 
     # Totals per DZ
@@ -833,7 +843,7 @@ def admin():
     dz_weekly  = {}
     for dz, days in _visit_log.items():
         dz_totals[dz] = sum(days.values())
-        dz_weekly[dz]  = sum(days.get(d, 0) for d in last7)
+        dz_weekly[dz]  = sum(days.get(d, 0) for d in this_week)
 
     # Daily totals across all DZs (last 30 days)
     daily_totals = {d: sum(dzd.get(d, 0) for dzd in _visit_log.values()) for d in last30}
@@ -852,7 +862,7 @@ def admin():
             <td style='text-align:center;padding:4px 8px;color:#00d4ff'>{dz_totals.get(dz,0)}</td>
         </tr>"""
 
-    day_headers = "".join(f"<th style='padding:4px 8px'>{d[5:]}</th>" for d in last7)
+    day_headers = "".join(f"<th style='padding:4px 8px'>{d[5:]}</th>" for d in this_week)
 
     # Daily chart (last 30 days sparkline as text bar)
     max_day = max(daily_totals.values()) or 1

@@ -1314,11 +1314,11 @@ function drawPattern(){
     const downwindStart = offsetPt(baseStart[0], baseStart[1], (downwindHdg + 180) % 360, DOWNWIND_LEN);
 
     const patternColor = 'rgba(255,79,79,0.75)';
-    const labelStyle = 'background:rgba(255,79,79,0.75);color:#fff;font-size:11px;font-family:monospace;padding:2px 5px;border-radius:3px;white-space:nowrap';
+    const labelStyle = 'background:rgba(255,79,79,0.85);color:#fff;font-size:22px;font-family:monospace;font-weight:bold;padding:3px 8px;border-radius:4px;white-space:nowrap';
 
     function addArrow(from, to, label, altLabel){
         const line = L.polyline([from, to], {
-            color: patternColor, weight: 3, opacity: 0.75
+            color: patternColor, weight: 9, opacity: 0.75
         }).addTo(map);
         patternLines.push(line);
 
@@ -1333,10 +1333,8 @@ function drawPattern(){
         }).addTo(map);
         patternLines.push(arrow);
 
-        // Altitude label at midpoint
-        const midLat = (from[0]+to[0])/2;
-        const midLon = (from[1]+to[1])/2;
-        const lbl = L.marker([midLat, midLon], {
+        // Altitude label at start of leg
+        const lbl = L.marker(from, {
             icon: L.divIcon({ html: `<div style="${labelStyle}">${altLabel}</div>`, className: '', iconAnchor: [0,10] })
         }).addTo(map);
         patternLines.push(lbl);

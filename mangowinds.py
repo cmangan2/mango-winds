@@ -804,7 +804,7 @@ def stats():
     total_all  = sum(dz_totals.values())
 
     # API usage today and by hour
-    today_str = today.strftime("%Y-%m-%d")
+    today_str = today_est.strftime("%Y-%m-%d")
     today_api = _api_log.get(today_str, {})
     total_api_today = sum(today_api.values())
     api_limit = 10000
@@ -944,7 +944,7 @@ def admin():
     </div>
 
     <h3>Open-Meteo API Usage Today</h3>
-    <p style="color:#5a7a96;font-size:0.8rem">Limit: {api_limit:,} calls/day &nbsp;|&nbsp; Used: {total_api_today:,} ({api_pct}%)</p>
+    <p style="color:#5a7a96;font-size:0.8rem">Limit: {api_limit} calls/day &nbsp;|&nbsp; Used: {total_api_today} ({api_pct}%)</p>
     <div style="background:#1e3045;border-radius:4px;height:16px;width:300px;margin:8px 0">
         <div style="background:{api_color};height:16px;width:{api_bar_w}px;border-radius:4px;transition:width 0.3s"></div>
     </div>

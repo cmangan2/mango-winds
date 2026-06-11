@@ -173,7 +173,7 @@ select:focus { border-color: var(--accent); }
 #statsBtn:hover { border-color: var(--accent); color: var(--accent); }
 #helpBtn { background: none; border: 1px solid var(--muted); color: var(--muted); border-radius: 50%; width: 22px; height: 22px; font-size: 0.8rem; font-weight: 700; cursor: pointer; line-height: 1; flex-shrink: 0; transition: border-color 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; padding: 0; }
 #helpBtn:hover { border-color: var(--accent); color: var(--accent); }
-#defineBtn { margin-top: 6px; width: 100%; padding: 7px 10px; background: var(--card-bg); color: var(--accent); border: 1px solid var(--border); border-radius: 6px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.95rem; cursor: pointer; letter-spacing: 0.06em; transition: background 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; }
+#defineBtn { margin-top: 6px; width: 100%; padding: 7px 10px; background: var(--card-bg); color: #cc88ff; border: 1px solid #cc88ff; border-radius: 6px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.95rem; cursor: pointer; letter-spacing: 0.06em; transition: background 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; }
 #defineBtn:hover, #defineBtn:active { background: var(--border); color: var(--text); }
 #drawBtn { margin-top: 10px; width: 100%; padding: 7px 10px; background: var(--card-bg); color: var(--accent); border: 1px solid var(--accent); border-radius: 6px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.95rem; cursor: pointer; letter-spacing: 0.06em; transition: background 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; }
 #drawBtn:hover, #drawBtn:active { background: var(--accent); color: var(--bg); }
@@ -391,7 +391,7 @@ select:focus { border-color: var(--accent); }
                 <button id="clearBtn" onclick="clearJumpRun()" style="display:none">✕ Clear</button>
                 <div id="sepRow" style="margin-top:8px">
                     <label style="margin-bottom:3px">Jumper Separation</label>
-                    <select id="sepSelect">
+                    <select id="sepSelect" style="text-align:center">
                         <option value="8">8 sec</option><option value="10">10 sec</option>
                         <option value="12">12 sec</option><option value="14">14 sec</option>
                         <option value="16">16 sec</option><option value="18">18 sec</option>

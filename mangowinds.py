@@ -511,8 +511,12 @@ def format_winds(data, hour, lat=0, lon=0):
             m_spds, m_dirs = [], []
             alt_ft = None
             for mh in models_h.values():
-                spd = mh.get(f"windspeed_{lvl}hPa", [None]*200)[hour]
-                dirn = mh.get(f"winddirection_{lvl}hPa", [None]*200)[hour]
+                spd_arr = mh.get(f"windspeed_{lvl}hPa", [])
+                dir_arr = mh.get(f"winddirection_{lvl}hPa", [])
+                if hour >= len(spd_arr) or hour >= len(dir_arr):
+                    continue  # this model doesn't have data for this hour
+                spd = spd_arr[hour]
+                dirn = dir_arr[hour]
                 if spd is None or dirn is None: continue
                 m_spds.append(spd); m_dirs.append(dirn)
                 if alt_ft is None:
@@ -538,10 +542,14 @@ def format_winds(data, hour, lat=0, lon=0):
         # SFC: ensemble average of 10m+80m across models
         sfc_spds, sfc_dirs = [], []
         for mh in models_h.values():
-            s10 = mh.get("windspeed_10m",[None]*200)[hour]
-            d10 = mh.get("winddirection_10m",[None]*200)[hour]
-            s80 = mh.get("windspeed_80m",[None]*200)[hour] or s10
-            d80 = mh.get("winddirection_80m",[None]*200)[hour] or d10
+            s10_arr = mh.get("windspeed_10m",[])
+            d10_arr = mh.get("winddirection_10m",[])
+            if hour >= len(s10_arr) or hour >= len(d10_arr):
+                continue
+            s10 = s10_arr[hour]
+            d10 = d10_arr[hour]
+            s80 = (mh.get("windspeed_80m",[]) + [s10]*200)[hour] or s10
+            d80 = (mh.get("winddirection_80m",[]) + [d10]*200)[hour] or d10
             if s10 is None or d10 is None: continue
             avg_spd_sfc = (s10 + s80) / 2
             r10 = math.radians(d10); r80 = math.radians(d80 or d10)
@@ -555,7 +563,8 @@ def format_winds(data, hour, lat=0, lon=0):
         # Use 2m temperature for surface display — much more accurate than pressure level temp
         temp2m = None
         for mh in models_h.values():
-            t = mh.get("temperature_2m", [None]*200)[hour]
+            t_arr = mh.get("temperature_2m", [])
+            t = t_arr[hour] if hour < len(t_arr) else None
             if t is not None:
                 temp2m = t
                 break

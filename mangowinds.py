@@ -1056,7 +1056,14 @@ def data():
             if h_data:
                 times = h_data.get("hourly", {}).get("time", [])
                 if hour < len(times):
-                    time_label = times[hour].replace("T", " ") + " (UTC)"
+                    # Convert UTC time to Eastern time for display
+                    import pytz
+                    est = pytz.timezone("America/New_York")
+                    utc_time = datetime.strptime(times[hour], "%Y-%m-%dT%H:%M")
+                    utc_time = utc_time.replace(tzinfo=timezone.utc)
+                    est_time = utc_time.astimezone(est)
+                    tz_abbr = est_time.strftime("%Z")  # EST or EDT
+                    time_label = est_time.strftime(f"%Y-%m-%d %H:%M ({tz_abbr})")
     except Exception:
         pass
 

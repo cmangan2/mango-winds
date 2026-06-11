@@ -13,12 +13,43 @@ app = Flask(__name__)
 # 🗄️ CACHE
 # =====================================================
 _forecast_cache = {}
-CACHE_TTL = timedelta(minutes=60)
+CACHE_TTL = timedelta(minutes=120)  # 2 hour cache to reduce API calls
 CACHE_FILE  = os.path.join(os.path.dirname(__file__), "winds_cache.json")
 VISITS_FILE = os.path.join(os.path.dirname(__file__), "visits.json")
 
 # Visit tracking: {dz_name: {date: count}}
 _visit_log = {}
+
+# API call tracking: {date: {hour: count}}
+_api_log = {}
+API_LOG_FILE = os.path.join(os.path.dirname(__file__), "api_log.json")
+
+def load_api_log():
+    global _api_log
+    try:
+        if os.path.exists(API_LOG_FILE):
+            with open(API_LOG_FILE) as f:
+                _api_log = json.load(f)
+    except Exception as e:
+        print(f"API log load error: {e}")
+
+def save_api_log():
+    try:
+        with open(API_LOG_FILE, "w") as f:
+            json.dump(_api_log, f)
+    except Exception as e:
+        print(f"API log save error: {e}")
+
+def record_api_call(n=1):
+    now = datetime.now(timezone.utc)
+    date = now.strftime("%Y-%m-%d")
+    hour = str(now.hour)
+    if date not in _api_log:
+        _api_log[date] = {}
+    _api_log[date][hour] = _api_log[date].get(hour, 0) + n
+    save_api_log()
+
+load_api_log()
 
 # METAR cache — short TTL since surface winds change frequently
 _metar_cache = {}
@@ -292,6 +323,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
             return None
 
         print(f"Ensemble: {len(model_data)}/{len(ensemble_models)} models loaded: {list(model_data.keys())}")
+        record_api_call(len(ensemble_models))  # count attempted calls
         result = {"source": "openmeteo_ensemble", "models": model_data}
         _forecast_cache[dz_key] = {"data": result, "expires": now + CACHE_TTL}
         save_cache_to_disk()
@@ -771,6 +803,21 @@ def stats():
     total_week = sum(dz_weekly.values())
     total_all  = sum(dz_totals.values())
 
+    # API usage today and by hour
+    today_str = today.strftime("%Y-%m-%d")
+    today_api = _api_log.get(today_str, {})
+    total_api_today = sum(today_api.values())
+    api_limit = 10000
+    api_pct = round(total_api_today / api_limit * 100, 1)
+    api_bar_w = min(int(total_api_today / api_limit * 300), 300)
+    api_color = "#39ff89" if api_pct < 60 else "#ffaa00" if api_pct < 85 else "#ff4f4f"
+    api_hourly_rows = ""
+    for h in range(24):
+        cnt = today_api.get(str(h), 0)
+        if cnt == 0: continue
+        bar = int(cnt / max(today_api.values(), default=1) * 150)
+        api_hourly_rows += f"<tr><td style='padding:2px 8px;color:#5a7a96'>{h:02d}:00</td><td><div style='background:#00d4ff;height:10px;width:{bar}px;border-radius:2px;display:inline-block'></div></td><td style='padding:2px 8px;color:#c8daea'>{cnt}</td></tr>"
+
     dz_rows = ""
     for dz in sorted(dz_totals, key=lambda x: dz_totals[x], reverse=True):
         week = dz_weekly.get(dz, 0)
@@ -896,6 +943,13 @@ def admin():
         <div class="stat"><div class="n">{len(dz_totals)}</div><div class="l">Active DZs</div></div>
     </div>
 
+    <h3>Open-Meteo API Usage Today</h3>
+    <p style="color:#5a7a96;font-size:0.8rem">Limit: {api_limit:,} calls/day &nbsp;|&nbsp; Used: {total_api_today:,} ({api_pct}%)</p>
+    <div style="background:#1e3045;border-radius:4px;height:16px;width:300px;margin:8px 0">
+        <div style="background:{api_color};height:16px;width:{api_bar_w}px;border-radius:4px;transition:width 0.3s"></div>
+    </div>
+    <table style="margin-top:8px">{api_hourly_rows}</table>
+
     <h3>Visits by Dropzone (last 7 days)</h3>
     <table>
         <tr><th>Dropzone</th>{day_headers}<th style='color:#ffaa00'>7-Day</th><th style='color:#00d4ff'>All Time</th></tr>
@@ -975,7 +1029,14 @@ def data():
 
     if not winds:
         print(f"ERROR: winds empty for lat={lat} lon={lon} hour={hour}")
-        resp = jsonify({"error": "Could not fetch forecast. Try again in 60 seconds."})
+        # Check if rate limited
+        error_msg = "Could not fetch forecast. Try again in 60 seconds."
+        # Check Render logs for 429 hint — if api_log today is near limit show specific message
+        today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today_calls = sum(_api_log.get(today_str, {}).values())
+        if today_calls >= 9000:
+            error_msg = "Daily weather data limit reached. Service will resume at midnight UTC. Sorry for the inconvenience!"
+        resp = jsonify({"error": error_msg})
         resp.headers["Cache-Control"] = "no-store"
         return resp, 503
 

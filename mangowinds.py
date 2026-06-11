@@ -15,14 +15,14 @@ app = Flask(__name__)
 _forecast_cache = {}
 CACHE_TTL = timedelta(minutes=120)  # 2 hour cache to reduce API calls
 CACHE_FILE  = os.path.join(os.path.dirname(__file__), "winds_cache.json")
-VISITS_FILE = os.path.join(os.path.dirname(__file__), "visits.json")
+VISITS_FILE = os.environ.get("VISITS_FILE", os.path.join(os.path.dirname(__file__), "visits.json"))
 
 # Visit tracking: {dz_name: {date: count}}
 _visit_log = {}
 
 # API call tracking: {date: {hour: count}}
 _api_log = {}
-API_LOG_FILE = os.path.join(os.path.dirname(__file__), "api_log.json")
+API_LOG_FILE = os.environ.get("API_LOG_FILE", os.path.join(os.path.dirname(__file__), "api_log.json"))
 
 def load_api_log():
     global _api_log

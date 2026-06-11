@@ -834,7 +834,7 @@ def stats():
         from datetime import datetime as _dt2
         import pytz as _pytz2
         _utc_t = _dt2(today_est.year, today_est.month, today_est.day, h, 0, tzinfo=timezone.utc)
-        _est_lbl = _utc_t.astimezone(_pytz2.timezone("America/New_York")).strftime("%-I%p").lower()
+        _est_local = _utc_t.astimezone(_pytz2.timezone("America/New_York")); _est_lbl = str(int(_est_local.strftime("%I"))) + _est_local.strftime("%p").lower()
         api_hourly_rows += f"<tr><td style='padding:2px 8px;color:#5a7a96'>{_est_lbl}</td><td><div style='background:#00d4ff;height:10px;width:{bar}px;border-radius:2px;display:inline-block'></div></td><td style='padding:2px 8px;color:#c8daea'>{cnt}</td></tr>"
 
     dz_rows = ""
@@ -930,7 +930,7 @@ def admin():
         from datetime import datetime as _dt2
         import pytz as _pytz2
         _utc_t = _dt2(today_est.year, today_est.month, today_est.day, h, 0, tzinfo=timezone.utc)
-        _est_lbl = _utc_t.astimezone(_pytz2.timezone("America/New_York")).strftime("%-I%p").lower()
+        _est_local = _utc_t.astimezone(_pytz2.timezone("America/New_York")); _est_lbl = str(int(_est_local.strftime("%I"))) + _est_local.strftime("%p").lower()
         api_hourly_rows += f"<tr><td style='padding:2px 8px;color:#5a7a96'>{_est_lbl}</td><td><div style='background:#00d4ff;height:10px;width:{bar}px;border-radius:2px;display:inline-block'></div></td><td style='padding:2px 8px;color:#c8daea'>{cnt}</td></tr>"
 
     # Build DZ rows

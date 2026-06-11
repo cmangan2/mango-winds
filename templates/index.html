@@ -1049,7 +1049,10 @@ function updateWindSummary(d){
 })();
 
 function toggleCards(){ const wrap=document.getElementById("cards-wrap"),btn=document.getElementById("toggleCardsBtn"),hidden=wrap.style.display==="none"; wrap.style.display=hidden?"":"none"; btn.textContent=hidden?"Hide":"Show"; }
-function closeWelcome(){ document.getElementById("welcomeModal").style.display="none"; }
+function closeWelcome(){
+    document.getElementById("welcomeModal").style.display="none";
+    document.getElementById("windSummary").style.display="block";
+}
 function openWelcome(){ document.getElementById("welcomeModal").style.display="flex"; }
 
 function getCanopyParams(){

@@ -301,6 +301,30 @@ select:focus { border-color: var(--accent); }
 
 <div id="loader"><div class="spinner"></div></div>
 
+<!-- ── WIND SUMMARY BOX ── -->
+<div id="windSummary" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:8000;background:rgba(13,21,32,0.92);border:1px solid var(--border);border-radius:12px;padding:10px 14px;box-shadow:0 8px 32px rgba(0,0,0,0.6);backdrop-filter:blur(8px);cursor:grab;user-select:none;touch-action:none;min-width:240px">
+    <button onclick="document.getElementById('windSummary').style.display='none'" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
+    <div style="display:flex;gap:16px;align-items:center;justify-content:center">
+        <div style="text-align:center">
+            <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--freefall);margin-bottom:3px">Freefall</div>
+            <div id="wsBalloonArrow" style="font-size:1.4rem;line-height:1">—</div>
+            <div id="wsBalloonVal" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text);margin-top:2px">—</div>
+        </div>
+        <div style="width:1px;height:40px;background:var(--border)"></div>
+        <div style="text-align:center">
+            <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--canopy);margin-bottom:3px">Canopy</div>
+            <div id="wsCanopyArrow" style="font-size:1.4rem;line-height:1">—</div>
+            <div id="wsCanopyVal" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text);margin-top:2px">—</div>
+        </div>
+        <div style="width:1px;height:40px;background:var(--border)"></div>
+        <div style="text-align:center">
+            <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--surface);margin-bottom:3px">Surface</div>
+            <div id="wsSurfaceArrow" style="font-size:1.4rem;line-height:1">—</div>
+            <div id="wsSurfaceVal" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text);margin-top:2px">—</div>
+        </div>
+    </div>
+</div>
+
 <div id="wrap">
     <div id="map"></div>
     <div id="panel">
@@ -874,6 +898,7 @@ async function load(){
         lastWind14k = d.wind_14k;
         lastCanopyWind = { speed: d.canopy.speed, direction: d.canopy.direction };
         window._lastWinds = d.winds;
+        updateWindSummary(d);
         if (landingSpot) drawPattern();
         if (jrStart && jrEnd) drawFreefallParallel();
         if (d.time_label) document.getElementById("utcLabel").innerText = d.time_label;
@@ -971,6 +996,58 @@ async function load(){
 let panelOpen=false;
 function togglePanel(){ panelOpen=!panelOpen; document.getElementById("panel").classList.toggle("open",panelOpen); setTimeout(()=>map.invalidateSize(),350); }
 function updateHandleSummary(canopySpd,canopyDir,timeStr){ const el=document.getElementById("handleSummary"); if(el) el.textContent=`${timeStr}  •  ${canopySpd.toFixed(0)}kt ${canopyDir.toFixed(0)}°`; }
+function dirArrowSvg(deg, color){
+    const blowTo = (deg + 180) % 360;
+    return `<svg width="28" height="28" viewBox="0 0 16 16" style="display:block;margin:0 auto;transform:rotate(${blowTo}deg)"><polygon points="8,1 11,13 8,11 5,13" fill="${color}"/></svg>`;
+}
+
+function updateWindSummary(d){
+    const ws = document.getElementById("windSummary");
+    if (!ws) return;
+    const ffDist = (d.freefall.distance / 1609.344).toFixed(2);
+    document.getElementById("wsBalloonArrow").innerHTML = dirArrowSvg(d.freefall.direction, "var(--freefall)");
+    document.getElementById("wsBalloonVal").textContent = ffDist + " mi";
+    document.getElementById("wsCanopyArrow").innerHTML = dirArrowSvg(d.canopy.direction, "var(--canopy)");
+    document.getElementById("wsCanopyVal").textContent = d.canopy.speed.toFixed(1) + " kt";
+    const sfc = d.winds && d.winds[0];
+    if (sfc) {
+        document.getElementById("wsSurfaceArrow").innerHTML = dirArrowSvg(sfc.direction, "var(--surface)");
+        document.getElementById("wsSurfaceVal").textContent = sfc.speed.toFixed(1) + " kt";
+    }
+}
+
+// ── WIND SUMMARY DRAG ──
+(function(){
+    const box = document.getElementById("windSummary");
+    if (!box) return;
+    let dragging=false, startX=0, startY=0, origX=0, origY=0;
+    function getPos(e){ return e.touches ? e.touches[0] : e; }
+    function onStart(e){
+        if (e.target.tagName==="BUTTON") return;
+        dragging=true;
+        const p=getPos(e); startX=p.clientX; startY=p.clientY;
+        const rect=box.getBoundingClientRect(); origX=rect.left; origY=rect.top;
+        box.style.cursor="grabbing"; box.style.transition="none";
+        box.style.left=origX+"px"; box.style.top=origY+"px";
+        box.style.bottom="auto"; box.style.transform="none";
+        e.preventDefault();
+    }
+    function onMove(e){
+        if (!dragging) return;
+        const p=getPos(e);
+        box.style.left=(origX+p.clientX-startX)+"px";
+        box.style.top=(origY+p.clientY-startY)+"px";
+        e.preventDefault();
+    }
+    function onEnd(){ dragging=false; box.style.cursor="grab"; }
+    box.addEventListener("mousedown", onStart);
+    box.addEventListener("touchstart", onStart, {passive:false});
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("touchmove", onMove, {passive:false});
+    window.addEventListener("mouseup", onEnd);
+    window.addEventListener("touchend", onEnd);
+})();
+
 function toggleCards(){ const wrap=document.getElementById("cards-wrap"),btn=document.getElementById("toggleCardsBtn"),hidden=wrap.style.display==="none"; wrap.style.display=hidden?"":"none"; btn.textContent=hidden?"Hide":"Show"; }
 function closeWelcome(){ document.getElementById("welcomeModal").style.display="none"; }
 function openWelcome(){ document.getElementById("welcomeModal").style.display="flex"; }

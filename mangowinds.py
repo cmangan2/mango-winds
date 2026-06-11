@@ -298,6 +298,12 @@ def fetch_forecast(lat, lon, hour_offset=0):
                                  headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
                 if not r.ok:
                     print(f"Open-Meteo {model} {r.status_code}: {r.text[:200]}")
+                    # On 429 rate limit, extend any existing cache to 6 hours
+                    if r.status_code == 429 and cached_model:
+                        extended = now + timedelta(hours=6)
+                        _forecast_cache[model_key] = {"data": cached_model["data"], "expires": extended}
+                        print(f"Rate limited — extending cache for {model} by 6h")
+                        return model, cached_model["data"]
                     return model, None
                 mdata = r.json()
                 _forecast_cache[model_key] = {"data": mdata, "expires": now + CACHE_TTL}

@@ -895,12 +895,27 @@ def admin():
     # Daily totals across all DZs (last 30 days)
     daily_totals = {d: sum(dzd.get(d, 0) for dzd in _visit_log.values()) for d in last30}
 
+    # API usage for admin
+    today_str_admin = today_est.strftime("%Y-%m-%d")
+    today_api = _api_log.get(today_str_admin, {})
+    total_api_today = sum(today_api.values())
+    api_limit = 10000
+    api_pct = round(total_api_today / api_limit * 100, 1)
+    api_bar_w = min(int(total_api_today / api_limit * 300), 300)
+    api_color = "#39ff89" if api_pct < 60 else "#ffaa00" if api_pct < 85 else "#ff4f4f"
+    api_hourly_rows = ""
+    for h in range(24):
+        cnt = today_api.get(str(h), 0)
+        if cnt == 0: continue
+        bar = int(cnt / max(today_api.values(), default=1) * 150)
+        api_hourly_rows += f"<tr><td style='padding:2px 8px;color:#5a7a96'>{h:02d}:00</td><td><div style='background:#00d4ff;height:10px;width:{bar}px;border-radius:2px;display:inline-block'></div></td><td style='padding:2px 8px;color:#c8daea'>{cnt}</td></tr>"
+
     # Build DZ rows
     dz_rows = ""
     for dz in sorted(dz_totals, key=lambda x: dz_totals[x], reverse=True):
         week_counts = "".join(
             f"<td style='text-align:center;padding:4px 8px'>{_visit_log.get(dz,{}).get(d,0) or ''}</td>"
-            for d in last7
+            for d in this_week
         )
         dz_rows += f"""<tr>
             <td style='padding:4px 12px;white-space:nowrap'>{dz}</td>

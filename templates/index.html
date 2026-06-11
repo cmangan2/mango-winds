@@ -336,6 +336,7 @@ select:focus { border-color: var(--accent); }
                     <div style="display:flex;gap:6px;align-items:center">
                         <button onclick="clearAndReload();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.85rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Clear cache & refresh">↺</button>
                         <button onclick="window.open('/stats','_blank');event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Stats">📊</button>
+                        <button onclick="document.getElementById('windSummary').style.display='block';event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Show wind summary">💨</button>
                         <button onclick="openWelcome();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;font-weight:700;cursor:pointer;line-height:1;padding:0;flex-shrink:0">?</button>
                     </div>
                 </div>
@@ -347,6 +348,7 @@ select:focus { border-color: var(--accent); }
                 <div style="display:flex;gap:6px;align-items:center">
                     <button id="refreshBtn" onclick="clearAndReload()" title="Clear cache & refresh">↺</button>
                     <button id="statsBtn" onclick="window.open('/stats','_blank')" title="Usage stats">📊</button>
+                    <button id="summaryBtn" onclick="document.getElementById('windSummary').style.display='block'" title="Show wind summary" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:22px;height:22px;font-size:0.75rem;cursor:pointer;line-height:1;flex-shrink:0;transition:border-color 0.15s,color 0.15s;-webkit-tap-highlight-color:transparent;padding:0">💨</button>
                     <button id="helpBtn" onclick="openWelcome()" title="Quick Start Guide">?</button>
                 </div>
             </div>
@@ -926,6 +928,7 @@ async function load(){
             <div class="sc-data">
                 <div><span>SPD</span>${d.canopy.speed.toFixed(1)} kt</div>
                 <div><span>DIR</span>${d.canopy.direction.toFixed(0)}°</div>
+                <div>${arrow(d.canopy.direction, 'var(--canopy)')}</div>
                 <div><span>UPWIND</span>${(maxUpwind/1609.344).toFixed(2)} mi</div>
                 <div><span>DWNWIND</span>${(maxDownwind/1609.344).toFixed(2)} mi</div>
             </div>`;
@@ -1005,7 +1008,8 @@ function updateWindSummary(d){
     const ws = document.getElementById("windSummary");
     if (!ws) return;
     const ffDist = (d.freefall.distance / 1609.344).toFixed(2);
-    document.getElementById("wsBalloonArrow").innerHTML = dirArrowSvg(d.freefall.direction, "var(--freefall)");
+    // freefall.direction is already drift-to, so pass the FROM direction so dirArrowSvg flips it correctly
+    document.getElementById("wsBalloonArrow").innerHTML = dirArrowSvg((d.freefall.direction + 180) % 360, "var(--freefall)");
     document.getElementById("wsBalloonVal").textContent = ffDist + " mi";
     document.getElementById("wsCanopyArrow").innerHTML = dirArrowSvg(d.canopy.direction, "var(--canopy)");
     document.getElementById("wsCanopyVal").textContent = d.canopy.speed.toFixed(1) + " kt";

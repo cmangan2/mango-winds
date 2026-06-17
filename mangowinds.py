@@ -801,8 +801,8 @@ def debug():
 
 @app.route("/stats")
 def stats():
-    from datetime import date, timedelta as td
     import pytz
+    from datetime import timedelta as td
     est = pytz.timezone("America/New_York")
     today_est = datetime.now(est).date()
     days_since_sunday = (today_est.weekday() + 1) % 7
@@ -826,13 +826,13 @@ def stats():
     api_pct = round(total_api_today / api_limit * 100, 1)
     api_bar_w = min(int(total_api_today / api_limit * 300), 300)
     api_color = "#39ff89" if api_pct < 60 else "#ffaa00" if api_pct < 85 else "#ff4f4f"
+    import pytz as _pytz2
+    from datetime import datetime as _dt2
     api_hourly_rows = ""
     for h in range(24):
         cnt = today_api.get(str(h), 0)
         if cnt == 0: continue
         bar = int(cnt / max(today_api.values(), default=1) * 150)
-        from datetime import datetime as _dt2
-        import pytz as _pytz2
         _utc_t = _dt2(today_est.year, today_est.month, today_est.day, h, 0, tzinfo=timezone.utc)
         _est_local = _utc_t.astimezone(_pytz2.timezone("America/New_York")); _est_lbl = str(int(_est_local.strftime("%I"))) + _est_local.strftime("%p").lower()
         api_hourly_rows += f"<tr><td style='padding:2px 8px;color:#5a7a96'>{_est_lbl}</td><td><div style='background:#00d4ff;height:10px;width:{bar}px;border-radius:2px;display:inline-block'></div></td><td style='padding:2px 8px;color:#c8daea'>{cnt}</td></tr>"
@@ -922,13 +922,13 @@ def admin():
     api_pct = round(total_api_today / api_limit * 100, 1)
     api_bar_w = min(int(total_api_today / api_limit * 300), 300)
     api_color = "#39ff89" if api_pct < 60 else "#ffaa00" if api_pct < 85 else "#ff4f4f"
+    import pytz as _pytz2
+    from datetime import datetime as _dt2
     api_hourly_rows = ""
     for h in range(24):
         cnt = today_api.get(str(h), 0)
         if cnt == 0: continue
         bar = int(cnt / max(today_api.values(), default=1) * 150)
-        from datetime import datetime as _dt2
-        import pytz as _pytz2
         _utc_t = _dt2(today_est.year, today_est.month, today_est.day, h, 0, tzinfo=timezone.utc)
         _est_local = _utc_t.astimezone(_pytz2.timezone("America/New_York")); _est_lbl = str(int(_est_local.strftime("%I"))) + _est_local.strftime("%p").lower()
         api_hourly_rows += f"<tr><td style='padding:2px 8px;color:#5a7a96'>{_est_lbl}</td><td><div style='background:#00d4ff;height:10px;width:{bar}px;border-radius:2px;display:inline-block'></div></td><td style='padding:2px 8px;color:#c8daea'>{cnt}</td></tr>"
@@ -1006,7 +1006,6 @@ def plane():
     if not tail:
         return jsonify({"error": "tail number required"}), 400
     try:
-        # ADS-B Exchange re-api — no key needed for basic queries
         url = f"https://globe.adsbexchange.com/re-api/?find={tail}"
         r = requests.get(url, timeout=8,
                         headers={"User-Agent": "MangoWindHub/1.0 skydiving-plane-tracker",
@@ -1014,31 +1013,64 @@ def plane():
         if not r.ok:
             return jsonify({"error": f"ADS-B error {r.status_code}"}), 502
         data = r.json()
-        # Extract first matching aircraft
         ac_list = data.get("ac", [])
         if not ac_list:
             return jsonify({"found": False, "tail": tail})
         ac = ac_list[0]
         lat  = ac.get("lat")
         lon  = ac.get("lon")
-        alt  = ac.get("alt_baro") or ac.get("alt_geom")  # ft MSL
-        spd  = ac.get("gs")    # ground speed kt
-        hdg  = ac.get("track") # true heading deg
-        vert = ac.get("baro_rate") or ac.get("geom_rate") or 0  # ft/min
+        alt  = ac.get("alt_baro") or ac.get("alt_geom")
+        spd  = ac.get("gs")
+        hdg  = ac.get("track")
+        vert = ac.get("baro_rate") or ac.get("geom_rate") or 0
+        icao = ac.get("hex", "")
         if lat is None or lon is None:
-            return jsonify({"found": False, "tail": tail})
+            return jsonify({"found": False, "tail": tail, "icao": icao})
         return jsonify({
-            "found": True,
-            "tail":  tail,
-            "lat":   lat,
-            "lon":   lon,
-            "alt":   alt,
-            "spd":   spd,
-            "hdg":   hdg,
-            "vert":  vert,
+            "found": True, "tail": tail, "icao": icao,
+            "lat": lat, "lon": lon, "alt": alt,
+            "spd": spd, "hdg": hdg, "vert": vert,
         })
     except Exception as e:
         print(f"Plane tracker error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/plane/trace")
+def plane_trace():
+    """Fetch recent flight trace history for an aircraft by ICAO hex."""
+    icao = request.args.get("icao", "").lower().strip()
+    if not icao:
+        return jsonify({"error": "icao required"}), 400
+    try:
+        # ADS-B Exchange trace API returns recent track history
+        url = f"https://globe.adsbexchange.com/re-api/?icao={icao}&trace=1"
+        r = requests.get(url, timeout=12,
+                        headers={"User-Agent": "MangoWindHub/1.0 skydiving-plane-tracker",
+                                 "Referer": "https://globe.adsbexchange.com/"})
+        if not r.ok:
+            return jsonify({"error": f"Trace error {r.status_code}"}), 502
+        data = r.json()
+        # Trace returns: {"icao":"...", "trace":[[timestamp, lat, lon, alt, spd, hdg, vert], ...]}
+        trace = data.get("trace", [])
+        # Normalise to list of dicts
+        points = []
+        for pt in trace:
+            if len(pt) < 7: continue
+            ts, lat, lon, alt, spd, hdg, vert = pt[0], pt[1], pt[2], pt[3], pt[4], pt[5], pt[6]
+            if lat is None or lon is None: continue
+            points.append({
+                "ts":   ts,
+                "lat":  lat,
+                "lon":  lon,
+                "alt":  alt  if alt  is not None else 0,
+                "spd":  spd  if spd  is not None else 0,
+                "hdg":  hdg  if hdg  is not None else 0,
+                "vert": vert if vert is not None else 0,
+            })
+        return jsonify({"icao": icao, "points": points})
+    except Exception as e:
+        print(f"Plane trace error: {e}")
         return jsonify({"error": str(e)}), 500
 
 

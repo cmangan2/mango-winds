@@ -299,6 +299,25 @@ select:focus { border-color: var(--accent); }
     </div>
 </div>
 
+<!-- ── TRACK PLANE MODAL ── -->
+<div id="trackModal" style="display:none;position:fixed;inset:0;background:rgba(7,11,16,0.88);z-index:99999;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px">
+    <div style="background:var(--panel-bg);border:1px solid var(--border);border-radius:16px;max-width:340px;width:100%;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.6);overflow:hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px 12px;border-bottom:1px solid var(--border);font-weight:700;font-size:1rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--accent)">
+            <span>✈️ Track Jump Plane</span>
+            <button onclick="closeTrackModal()" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:0 4px">✕</button>
+        </div>
+        <div style="padding:14px 18px;display:flex;flex-direction:column;gap:10px">
+            <div class="df-row">
+                <label class="df-label">Tail Number (e.g. N123AB)</label>
+                <input type="text" id="planeTail" placeholder="N123AB" class="df-input" style="text-transform:uppercase"
+                    oninput="this.value=this.value.toUpperCase()">
+            </div>
+            <div id="trackError" style="display:none;color:var(--red);font-size:0.8rem"></div>
+        </div>
+        <button onclick="startTracking()" style="margin:6px 18px 16px;padding:11px;background:var(--accent);color:var(--bg);border:none;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">Start Tracking</button>
+    </div>
+</div>
+
 <div id="loader"><div class="spinner"></div></div>
 
 <!-- ── WIND SUMMARY BOX ── -->
@@ -366,6 +385,8 @@ select:focus { border-color: var(--accent); }
                 <button id="drawBtn" onclick="toggleDrawMode()">✏️ Draw Jump Run</button>
                 <button id="defineBtn" onclick="openDefineModal()">📐 Define Jump Run</button>
                 <button id="patternBtn" onclick="togglePatternMode()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid #ff4f4f;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🎯 Place Landing Spot</button>
+                <button id="trackBtn" onclick="openTrackModal()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#00d4ff;border:1px solid #00d4ff;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">✈️ Track Plane</button>
+                <div id="planeInfo" style="display:none;margin-top:6px;background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--muted);line-height:1.8"></div>
                 <div id="patternControls" style="display:none;margin-top:6px;background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px">
                     <div style="display:flex;gap:8px;margin-bottom:6px">
                         <div style="flex:1">
@@ -1148,6 +1169,141 @@ function initMap(){
     handle.addEventListener("touchmove",onMove,{passive:false});
     handle.addEventListener("touchend",onEnd,{passive:true});
 })();
+
+// ── PLANE TRACKER ──
+let planeTrackInterval = null;
+let trackedPlane = null;
+let trackedPlaneMarker = null;
+let trackedPlaneLabel = null;
+let planeAnimFrame = null;
+let planeAnimStart = null;
+let planeAnimFrom = null;
+let planeAnimTo = null;
+const PLANE_ANIM_DUR = 5000;
+
+function openTrackModal(){
+    const m = document.getElementById("trackModal");
+    m.style.display = "flex"; m.style.alignItems = "center"; m.style.justifyContent = "center";
+    document.getElementById("planeTail").focus();
+    document.getElementById("trackError").style.display = "none";
+}
+function closeTrackModal(){ document.getElementById("trackModal").style.display = "none"; }
+
+function planeTrackIcon(hdg){
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="-24 -24 48 48"
+        style="transform:rotate(${hdg}deg);overflow:visible;filter:drop-shadow(0 0 4px rgba(0,212,255,0.8))">
+      <ellipse cx="0" cy="0" rx="3" ry="11" fill="#00d4ff"/>
+      <ellipse cx="0" cy="-12" rx="2.2" ry="3.5" fill="#00aacc"/>
+      <ellipse cx="0" cy="-1" rx="17" ry="2.5" fill="#00d4ff"/>
+      <ellipse cx="0" cy="-1" rx="19" ry="1.2" fill="#0099bb" opacity="0.6"/>
+      <ellipse cx="0" cy="9" rx="7" ry="1.5" fill="#00d4ff"/>
+      <ellipse cx="0" cy="7.5" rx="1.2" ry="3" fill="#00aacc"/>
+    </svg>`;
+    return L.divIcon({ html: svg, className: "", iconSize: [48,48], iconAnchor: [24,24] });
+}
+
+function isOnScreen(lat, lon){
+    return map.getBounds().contains(L.latLng(lat, lon));
+}
+
+function updateOffscreenArrow(lat, lon){
+    let arrow = document.getElementById("planeOffscreenArrow");
+    if (isOnScreen(lat, lon)){ if (arrow) arrow.style.display = "none"; return; }
+    const mapRect = map.getContainer().getBoundingClientRect();
+    const center = map.latLngToContainerPoint(map.getCenter());
+    const target = map.latLngToContainerPoint(L.latLng(lat, lon));
+    const dx = target.x - center.x, dy = target.y - center.y;
+    const angle = Math.atan2(dy, dx);
+    const margin = 44, W = mapRect.width - margin*2, H = mapRect.height - margin*2;
+    let ex, ey;
+    if (Math.abs(dx)*H > Math.abs(dy)*W){ ex = dx > 0 ? W/2 : -W/2; ey = ex*dy/dx; }
+    else { ey = dy > 0 ? H/2 : -H/2; ex = ey*dx/dy; }
+    const px = mapRect.left + mapRect.width/2 + ex;
+    const py = mapRect.top + mapRect.height/2 + ey;
+    const deg = angle*180/Math.PI + 90;
+    if (!arrow){
+        arrow = document.createElement("div");
+        arrow.id = "planeOffscreenArrow";
+        arrow.style.cssText = "position:fixed;z-index:7999;pointer-events:none;width:36px;height:36px;margin-left:-18px;margin-top:-18px;";
+        document.body.appendChild(arrow);
+    }
+    arrow.style.display = "block";
+    arrow.style.left = px + "px"; arrow.style.top = py + "px";
+    arrow.innerHTML = `<svg width="36" height="36" viewBox="0 0 36 36" style="transform:rotate(${deg}deg)">
+        <polygon points="18,4 26,28 18,23 10,28" fill="#00d4ff" opacity="0.9"/>
+        <circle cx="18" cy="18" r="6" fill="rgba(0,212,255,0.2)" stroke="#00d4ff" stroke-width="1.5"/>
+    </svg>`;
+}
+
+function animatePlane(timestamp){
+    if (!planeAnimStart) planeAnimStart = timestamp;
+    const t = Math.min((timestamp - planeAnimStart) / PLANE_ANIM_DUR, 1);
+    if (!planeAnimFrom || !planeAnimTo) return;
+    const lat = planeAnimFrom.lat + (planeAnimTo.lat - planeAnimFrom.lat) * t;
+    const lng = planeAnimFrom.lng + (planeAnimTo.lng - planeAnimFrom.lng) * t;
+    if (trackedPlaneMarker){ trackedPlaneMarker.setLatLng([lat, lng]); }
+    else { trackedPlaneMarker = L.marker([lat, lng], { icon: planeTrackIcon(trackedPlane.hdg||0), zIndexOffset: 1100 }).addTo(map); }
+    const alt  = trackedPlane.alt  ? Math.round(trackedPlane.alt).toLocaleString() + " ft" : "—";
+    const spd  = trackedPlane.spd  ? Math.round(trackedPlane.spd)  + " kt" : "—";
+    const vert = trackedPlane.vert ? (trackedPlane.vert>0?"↑":"↓") + Math.abs(Math.round(trackedPlane.vert)).toLocaleString() + " fpm" : "";
+    const lHtml = `<div style="background:rgba(7,11,16,0.88);border:1px solid #00d4ff;border-radius:6px;padding:4px 8px;font-family:'Share Tech Mono',monospace;font-size:0.7rem;color:#00d4ff;white-space:nowrap;line-height:1.6">${alt}<br>${spd} ${vert}</div>`;
+    if (trackedPlaneLabel){ trackedPlaneLabel.setLatLng([lat,lng]); trackedPlaneLabel.setIcon(L.divIcon({ html: lHtml, className: "", iconAnchor: [-28,0] })); }
+    else { trackedPlaneLabel = L.marker([lat,lng], { icon: L.divIcon({ html: lHtml, className: "", iconAnchor: [-28,0] }), zIndexOffset: 1101, interactive: false }).addTo(map); }
+    updateOffscreenArrow(lat, lng);
+    if (t < 1) planeAnimFrame = requestAnimationFrame(animatePlane);
+}
+
+function updatePlaneMarker(data){
+    trackedPlane = data;
+    if (trackedPlaneMarker) trackedPlaneMarker.setIcon(planeTrackIcon(data.hdg||0));
+    planeAnimFrom = trackedPlaneMarker ? trackedPlaneMarker.getLatLng() : { lat: data.lat, lng: data.lon };
+    planeAnimTo   = { lat: data.lat, lng: data.lon };
+    planeAnimStart = null;
+    if (planeAnimFrame) cancelAnimationFrame(planeAnimFrame);
+    planeAnimFrame = requestAnimationFrame(animatePlane);
+    const alt  = data.alt  ? Math.round(data.alt).toLocaleString()  + " ft"  : "—";
+    const spd  = data.spd  ? Math.round(data.spd)  + " kt"  : "—";
+    const vert = data.vert ? (data.vert>0?"↑":"↓") + Math.abs(Math.round(data.vert)).toLocaleString() + " fpm" : "—";
+    const hdg  = data.hdg  ? Math.round(data.hdg) + "°" : "—";
+    document.getElementById("planeInfo").style.display = "block";
+    document.getElementById("planeInfo").innerHTML =
+        `<span style="color:var(--accent);font-weight:bold">${data.tail}</span><br>` +
+        `ALT&nbsp;&nbsp;${alt}<br>SPD&nbsp;&nbsp;${spd}<br>HDG&nbsp;&nbsp;${hdg}<br>VERT&nbsp;${vert}` +
+        `<br><button onclick="stopTracking()" style="margin-top:6px;width:100%;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">■ Stop Tracking</button>`;
+}
+
+async function pollPlane(tail){
+    try {
+        const r = await fetch(`/plane?tail=${encodeURIComponent(tail)}`);
+        const d = await r.json();
+        if (d.found) updatePlaneMarker(d);
+        else console.log("Plane not found:", tail);
+    } catch(e){ console.error("Plane poll error:", e); }
+}
+
+async function startTracking(){
+    const tail = document.getElementById("planeTail").value.trim().toUpperCase();
+    if (!tail){ document.getElementById("trackError").textContent="Enter a tail number"; document.getElementById("trackError").style.display="block"; return; }
+    closeTrackModal();
+    document.getElementById("trackBtn").textContent = "✈️ " + tail;
+    document.getElementById("trackBtn").style.background = "rgba(0,212,255,0.15)";
+    await pollPlane(tail);
+    if (planeTrackInterval) clearInterval(planeTrackInterval);
+    planeTrackInterval = setInterval(() => pollPlane(tail), 5000);
+}
+
+function stopTracking(){
+    if (planeTrackInterval){ clearInterval(planeTrackInterval); planeTrackInterval = null; }
+    if (planeAnimFrame){ cancelAnimationFrame(planeAnimFrame); planeAnimFrame = null; }
+    if (trackedPlaneMarker){ trackedPlaneMarker.remove(); trackedPlaneMarker = null; }
+    if (trackedPlaneLabel){ trackedPlaneLabel.remove(); trackedPlaneLabel = null; }
+    const arrow = document.getElementById("planeOffscreenArrow");
+    if (arrow) arrow.remove();
+    trackedPlane = null;
+    document.getElementById("planeInfo").style.display = "none";
+    document.getElementById("trackBtn").textContent = "✈️ Track Plane";
+    document.getElementById("trackBtn").style.background = "var(--card-bg)";
+}
 
 function initDZ(){
     const sel=document.getElementById("dz");

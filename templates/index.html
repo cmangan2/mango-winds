@@ -588,23 +588,29 @@ function planeIcon(hdg){
     return L.divIcon({ html: svg, className: '', iconSize: [36,36], iconAnchor: [18,18] });
 }
 
-function parachuteIcon(){
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="28" viewBox="0 0 20 28">
-      <!-- head -->
-      <circle cx="10" cy="3" r="2.5" fill="#ff4f4f"/>
-      <!-- body in arch position -->
-      <path d="M10,6 Q10,12 10,14" stroke="#ff4f4f" stroke-width="2" fill="none" stroke-linecap="round"/>
-      <!-- arms spread -->
-      <path d="M3,8 Q6.5,9 10,10 Q13.5,9 17,8" stroke="#ff4f4f" stroke-width="1.8" fill="none" stroke-linecap="round"/>
-      <!-- legs spread -->
-      <path d="M10,14 Q7,18 4,21" stroke="#ff4f4f" stroke-width="1.8" fill="none" stroke-linecap="round"/>
-      <path d="M10,14 Q13,18 16,21" stroke="#ff4f4f" stroke-width="1.8" fill="none" stroke-linecap="round"/>
-    </svg>`;
-    return L.divIcon({ html: svg, className: '', iconSize: [20,28], iconAnchor: [10,14] });
+// jumperCounter tracks how many jumpers have exited for numbering
+let jumperCounter = 0;
+
+function parachuteIcon(num){
+    const html = `<div style="
+        background:#ff4f4f;
+        color:#fff;
+        font-family:'Share Tech Mono',monospace;
+        font-size:11px;
+        font-weight:bold;
+        width:22px;height:22px;
+        border-radius:4px;
+        display:flex;align-items:center;justify-content:center;
+        border:1.5px solid #cc2222;
+        box-shadow:0 1px 4px rgba(0,0,0,0.5);
+        line-height:1;
+    ">${num}</div>`;
+    return L.divIcon({ html, className: '', iconSize: [22,22], iconAnchor: [11,11] });
 }
 
 function stopPlane(){
     animGeneration++;
+    jumperCounter = 0;
     if (planeAnimId) { cancelAnimationFrame(planeAnimId); planeAnimId = null; }
     if (planeMarker) { planeMarker.remove(); planeMarker = null; }
     jumperTimers.forEach(t => clearTimeout(t)); jumperTimers = [];
@@ -640,7 +646,8 @@ function startPlaneAnimation(){
             const dlatFF = Math.cos(ffRad) * ffDist / 111000;
             const dlonFF = Math.sin(ffRad) * ffDist / (111000 * Math.cos(exitLat * Math.PI / 180));
             const landLat = exitLat + dlatFF, landLon = exitLon + dlonFF;
-            const jumper = L.marker([exitLat, exitLon], { icon: parachuteIcon(), zIndexOffset: 900 }).addTo(map);
+            jumperCounter++;
+            const jumper = L.marker([exitLat, exitLon], { icon: parachuteIcon(jumperCounter), zIndexOffset: 900 }).addTo(map);
             jumperMarkers.push(jumper);
             const animDuration = Math.min(4000, Math.max(1000, 8000 * timeScale));
             const jStart = performance.now();
@@ -1217,8 +1224,8 @@ function openTrackModal(){
 function closeTrackModal(){ document.getElementById("trackModal").style.display = "none"; }
 
 function planeTrackIcon(hdg){
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="-24 -24 48 48"
-        style="transform:rotate(${hdg}deg);overflow:visible;filter:drop-shadow(0 0 4px rgba(0,212,255,0.8))">
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="-24 -24 48 48"
+        style="transform:rotate(${hdg}deg);overflow:visible;filter:drop-shadow(0 0 6px rgba(0,212,255,0.9))">
       <ellipse cx="0" cy="0" rx="3" ry="11" fill="#00d4ff"/>
       <ellipse cx="0" cy="-12" rx="2.2" ry="3.5" fill="#00aacc"/>
       <ellipse cx="0" cy="-1" rx="17" ry="2.5" fill="#00d4ff"/>
@@ -1226,7 +1233,7 @@ function planeTrackIcon(hdg){
       <ellipse cx="0" cy="9" rx="7" ry="1.5" fill="#00d4ff"/>
       <ellipse cx="0" cy="7.5" rx="1.2" ry="3" fill="#00aacc"/>
     </svg>`;
-    return L.divIcon({ html: svg, className: "", iconSize: [48,48], iconAnchor: [24,24] });
+    return L.divIcon({ html: svg, className: "", iconSize: [72,72], iconAnchor: [36,36] });
 }
 
 function isOnScreen(lat, lon){

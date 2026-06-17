@@ -1391,9 +1391,20 @@ async function pollPlane(tail){
     try {
         const r = await fetch(`/plane?tail=${encodeURIComponent(tail)}`);
         const d = await r.json();
-        if (d.found) updatePlaneMarker(d);
-        else console.log("Plane not found:", tail);
-    } catch(e){ console.error("Plane poll error:", e); }
+        if (d.found){
+            updatePlaneMarker(d);
+        } else if (d.error){
+            showJumpRunStatus(`⚠️ ADS-B error: ${d.error}`);
+        } else {
+            // Only show not-found on first poll, not every 5s
+            if (!trackedPlane){
+                showJumpRunStatus(`✈️ ${tail} not found — may not have ADS-B out, or is on the ground`);
+            }
+        }
+    } catch(e){
+        console.error("Plane poll error:", e);
+        if (!trackedPlane) showJumpRunStatus("⚠️ Could not reach tracking service — check connection");
+    }
 }
 
 async function startTracking(){

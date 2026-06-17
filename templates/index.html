@@ -412,14 +412,9 @@ select:focus { border-color: var(--accent); }
                 </div>
                 <button id="replayBtn" onclick="startPlaneAnimation()" style="display:none">▶ Replay</button>
                 <button id="clearBtn" onclick="clearJumpRun()" style="display:none">✕ Clear</button>
-                <div id="sepRow" style="margin-top:8px">
-                    <label style="margin-bottom:3px">Jumper Separation</label>
-                    <select id="sepSelect" style="text-align:center">
-                        <option value="8">8 sec</option><option value="10">10 sec</option>
-                        <option value="12">12 sec</option><option value="14">14 sec</option>
-                        <option value="16">16 sec</option><option value="18">18 sec</option>
-                        <option value="20">20 sec</option>
-                    </select>
+                <div id="sepRow" style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;padding:5px 0">
+                    <span style="font-size:0.72rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted)">Jumper Sep.</span>
+                    <span id="sepDisplay" style="font-family:'Share Tech Mono',monospace;font-size:0.85rem;color:var(--muted)">draw jump run first</span>
                 </div>
                 <button id="advancedBtn" onclick="openAdvancedModal()" style="margin-top:6px;width:100%;padding:6px 10px;background:var(--card-bg);color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">⚙️ Canopy Settings</button>
                 <div id="jumpRunInfo" style="display:none"></div>
@@ -528,9 +523,25 @@ function drawFreefallParallel(){
         lastGndSpeedKts = gndMs / 0.514444;
         gndKts = lastGndSpeedKts.toFixed(0) + ' kt';
     }
+    // Auto-recommend jumper separation
+    const sep = recommendedSep(lastGndSpeedKts);
+    const sepEl = document.getElementById("sepDisplay");
+    if (sep && sepEl){ sepEl.textContent = sep + " sec"; sepEl.style.color = "var(--accent)"; }
+
     document.getElementById("jumpRunInfo").style.display = "block";
     document.getElementById("jumpRunInfo").innerHTML =
         `JR heading: ${bear.toFixed(0)}°<br>JR length: ${(jrLenM/1609.344).toFixed(2)} mi<br>JR speed: ${gndKts}<br>FF drift: ${(ffDist/1609.344).toFixed(2)} mi @ ${ff.direction.toFixed(0)}°`;
+}
+
+function recommendedSep(gndKts){
+    if (!gndKts || gndKts <= 0) return null;
+    if (gndKts < 70)  return 12;
+    if (gndKts < 80)  return 10;
+    if (gndKts < 90)  return 8;
+    if (gndKts < 100) return 7;
+    if (gndKts < 110) return 6;
+    if (gndKts <= 120) return 5;
+    return 4;
 }
 
 function drawJumpRun(){
@@ -609,7 +620,7 @@ function startPlaneAnimation(){
     const timeScale = displayDuration / realisticDuration;
     const ffDist = lastFreefall.distance;
     const ffRad = lastFreefall.direction * Math.PI / 180;
-    const sepSec = +(document.getElementById("sepSelect")?.value || 8);
+    const sepSec = recommendedSep(lastGndSpeedKts) || 8;
     const realisticDropTimes = [];
     for (let t = 2000; t < realisticDuration; t += sepSec * 1000) realisticDropTimes.push(t);
     const dropTimes = realisticDropTimes.map(t => t * timeScale);

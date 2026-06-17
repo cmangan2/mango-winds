@@ -201,35 +201,49 @@ select:focus { border-color: var(--accent); }
                 <div class="wc-icon" style="color:var(--canopy)">◉</div>
                 <div>
                     <div class="wc-title">Canopy Circles</div>
-                    <div class="wc-text">The <b>dashed circle</b> is your maximum canopy reach in <b>zero wind</b>. The <b>solid shape</b> shifts upwind to show your <b>real wind-adjusted reach</b> — we display max upwind reach and min downwind reach. If you open in the shape you should make it back for a landing pattern!</div>
+                    <div class="wc-text">The <b>dashed circle</b> = zero-wind reach. The <b>solid shape</b> = wind-adjusted reach. Open inside the shape and you should make it back.</div>
                 </div>
             </div>
             <div class="wc-section">
                 <div class="wc-icon" style="color:#fff">✏️</div>
                 <div>
-                    <div class="wc-title">Draw or Define Jump Run</div>
-                    <div class="wc-text">Click <b>Draw Jump Run</b>, then <b>click and drag</b> on the map to draw the aircraft's flight path — OR — <b>Define Jump Run</b> with direction, prior/past, offset and length. An <b>orange parallel line</b> appears showing approximate freefall drift. A <b>red plane</b> animates the run, dropping jumpers at your chosen separation interval.</div>
+                    <div class="wc-title">Jump Run</div>
+                    <div class="wc-text"><b>Draw</b> by dragging on the map, or <b>Define</b> by heading/distance. Shows freefall drift, animates jumpers, and auto-calculates recommended separation based on ground speed.</div>
                 </div>
             </div>
             <div class="wc-section">
-                <div class="wc-icon" style="color:var(--red)">◎</div>
+                <div class="wc-icon" style="color:var(--red)">🎯</div>
                 <div>
-                    <div class="wc-title">Jumper Breakoff Diameter</div>
-                    <div class="wc-text">When each jumper group opens, a <b>translucent red circle</b> (500 ft radius) appears, representing the <b>maximum tracking distance</b> a jumper can cover at breakoff.</div>
+                    <div class="wc-title">Landing Pattern</div>
+                    <div class="wc-text">Tap <b>Place Landing Spot</b>, click anywhere on the map, then choose final heading and traffic direction. Wind-adjusted legs are drawn at 1,000 / 600 / 300 ft.</div>
+                </div>
+            </div>
+            <div class="wc-section">
+                <div class="wc-icon" style="color:var(--accent)">✈️</div>
+                <div>
+                    <div class="wc-title">Plane Tracker</div>
+                    <div class="wc-text">Enter your jump plane's <b>tail number</b> to track it live on the map with dead-reckoning animation. Automatically detects and draws the <b>last jump run</b> when the plane dives after exit.</div>
+                </div>
+            </div>
+            <div class="wc-section">
+                <div class="wc-icon" style="color:var(--muted)">⚙️</div>
+                <div>
+                    <div class="wc-title">Canopy Settings</div>
+                    <div class="wc-text">Enter your <b>canopy size, exit weight, and type</b> to customize the circles to your gear. Defaults to a Sabre3 150 at 1.5 wing loading.</div>
                 </div>
             </div>
             <div class="wc-section">
                 <div class="wc-icon" style="color:var(--accent)">⏱</div>
                 <div>
                     <div class="wc-title">Forecast Scroll</div>
-                    <div class="wc-text">Use the <b>Forecast Offset</b> slider to scroll up to <b>72 hours</b> into the future. Wind circles, drift lines, and all wind cards update automatically — great for planning a jump day in advance.</div>
+                    <div class="wc-text">Slide the <b>Forecast Offset</b> up to <b>72 hours</b> ahead. All wind data, circles, and drift lines update automatically.</div>
                 </div>
             </div>
             <div class="wc-section">
                 <div class="wc-icon" style="color:var(--muted)">📍</div>
                 <div>
-                    <div class="wc-title">Dropzone Selector</div>
-                    <div class="wc-text">Switch between dropzones using the <b>Dropzone</b> dropdown. The map recenters and all wind data updates for the new location.</div>
+                    <div class="wc-title">Dropzone</div>
+                    <div class="wc-text">Switch DZs from the dropdown. Map recenters and all data updates instantly.</div>
                 </div>
             </div>
         </div>
@@ -412,10 +426,7 @@ select:focus { border-color: var(--accent); }
                 </div>
                 <button id="replayBtn" onclick="startPlaneAnimation()" style="display:none">▶ Replay</button>
                 <button id="clearBtn" onclick="clearJumpRun()" style="display:none">✕ Clear</button>
-                <div id="sepRow" style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;padding:5px 0">
-                    <span style="font-size:0.72rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted)">Jumper Sep.</span>
-                    <span id="sepDisplay" style="font-family:'Share Tech Mono',monospace;font-size:0.85rem;color:var(--muted)">draw jump run first</span>
-                </div>
+
                 <button id="advancedBtn" onclick="openAdvancedModal()" style="margin-top:6px;width:100%;padding:6px 10px;background:var(--card-bg);color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">⚙️ Canopy Settings</button>
                 <div id="jumpRunInfo" style="display:none"></div>
             </div>
@@ -523,14 +534,11 @@ function drawFreefallParallel(){
         lastGndSpeedKts = gndMs / 0.514444;
         gndKts = lastGndSpeedKts.toFixed(0) + ' kt';
     }
-    // Auto-recommend jumper separation
-    const sep = recommendedSep(lastGndSpeedKts);
-    const sepEl = document.getElementById("sepDisplay");
-    if (sep && sepEl){ sepEl.textContent = sep + " sec"; sepEl.style.color = "var(--accent)"; }
-
     document.getElementById("jumpRunInfo").style.display = "block";
+    const sepSuggested = recommendedSep(lastGndSpeedKts);
+    const sepLine = sepSuggested ? `Rec. Jumper Sep: <span style="color:var(--accent)">${sepSuggested} sec</span>` : "";
     document.getElementById("jumpRunInfo").innerHTML =
-        `JR heading: ${bear.toFixed(0)}°<br>JR length: ${(jrLenM/1609.344).toFixed(2)} mi<br>JR speed: ${gndKts}<br>FF drift: ${(ffDist/1609.344).toFixed(2)} mi @ ${ff.direction.toFixed(0)}°`;
+        `JR heading: ${bear.toFixed(0)}°<br>JR length: ${(jrLenM/1609.344).toFixed(2)} mi<br>JR speed: ${gndKts}<br>FF drift: ${(ffDist/1609.344).toFixed(2)} mi @ ${ff.direction.toFixed(0)}°${sepLine ? "<br>" + sepLine : ""}`;
 }
 
 function recommendedSep(gndKts){
@@ -581,18 +589,18 @@ function planeIcon(hdg){
 }
 
 function parachuteIcon(){
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="28" viewBox="0 0 24 28">
-      <path d="M2,13 Q2,2 12,2 Q22,2 22,13 Z" fill="#ff4f4f" stroke="#cc2222" stroke-width="0.8"/>
-      <line x1="12" y1="2" x2="12" y2="13" stroke="#cc2222" stroke-width="0.5"/>
-      <line x1="7" y1="3" x2="10" y2="13" stroke="#cc2222" stroke-width="0.5"/>
-      <line x1="17" y1="3" x2="14" y2="13" stroke="#cc2222" stroke-width="0.5"/>
-      <line x1="3" y1="7" x2="8" y2="13" stroke="#cc2222" stroke-width="0.5"/>
-      <line x1="21" y1="7" x2="16" y2="13" stroke="#cc2222" stroke-width="0.5"/>
-      <line x1="8" y1="13" x2="11" y2="22" stroke="#cc2222" stroke-width="0.7"/>
-      <line x1="16" y1="13" x2="13" y2="22" stroke="#cc2222" stroke-width="0.7"/>
-      <ellipse cx="12" cy="24" rx="2" ry="3" fill="#cc2222"/>
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="28" viewBox="0 0 20 28">
+      <!-- head -->
+      <circle cx="10" cy="3" r="2.5" fill="#ff4f4f"/>
+      <!-- body in arch position -->
+      <path d="M10,6 Q10,12 10,14" stroke="#ff4f4f" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <!-- arms spread -->
+      <path d="M3,8 Q6.5,9 10,10 Q13.5,9 17,8" stroke="#ff4f4f" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+      <!-- legs spread -->
+      <path d="M10,14 Q7,18 4,21" stroke="#ff4f4f" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+      <path d="M10,14 Q13,18 16,21" stroke="#ff4f4f" stroke-width="1.8" fill="none" stroke-linecap="round"/>
     </svg>`;
-    return L.divIcon({ html: svg, className: '', iconSize: [24,28], iconAnchor: [12,28] });
+    return L.divIcon({ html: svg, className: '', iconSize: [20,28], iconAnchor: [10,14] });
 }
 
 function stopPlane(){
@@ -644,8 +652,7 @@ function startPlaneAnimation(){
                 if (jt < 1) { requestAnimationFrame(driftAnimate); }
                 else {
                     if (animGeneration !== myGen) return;
-                    const lc = L.circle([landLat, landLon], { radius: 152.4, color: '#ff4f4f', weight: 1, opacity: 0.7, fill: true, fillColor: '#ff4f4f', fillOpacity: 0.18 }).addTo(map);
-                    jumperMarkers.push(lc);
+                    // No circle — jumper icon stays at landing spot
                 }
             }
             requestAnimationFrame(driftAnimate);

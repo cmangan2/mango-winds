@@ -1495,8 +1495,11 @@ async function startTracking(){
     const tail = document.getElementById("planeTail").value.trim().toUpperCase();
     if (!tail){ document.getElementById("trackError").textContent="Enter a tail number"; document.getElementById("trackError").style.display="block"; return; }
     closeTrackModal();
-    document.getElementById("trackBtn").textContent = "✈️ " + tail;
-    document.getElementById("trackBtn").style.background = "rgba(0,212,255,0.15)";
+    document.getElementById("trackBtn").textContent = "■ Stop Tracking " + tail;
+    document.getElementById("trackBtn").style.color = "var(--red)";
+    document.getElementById("trackBtn").style.borderColor = "var(--red)";
+    document.getElementById("trackBtn").style.background = "rgba(255,79,79,0.1)";
+    document.getElementById("trackBtn").onclick = stopTracking;
 
     // First poll to get live position AND icao hex
     const firstR = await fetch(`/plane?tail=${encodeURIComponent(tail)}`);
@@ -1529,8 +1532,12 @@ function stopTracking(){
     trackedPlane = null; planeHistory = []; divingConfirmed = 0;
     showJumpRunStatus(null);
     document.getElementById("planeInfo").style.display = "none";
-    document.getElementById("trackBtn").textContent = "✈️ Track Plane";
-    document.getElementById("trackBtn").style.background = "var(--card-bg)";
+    const tb = document.getElementById("trackBtn");
+    tb.textContent = "✈️ Track Plane";
+    tb.style.background = "var(--card-bg)";
+    tb.style.color = "#00d4ff";
+    tb.style.borderColor = "#00d4ff";
+    tb.onclick = openTrackModal;
 }
 
 function initDZ(){

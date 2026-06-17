@@ -1248,17 +1248,17 @@ function animatePlane(timestamp){
     if (!planeAnimStart) planeAnimStart = timestamp;
     const t = Math.min((timestamp - planeAnimStart) / PLANE_ANIM_DUR, 1);
     if (!planeAnimFrom || !planeAnimTo) return;
-    const lat = planeAnimFrom.lat + (planeAnimTo.lat - planeAnimFrom.lat) * t;
-    const lng = planeAnimFrom.lng + (planeAnimTo.lng - planeAnimFrom.lng) * t;
-    if (trackedPlaneMarker){ trackedPlaneMarker.setLatLng([lat, lng]); }
-    else { trackedPlaneMarker = L.marker([lat, lng], { icon: planeTrackIcon(trackedPlane.hdg||0), zIndexOffset: 1100 }).addTo(map); }
+    const pLat = planeAnimFrom.lat + (planeAnimTo.lat - planeAnimFrom.lat) * t;
+    const pLng = planeAnimFrom.lng + (planeAnimTo.lng - planeAnimFrom.lng) * t;
+    if (trackedPlaneMarker){ trackedPlaneMarker.setLatLng([pLat, pLng]); }
+    else { trackedPlaneMarker = L.marker([pLat, pLng], { icon: planeTrackIcon(trackedPlane.hdg||0), zIndexOffset: 1100 }).addTo(map); }
     const alt  = trackedPlane.alt  ? Math.round(trackedPlane.alt).toLocaleString() + " ft" : "—";
     const spd  = trackedPlane.spd  ? Math.round(trackedPlane.spd)  + " kt" : "—";
     const vert = trackedPlane.vert ? (trackedPlane.vert>0?"↑":"↓") + Math.abs(Math.round(trackedPlane.vert)).toLocaleString() + " fpm" : "";
     const lHtml = `<div style="background:rgba(7,11,16,0.88);border:1px solid #00d4ff;border-radius:6px;padding:4px 8px;font-family:'Share Tech Mono',monospace;font-size:0.7rem;color:#00d4ff;white-space:nowrap;line-height:1.6">${alt}<br>${spd} ${vert}</div>`;
-    if (trackedPlaneLabel){ trackedPlaneLabel.setLatLng([lat,lng]); trackedPlaneLabel.setIcon(L.divIcon({ html: lHtml, className: "", iconAnchor: [-28,0] })); }
-    else { trackedPlaneLabel = L.marker([lat,lng], { icon: L.divIcon({ html: lHtml, className: "", iconAnchor: [-28,0] }), zIndexOffset: 1101, interactive: false }).addTo(map); }
-    updateOffscreenArrow(lat, lng);
+    if (trackedPlaneLabel){ trackedPlaneLabel.setLatLng([pLat,pLng]); trackedPlaneLabel.setIcon(L.divIcon({ html: lHtml, className: "", iconAnchor: [-28,0] })); }
+    else { trackedPlaneLabel = L.marker([pLat,pLng], { icon: L.divIcon({ html: lHtml, className: "", iconAnchor: [-28,0] }), zIndexOffset: 1101, interactive: false }).addTo(map); }
+    updateOffscreenArrow(pLat, pLng);
     if (t < 1) planeAnimFrame = requestAnimationFrame(animatePlane);
 }
 
@@ -1332,38 +1332,7 @@ function extractAndDrawJumpRun(){
     const hdgDeg  = lastPt.hdg ? Math.round(lastPt.hdg) + "°" : "—";
     const lenMi   = (distMeters([firstPt.lat, firstPt.lon], [lastPt.lat, lastPt.lon]) / 1609.344).toFixed(1);
 
-    // Remove old jump run line if exists
-    if (lastJumpRunLine) { lastJumpRunLine.remove(); lastJumpRunLine = null; }
-    if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
-
-    lastJumpRunLine = L.polyline(coords, {
-        color: '#fff', weight: 3, opacity: 0.7, dashArray: '8,5'
-    }).addTo(map);
-
-    // Arrow at end of line
-    if (coords.length >= 2){
-        const bear = bearing(coords[coords.length-2], coords[coords.length-1]);
-        const tipPx = map.latLngToLayerPoint(L.latLng(lastPt.lat, lastPt.lon));
-        const r = (bear - 90) * Math.PI/180;
-        const left  = map.layerPointToLatLng(L.point(tipPx.x + 12*Math.cos(r+2.5), tipPx.y + 12*Math.sin(r+2.5)));
-        const right = map.layerPointToLatLng(L.point(tipPx.x + 12*Math.cos(r-2.5), tipPx.y + 12*Math.sin(r-2.5)));
-        L.polygon([[lastPt.lat, lastPt.lon], left, right], {
-            color: '#fff', fillColor: '#fff', fillOpacity: 0.7, weight: 0
-        }).addTo(map);
-    }
-
-    // Label at midpoint
-    const midIdx = Math.floor(levelPoints.length / 2);
-    const mid = levelPoints[midIdx];
-    lastJumpRunLabel = L.marker([mid.lat, mid.lon], {
-        icon: L.divIcon({
-            html: `<div style="background:rgba(7,11,16,0.85);border:1px solid #fff;border-radius:5px;padding:3px 7px;font-family:'Share Tech Mono',monospace;font-size:0.68rem;color:#fff;white-space:nowrap">
-                Last JR&nbsp; ${altFt} &nbsp;${hdgDeg} &nbsp;${lenMi}mi
-            </div>`,
-            className: '', iconAnchor: [0, 24]
-        }), interactive: false
-    }).addTo(map);
-
+    drawJumpRunLine(levelPoints, "");
     console.log(`Jump run detected: ${lenMi}mi @ ${altFt} hdg ${hdgDeg}`);
 }
 
@@ -1407,13 +1376,118 @@ async function pollPlane(tail){
     }
 }
 
+async function fetchTraceHistory(icao, tail){
+    try {
+        showJumpRunStatus("🔍 Loading flight history...");
+        const r = await fetch(`/plane/trace?icao=${encodeURIComponent(icao)}`);
+        const d = await r.json();
+        if (d.error || !d.points || d.points.length === 0){
+            showJumpRunStatus(null);
+            return;
+        }
+        // Replay trace through detection — only keep last 60 points to focus on recent activity
+        // Find the most recent segment by looking for the last dive in history
+        // Walk forward through all points, find all dives, use last one
+        const pts = d.points;
+        const LEVEL = 300, DIVE = -500;
+
+        // Find all dive events in history
+        let lastDiveIdx = -1;
+        for (let i = 2; i < pts.length; i++){
+            if ((pts[i].vert||0) < DIVE && (pts[i-1].vert||0) < DIVE){
+                lastDiveIdx = i;
+            }
+        }
+
+        if (lastDiveIdx < 0){
+            // No dive found — just load last 60 points as history for future detection
+            planeHistory = pts.slice(-60).map(p => ({...p, ts: p.ts * 1000}));
+            showJumpRunStatus(null);
+            return;
+        }
+
+        // Walk back from last dive to find start of that jump run
+        const levelPoints = [];
+        for (let i = lastDiveIdx - 1; i >= 0; i--){
+            if (Math.abs(pts[i].vert||0) <= LEVEL){
+                levelPoints.unshift(pts[i]);
+            } else if (levelPoints.length > 0){
+                break;
+            }
+        }
+
+        // Load history up to dive point for future detection
+        planeHistory = pts.slice(Math.max(0, lastDiveIdx - 60), lastDiveIdx).map(p => ({...p, ts: p.ts * 1000}));
+
+        if (levelPoints.length >= 2){
+            // Draw the last jump run from history
+            drawJumpRunLine(levelPoints, tail + " (last)");
+            showJumpRunStatus(null);
+        } else {
+            showJumpRunStatus(null);
+        }
+    } catch(e){
+        console.error("Trace history error:", e);
+        showJumpRunStatus(null);
+    }
+}
+
+function drawJumpRunLine(levelPoints, label){
+    if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
+    if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
+
+    const coords = levelPoints.map(p => [p.lat, p.lon]);
+    const firstPt = levelPoints[0], lastPt = levelPoints[levelPoints.length-1];
+    const altFt = lastPt.alt ? Math.round(lastPt.alt).toLocaleString() + " ft" : "—";
+    const hdgDeg = lastPt.hdg ? Math.round(lastPt.hdg) + "°" : "—";
+    const lenMi = (distMeters([firstPt.lat,firstPt.lon],[lastPt.lat,lastPt.lon])/1609.344).toFixed(1);
+
+    lastJumpRunLine = L.polyline(coords, {
+        color: "#fff", weight: 3, opacity: 0.7, dashArray: "8,5"
+    }).addTo(map);
+
+    if (coords.length >= 2){
+        const bear = bearing(coords[coords.length-2], coords[coords.length-1]);
+        const tipPx = map.latLngToLayerPoint(L.latLng(lastPt.lat, lastPt.lon));
+        const rr = (bear-90)*Math.PI/180;
+        const left  = map.layerPointToLatLng(L.point(tipPx.x+12*Math.cos(rr+2.5), tipPx.y+12*Math.sin(rr+2.5)));
+        const right = map.layerPointToLatLng(L.point(tipPx.x+12*Math.cos(rr-2.5), tipPx.y+12*Math.sin(rr-2.5)));
+        L.polygon([[lastPt.lat,lastPt.lon],left,right],{color:"#fff",fillColor:"#fff",fillOpacity:0.7,weight:0}).addTo(map);
+    }
+
+    const mid = levelPoints[Math.floor(levelPoints.length/2)];
+    lastJumpRunLabel = L.marker([mid.lat,mid.lon], {
+        icon: L.divIcon({
+            html: `<div style="background:rgba(7,11,16,0.85);border:1px solid #fff;border-radius:5px;padding:3px 7px;font-family:'Share Tech Mono',monospace;font-size:0.68rem;color:#fff;white-space:nowrap">
+                Last JR&nbsp; ${altFt} &nbsp;${hdgDeg} &nbsp;${lenMi}mi
+            </div>`,
+            className: "", iconAnchor: [0,24]
+        }), interactive: false
+    }).addTo(map);
+}
+
 async function startTracking(){
     const tail = document.getElementById("planeTail").value.trim().toUpperCase();
     if (!tail){ document.getElementById("trackError").textContent="Enter a tail number"; document.getElementById("trackError").style.display="block"; return; }
     closeTrackModal();
     document.getElementById("trackBtn").textContent = "✈️ " + tail;
     document.getElementById("trackBtn").style.background = "rgba(0,212,255,0.15)";
-    await pollPlane(tail);
+
+    // First poll to get live position AND icao hex
+    const firstR = await fetch(`/plane?tail=${encodeURIComponent(tail)}`);
+    const firstD = await firstR.json();
+    if (firstD.found){
+        updatePlaneMarker(firstD);
+        // Fetch trace history in background using icao
+        if (firstD.icao) fetchTraceHistory(firstD.icao, tail);
+    } else if (firstD.icao){
+        // Not airborne but we have icao — still fetch history
+        fetchTraceHistory(firstD.icao, tail);
+        showJumpRunStatus(`✈️ ${tail} not currently airborne — showing recent history`);
+    } else {
+        showJumpRunStatus(`✈️ ${tail} not found — may not have ADS-B out`);
+    }
+
     if (planeTrackInterval) clearInterval(planeTrackInterval);
     planeTrackInterval = setInterval(() => pollPlane(tail), 5000);
 }

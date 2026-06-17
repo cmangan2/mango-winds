@@ -1181,6 +1181,15 @@ let planeAnimFrom = null;
 let planeAnimTo = null;
 const PLANE_ANIM_DUR = 5000;
 
+// Jump run detection history
+let planeHistory = [];          // rolling 5-min buffer of position snapshots
+let lastJumpRunLine = null;     // Leaflet polyline for last jump run
+let lastJumpRunLabel = null;    // Leaflet marker label
+let divingConfirmed = 0;        // consecutive dive polls
+const LEVEL_THRESHOLD = 300;   // fpm — within this = level flight
+const DIVE_THRESHOLD  = -500;  // fpm — below this = diving after drop
+const DIVE_CONFIRM    = 2;     // consecutive dive polls to confirm
+
 function openTrackModal(){
     const m = document.getElementById("trackModal");
     m.style.display = "flex"; m.style.alignItems = "center"; m.style.justifyContent = "center";
@@ -1253,7 +1262,113 @@ function animatePlane(timestamp){
     if (t < 1) planeAnimFrame = requestAnimationFrame(animatePlane);
 }
 
+function showJumpRunStatus(msg){
+    const el = document.getElementById("jumpRunStatus");
+    if (!msg){ if (el) el.remove(); return; }
+    if (el){ el.textContent = msg; return; }
+    const div = document.createElement("div");
+    div.id = "jumpRunStatus";
+    div.style.cssText = "position:fixed;bottom:140px;left:50%;transform:translateX(-50%);z-index:8001;background:rgba(13,21,32,0.92);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-family:'Share Tech Mono',monospace;font-size:0.72rem;color:var(--muted);white-space:nowrap;pointer-events:none";
+    div.textContent = msg;
+    document.body.appendChild(div);
+    // Auto-dismiss after 6 seconds
+    setTimeout(() => { const e = document.getElementById("jumpRunStatus"); if (e) e.remove(); }, 6000);
+}
+
+function detectJumpRun(data){
+    // Add to history buffer (keep last 5 minutes = 60 points at 5s intervals)
+    planeHistory.push({
+        lat: data.lat, lon: data.lon,
+        alt: data.alt, hdg: data.hdg,
+        spd: data.spd, vert: data.vert || 0,
+        ts: Date.now()
+    });
+    if (planeHistory.length > 60) planeHistory.shift();
+
+    const vert = data.vert || 0;
+
+    // Check for dive
+    if (vert < DIVE_THRESHOLD) {
+        divingConfirmed++;
+    } else {
+        divingConfirmed = 0;
+    }
+
+    // Confirmed dive after being level — extract jump run from history
+    if (divingConfirmed === DIVE_CONFIRM) {
+        extractAndDrawJumpRun();
+    }
+}
+
+function extractAndDrawJumpRun(){
+    if (planeHistory.length < 4) return;
+
+    // Walk backwards from dive point to find level segment
+    // Find where level flight started (transition from climb to level)
+    const levelPoints = [];
+    for (let i = planeHistory.length - 1; i >= 0; i--){
+        const p = planeHistory[i];
+        if (Math.abs(p.vert) <= LEVEL_THRESHOLD){
+            levelPoints.unshift(p);
+        } else if (levelPoints.length > 0){
+            // Found the start of the climb — stop here
+            break;
+        }
+    }
+
+    if (levelPoints.length < 2){
+        showJumpRunStatus("⚠️ Jump run not detected — insufficient level flight data");
+        return;
+    }
+
+    // Clear any previous status message
+    showJumpRunStatus(null);
+
+    // Draw the jump run line
+    const coords = levelPoints.map(p => [p.lat, p.lon]);
+    const firstPt = levelPoints[0];
+    const lastPt  = levelPoints[levelPoints.length - 1];
+    const altFt   = lastPt.alt ? Math.round(lastPt.alt).toLocaleString() + " ft" : "—";
+    const hdgDeg  = lastPt.hdg ? Math.round(lastPt.hdg) + "°" : "—";
+    const lenMi   = (distMeters([firstPt.lat, firstPt.lon], [lastPt.lat, lastPt.lon]) / 1609.344).toFixed(1);
+
+    // Remove old jump run line if exists
+    if (lastJumpRunLine) { lastJumpRunLine.remove(); lastJumpRunLine = null; }
+    if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
+
+    lastJumpRunLine = L.polyline(coords, {
+        color: '#fff', weight: 3, opacity: 0.7, dashArray: '8,5'
+    }).addTo(map);
+
+    // Arrow at end of line
+    if (coords.length >= 2){
+        const bear = bearing(coords[coords.length-2], coords[coords.length-1]);
+        const tipPx = map.latLngToLayerPoint(L.latLng(lastPt.lat, lastPt.lon));
+        const r = (bear - 90) * Math.PI/180;
+        const left  = map.layerPointToLatLng(L.point(tipPx.x + 12*Math.cos(r+2.5), tipPx.y + 12*Math.sin(r+2.5)));
+        const right = map.layerPointToLatLng(L.point(tipPx.x + 12*Math.cos(r-2.5), tipPx.y + 12*Math.sin(r-2.5)));
+        L.polygon([[lastPt.lat, lastPt.lon], left, right], {
+            color: '#fff', fillColor: '#fff', fillOpacity: 0.7, weight: 0
+        }).addTo(map);
+    }
+
+    // Label at midpoint
+    const midIdx = Math.floor(levelPoints.length / 2);
+    const mid = levelPoints[midIdx];
+    lastJumpRunLabel = L.marker([mid.lat, mid.lon], {
+        icon: L.divIcon({
+            html: `<div style="background:rgba(7,11,16,0.85);border:1px solid #fff;border-radius:5px;padding:3px 7px;font-family:'Share Tech Mono',monospace;font-size:0.68rem;color:#fff;white-space:nowrap">
+                Last JR&nbsp; ${altFt} &nbsp;${hdgDeg} &nbsp;${lenMi}mi
+            </div>`,
+            className: '', iconAnchor: [0, 24]
+        }), interactive: false
+    }).addTo(map);
+
+    console.log(`Jump run detected: ${lenMi}mi @ ${altFt} hdg ${hdgDeg}`);
+}
+
 function updatePlaneMarker(data){
+    detectJumpRun(data);
     trackedPlane = data;
     if (trackedPlaneMarker) trackedPlaneMarker.setIcon(planeTrackIcon(data.hdg||0));
     planeAnimFrom = trackedPlaneMarker ? trackedPlaneMarker.getLatLng() : { lat: data.lat, lng: data.lon };
@@ -1297,9 +1412,12 @@ function stopTracking(){
     if (planeAnimFrame){ cancelAnimationFrame(planeAnimFrame); planeAnimFrame = null; }
     if (trackedPlaneMarker){ trackedPlaneMarker.remove(); trackedPlaneMarker = null; }
     if (trackedPlaneLabel){ trackedPlaneLabel.remove(); trackedPlaneLabel = null; }
+    if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
+    if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
     const arrow = document.getElementById("planeOffscreenArrow");
     if (arrow) arrow.remove();
-    trackedPlane = null;
+    trackedPlane = null; planeHistory = []; divingConfirmed = 0;
+    showJumpRunStatus(null);
     document.getElementById("planeInfo").style.display = "none";
     document.getElementById("trackBtn").textContent = "✈️ Track Plane";
     document.getElementById("trackBtn").style.background = "var(--card-bg)";

@@ -1000,6 +1000,48 @@ def admin():
     </body></html>"""
 
 
+@app.route("/plane")
+def plane():
+    tail = request.args.get("tail", "").upper().strip()
+    if not tail:
+        return jsonify({"error": "tail number required"}), 400
+    try:
+        # ADS-B Exchange re-api — no key needed for basic queries
+        url = f"https://globe.adsbexchange.com/re-api/?find={tail}"
+        r = requests.get(url, timeout=8,
+                        headers={"User-Agent": "MangoWindHub/1.0 skydiving-plane-tracker",
+                                 "Referer": "https://globe.adsbexchange.com/"})
+        if not r.ok:
+            return jsonify({"error": f"ADS-B error {r.status_code}"}), 502
+        data = r.json()
+        # Extract first matching aircraft
+        ac_list = data.get("ac", [])
+        if not ac_list:
+            return jsonify({"found": False, "tail": tail})
+        ac = ac_list[0]
+        lat  = ac.get("lat")
+        lon  = ac.get("lon")
+        alt  = ac.get("alt_baro") or ac.get("alt_geom")  # ft MSL
+        spd  = ac.get("gs")    # ground speed kt
+        hdg  = ac.get("track") # true heading deg
+        vert = ac.get("baro_rate") or ac.get("geom_rate") or 0  # ft/min
+        if lat is None or lon is None:
+            return jsonify({"found": False, "tail": tail})
+        return jsonify({
+            "found": True,
+            "tail":  tail,
+            "lat":   lat,
+            "lon":   lon,
+            "alt":   alt,
+            "spd":   spd,
+            "hdg":   hdg,
+            "vert":  vert,
+        })
+    except Exception as e:
+        print(f"Plane tracker error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/clearcache")
 def clearcache():
     token = request.args.get("token", "")

@@ -1381,44 +1381,55 @@ function updatePlaneMarker(data){
         `<br><button onclick="stopTracking()" style="margin-top:6px;width:100%;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">■ Stop Tracking</button>`;
 }
 
+async function fetchFromSource(url){
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+}
+
 async function pollPlane(tail){
-    try {
-        // Call ADS-B Exchange directly from browser to bypass server network restrictions
-        const url = `https://globe.adsbexchange.com/re-api/?find=${encodeURIComponent(tail)}`;
-        const r = await fetch(url, {
-            headers: { "Referer": "https://globe.adsbexchange.com/" }
-        });
-        if (!r.ok){ showJumpRunStatus(`⚠️ ADS-B error ${r.status}`); return; }
-        const data = await r.json();
-        const ac = (data.ac || [])[0];
-        if (!ac || ac.lat == null){
-            if (!trackedPlane) showJumpRunStatus(`✈️ ${tail} not found — may not have ADS-B out, or is on the ground`);
-            return;
-        }
-        const d = {
-            found: true, tail,
-            icao: ac.hex || "",
-            lat:  ac.lat,
-            lon:  ac.lon,
-            alt:  ac.alt_baro || ac.alt_geom || 0,
-            spd:  ac.gs || 0,
-            hdg:  ac.track || 0,
-            vert: ac.baro_rate || ac.geom_rate || 0,
-        };
-        updatePlaneMarker(d);
-        // Fetch trace history on first successful poll
-        if (!trackedPlane && d.icao) fetchTraceHistory(d.icao, tail);
-    } catch(e){
-        console.error("Plane poll error:", e);
-        if (!trackedPlane) showJumpRunStatus("⚠️ Could not reach ADS-B — check connection");
+    // Try multiple open CORS-friendly ADS-B sources in order
+    const sources = [
+        () => fetchFromSource(`https://api.adsb.lol/v2/registration/${encodeURIComponent(tail)}`),
+        () => fetchFromSource(`https://airplanes.live/api/reg/${encodeURIComponent(tail)}`),
+    ];
+
+    let ac = null;
+    for (const src of sources){
+        try {
+            const data = await src();
+            // Both APIs return {ac: [...]} format
+            const list = data.ac || data.aircraft || [];
+            const match = list.find(a => a.lat != null);
+            if (match){ ac = match; break; }
+        } catch(e){ continue; }
     }
+
+    if (!ac){
+        if (!trackedPlane) showJumpRunStatus(`✈️ ${tail} not found in ADS-B — may be on the ground or no transponder`);
+        return;
+    }
+
+    const d = {
+        found: true, tail,
+        icao: ac.hex || ac.icao || "",
+        lat:  ac.lat,
+        lon:  ac.lon,
+        alt:  ac.alt_baro || ac.alt_geom || ac.altitude || 0,
+        spd:  ac.gs || ac.speed || 0,
+        hdg:  ac.track || ac.heading || 0,
+        vert: ac.baro_rate || ac.geom_rate || ac.vert_rate || 0,
+    };
+    updatePlaneMarker(d);
+    if (!trackedPlane && d.icao) fetchTraceHistory(d.icao, tail);
 }
 
 async function fetchTraceHistory(icao, tail){
     try {
         showJumpRunStatus("🔍 Loading flight history...");
-        const r = await fetch(`https://globe.adsbexchange.com/re-api/?icao=${encodeURIComponent(icao)}&trace=1`,
-            { headers: { "Referer": "https://globe.adsbexchange.com/" } });
+        // Try adsb.lol trace endpoint
+        const r = await fetch(`https://api.adsb.lol/v2/icao/${encodeURIComponent(icao)}/trace`);
+        if (!r.ok) throw new Error(`Trace ${r.status}`);
         const d = await r.json();
         if (d.error || !d.points || d.points.length === 0){
             showJumpRunStatus(null);

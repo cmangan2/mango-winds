@@ -1389,10 +1389,10 @@ async function fetchFromSource(url){
 
 async function pollPlane(tail){
     // Try multiple open CORS-friendly ADS-B sources in order
-    const PROXY = "https://corsproxy.io/?";
     const sources = [
-        () => fetchFromSource(`${PROXY}${encodeURIComponent(`https://api.adsb.lol/v2/registration/${tail}`)}`),
-        () => fetchFromSource(`${PROXY}${encodeURIComponent(`https://airplanes.live/api/reg/${tail}`)}`),
+        () => fetchFromSource(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://api.adsb.lol/v2/registration/${tail}`)}`),
+        () => fetchFromSource(`https://corsproxy.io/?https://api.adsb.lol/v2/registration/${tail}`),
+        () => fetchFromSource(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://airplanes.live/api/reg/${tail}`)}`),
     ];
 
     let ac = null;
@@ -1429,8 +1429,7 @@ async function fetchTraceHistory(icao, tail){
     try {
         showJumpRunStatus("🔍 Loading flight history...");
         // Try adsb.lol trace endpoint
-        const PROXY = "https://corsproxy.io/?";
-        const r = await fetch(`${PROXY}${encodeURIComponent(`https://api.adsb.lol/v2/icao/${icao}/trace`)}`);
+        const r = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://api.adsb.lol/v2/icao/${icao}/trace`)}`);
         if (!r.ok) throw new Error(`Trace ${r.status}`);
         const d = await r.json();
         // adsb.lol trace format: {trace: [[ts, lat, lon, alt, gs, track, baro_rate], ...]}

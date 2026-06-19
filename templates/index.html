@@ -1398,11 +1398,11 @@ async function pollPlane(tail){
     for (const src of sources){
         try {
             const data = await src();
-            // Both APIs return {ac: [...]} format
+            console.log("ADS-B response:", JSON.stringify(data).slice(0,200));
             const list = data.ac || data.aircraft || [];
-            const match = list.find(a => a.lat != null);
+            const match = list.find(a => a.lat != null && a.lat !== undefined);
             if (match){ ac = match; break; }
-        } catch(e){ continue; }
+        } catch(e){ console.warn("ADS-B source failed:", e); continue; }
     }
 
     if (!ac){
@@ -1431,14 +1431,19 @@ async function fetchTraceHistory(icao, tail){
         const r = await fetch(`https://api.adsb.lol/v2/icao/${encodeURIComponent(icao)}/trace`);
         if (!r.ok) throw new Error(`Trace ${r.status}`);
         const d = await r.json();
-        if (d.error || !d.points || d.points.length === 0){
-            showJumpRunStatus(null);
-            return;
-        }
-        // Replay trace through detection — only keep last 60 points to focus on recent activity
-        // Find the most recent segment by looking for the last dive in history
-        // Walk forward through all points, find all dives, use last one
-        const pts = d.points;
+        // adsb.lol trace format: {trace: [[ts, lat, lon, alt, gs, track, baro_rate], ...]}
+        let rawPts = d.trace || d.points || [];
+        if (!rawPts || rawPts.length === 0){ showJumpRunStatus(null); return; }
+
+        // Normalize to objects
+        const pts = rawPts.map(p => {
+            if (Array.isArray(p)) {
+                return { ts: p[0], lat: p[1], lon: p[2], alt: p[3]||0, spd: p[4]||0, hdg: p[5]||0, vert: p[6]||0 };
+            }
+            return p; // already an object
+        }).filter(p => p.lat != null);
+
+        if (pts.length === 0){ showJumpRunStatus(null); return; }
         const LEVEL = 300, DIVE = -500;
 
         // Find all dive events in history

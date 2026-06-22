@@ -1012,8 +1012,8 @@ async function load(){
         html+=`<div class="alt-section-title lower">Surface & Low</div>`;
         html+=`<div class="wind-card" style="border-bottom:1px solid var(--border);padding:2px 10px;margin-bottom:2px">
             <span class="alt" style="color:var(--muted);font-size:0.62rem">ALT</span>
-            <span style="font-size:0.62rem;color:var(--muted);text-align:center">DIR</span>
-            <span style="font-size:0.62rem;color:var(--muted);text-align:center">AGR</span>
+            <span style="font-size:0.62rem;color:var(--muted);text-align:left">DIR</span>
+            <span style="font-size:0.62rem;color:var(--muted);text-align:center">AGREE</span>
             <span style="font-size:0.62rem;color:var(--muted);text-align:right">SPD</span>
             <span style="font-size:0.62rem;color:var(--muted);text-align:right">HDG</span>
             <span style="font-size:0.62rem;color:var(--muted);text-align:right">TMP</span>
@@ -1047,9 +1047,9 @@ async function load(){
                     if (Math.abs(nearest - a) <= 1000) spread = d.winds_spread[nearest];
                 }
                 if (spread !== undefined) {
-                    if (spread <= 20)      agreeHtml = `<span class="agree" style="color:#39ff89">H</span>`;
-                    else if (spread <= 45) agreeHtml = `<span class="agree" style="color:#ffaa00">M</span>`;
-                    else                   agreeHtml = `<span class="agree" style="color:#ff4f4f">L</span>`;
+                    if (spread <= 20)      agreeHtml = `<span class="agree" style="color:#39ff89;text-align:center;display:block">High</span>`;
+                    else if (spread <= 45) agreeHtml = `<span class="agree" style="color:#ffaa00;text-align:center;display:block">Med</span>`;
+                    else                   agreeHtml = `<span class="agree" style="color:#ff4f4f;text-align:center;display:block">Low</span>`;
                 }
             }
             html+=`<div class="wind-card ${group==='high'?'upper':''}"><span class="alt">${altLabel}</span><span class="arrow">${svgArrow}</span>${agreeHtml}<span class="speed ${cls}">${w.speed.toFixed(1)} kt</span><span class="dir">${w.direction.toFixed(0)}°</span><span class="temp" style="color:${tempColor};font-weight:bold">${tempStr}</span></div>`;

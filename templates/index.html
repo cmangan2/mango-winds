@@ -1030,13 +1030,21 @@ async function load(){
             }
             // Per-altitude model agreement
             let agreeHtml = '';
-            if (d.winds_spread && d.winds_spread[a] !== undefined) {
-                const spread = d.winds_spread[a];
-                if (spread <= 20)      agreeHtml = `<span class="agree" style="color:#39ff89">H</span>`;
-                else if (spread <= 45) agreeHtml = `<span class="agree" style="color:#ffaa00">M</span>`;
-                else                   agreeHtml = `<span class="agree" style="color:#ff4f4f">L</span>`;
+            if (d.winds_spread) {
+                // Try exact match first, then nearest key within 1000ft
+                let spread = d.winds_spread[a];
+                if (spread === undefined) {
+                    const keys = Object.keys(d.winds_spread).map(Number);
+                    const nearest = keys.reduce((best, k) => Math.abs(k-a) < Math.abs(best-a) ? k : best, keys[0]);
+                    if (Math.abs(nearest - a) <= 1000) spread = d.winds_spread[nearest];
+                }
+                if (spread !== undefined) {
+                    if (spread <= 20)      agreeHtml = `<span class="agree" style="color:#39ff89">H</span>`;
+                    else if (spread <= 45) agreeHtml = `<span class="agree" style="color:#ffaa00">M</span>`;
+                    else                   agreeHtml = `<span class="agree" style="color:#ff4f4f">L</span>`;
+                }
             }
-            html+=`<div class="wind-card ${group==='high'?'upper':''}"><span class="alt">${altLabel}</span><span class="arrow">${svgArrow}</span><span class="speed ${cls}">${w.speed.toFixed(1)} kt</span><span class="dir">${w.direction.toFixed(0)}°</span><span class="temp" style="color:${tempColor};font-weight:bold">${tempStr}</span>${agreeHtml}</div>`;
+            html+=`<div class="wind-card ${group==='high'?'upper':''}"><span class="alt">${altLabel}</span><span class="arrow">${svgArrow}</span><span class="speed ${cls}">${w.speed.toFixed(1)} kt</span><span class="dir">${w.direction.toFixed(0)}°</span>${agreeHtml}<span class="temp" style="color:${tempColor};font-weight:bold">${tempStr}</span></div>`;
         }
         document.getElementById("cards").innerHTML=html;
     } catch(e) {

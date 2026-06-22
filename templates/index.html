@@ -1389,47 +1389,26 @@ async function fetchFromSource(url){
 
 async function pollPlane(tail){
     // Try multiple open CORS-friendly ADS-B sources in order
-    const sources = [
-        () => fetchFromSource(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://api.adsb.lol/v2/registration/${tail}`)}`),
-        () => fetchFromSource(`https://corsproxy.io/?https://api.adsb.lol/v2/registration/${tail}`),
-        () => fetchFromSource(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://airplanes.live/api/reg/${tail}`)}`),
-    ];
-
-    let ac = null;
-    for (const src of sources){
-        try {
-            const data = await src();
-            console.log("ADS-B response:", JSON.stringify(data).slice(0,200));
-            const list = data.ac || data.aircraft || [];
-            const match = list.find(a => a.lat != null && a.lat !== undefined);
-            if (match){ ac = match; break; }
-        } catch(e){ console.warn("ADS-B source failed:", e); continue; }
-    }
-
-    if (!ac){
-        if (!trackedPlane) showJumpRunStatus(`✈️ ${tail} not found in ADS-B — may be on the ground or no transponder`);
+    try {
+        const data = await fetchFromSource(`/plane?tail=${encodeURIComponent(tail)}`);
+        if (!data.found){
+            if (!trackedPlane) showJumpRunStatus(`✈️ ${tail} not found — may be on the ground or no transponder`);
+            return;
+        }
+        updatePlaneMarker(data);
+        if (!trackedPlane && data.icao) fetchTraceHistory(data.icao, tail);
+    } catch(e){
+        console.warn("ADS-B fetch failed:", e);
+        if (!trackedPlane) showJumpRunStatus("⚠️ Could not reach tracking service");
         return;
     }
-
-    const d = {
-        found: true, tail,
-        icao: ac.hex || ac.icao || "",
-        lat:  ac.lat,
-        lon:  ac.lon,
-        alt:  ac.alt_baro || ac.alt_geom || ac.altitude || 0,
-        spd:  ac.gs || ac.speed || 0,
-        hdg:  ac.track || ac.heading || 0,
-        vert: ac.baro_rate || ac.geom_rate || ac.vert_rate || 0,
-    };
-    updatePlaneMarker(d);
-    if (!trackedPlane && d.icao) fetchTraceHistory(d.icao, tail);
 }
 
 async function fetchTraceHistory(icao, tail){
     try {
         showJumpRunStatus("🔍 Loading flight history...");
         // Try adsb.lol trace endpoint
-        const r = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://api.adsb.lol/v2/icao/${icao}/trace`)}`);
+        const r = await fetch(`/plane/trace?icao=${encodeURIComponent(icao)}`);
         if (!r.ok) throw new Error(`Trace ${r.status}`);
         const d = await r.json();
         // adsb.lol trace format: {trace: [[ts, lat, lon, alt, gs, track, baro_rate], ...]}

@@ -122,7 +122,7 @@ select:focus { border-color: var(--accent); }
 .alt-section-title { font-size: 0.64rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin: 10px 0 4px; }
 .alt-section-title.upper { color: var(--freefall); }
 .alt-section-title.lower { color: var(--canopy); }
-.wind-card { display: grid; grid-template-columns: 56px 1fr auto auto auto; align-items: center; gap: 6px; padding: 6px 10px; margin: 2px 0; border-radius: 6px; background: var(--card-alt); border: 1px solid transparent; transition: border-color 0.15s; font-family: 'Share Tech Mono', monospace; font-size: 0.78rem; }
+.wind-card { display: grid; grid-template-columns: 56px 1fr auto auto auto auto; align-items: center; gap: 6px; padding: 6px 10px; margin: 2px 0; border-radius: 6px; background: var(--card-alt); border: 1px solid transparent; transition: border-color 0.15s; font-family: 'Share Tech Mono', monospace; font-size: 0.78rem; }
 .wind-card:hover { border-color: var(--border); }
 .wind-card.upper { background: rgba(255,170,0,0.06); }
 .wind-card.upper .alt { color: var(--freefall); opacity: 0.75; }
@@ -131,6 +131,7 @@ select:focus { border-color: var(--accent); }
 .wind-card .speed { text-align: right; font-weight: bold; }
 .wind-card .dir { color: var(--muted); font-size: 0.72rem; text-align: right; }
 .wind-card .temp { color: var(--muted); font-size: 0.68rem; text-align: right; }
+.wind-card .agree { font-size: 0.65rem; font-weight: bold; text-align: right; letter-spacing: 0.04em; }
 .dot-green { color: var(--green); }
 .dot-orange { color: var(--orange); }
 .dot-red { color: var(--red); }
@@ -1027,7 +1028,15 @@ async function load(){
                 else if (tf>=35) tempColor=lerpColor('#4488ff','#ffe033',(tf-35)/10);
                 else tempColor='#1a3a8a';
             }
-            html+=`<div class="wind-card ${group==='high'?'upper':''}"><span class="alt">${altLabel}</span><span class="arrow">${svgArrow}</span><span class="speed ${cls}">${w.speed.toFixed(1)} kt</span><span class="dir">${w.direction.toFixed(0)}°</span><span class="temp" style="color:${tempColor};font-weight:bold">${tempStr}</span></div>`;
+            // Per-altitude model agreement
+            let agreeHtml = '';
+            if (d.winds_spread && d.winds_spread[a] !== undefined) {
+                const spread = d.winds_spread[a];
+                if (spread <= 20)      agreeHtml = `<span class="agree" style="color:#39ff89">H</span>`;
+                else if (spread <= 45) agreeHtml = `<span class="agree" style="color:#ffaa00">M</span>`;
+                else                   agreeHtml = `<span class="agree" style="color:#ff4f4f">L</span>`;
+            }
+            html+=`<div class="wind-card ${group==='high'?'upper':''}"><span class="alt">${altLabel}</span><span class="arrow">${svgArrow}</span><span class="speed ${cls}">${w.speed.toFixed(1)} kt</span><span class="dir">${w.direction.toFixed(0)}°</span><span class="temp" style="color:${tempColor};font-weight:bold">${tempStr}</span>${agreeHtml}</div>`;
         }
         document.getElementById("cards").innerHTML=html;
     } catch(e) {

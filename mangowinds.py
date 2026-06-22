@@ -616,7 +616,13 @@ def format_winds(data, hour, lat=0, lon=0):
                 "color":     color(speed),
                 "temp_f":    tc_to_f(temp_c),
             }
-        return result, canopy_confidence, freefall_confidence
+        # Build per-altitude spread map keyed by display altitude (1000ft increments)
+        per_alt_spread = {}
+        for alt in range(0, 15000, 1000):
+            matching = [(k, v) for k, v in ensemble_spreads.items() if abs(k - alt) < 600]
+            if matching:
+                per_alt_spread[alt] = round(sum(v for _, v in matching) / len(matching), 1)
+        return result, canopy_confidence, freefall_confidence, per_alt_spread
 
 
     except Exception as e:
@@ -1124,11 +1130,15 @@ def data():
 
     raw = fetch_forecast(lat, lon, hour_offset)
     fw_result = format_winds(raw, hour, lat, lon)
-    if isinstance(fw_result, tuple):
+    if isinstance(fw_result, tuple) and len(fw_result) == 4:
+        winds, canopy_confidence, freefall_confidence, winds_spread_out = fw_result
+    elif isinstance(fw_result, tuple):
         winds, canopy_confidence, freefall_confidence = fw_result
+        winds_spread_out = {}
     else:
         winds = fw_result
         canopy_confidence = freefall_confidence = None
+        winds_spread_out = {}
 
     # Override SFC with live METAR for current conditions
     # If METAR returns calm (0kt) fall back to Open-Meteo lowest level
@@ -1219,6 +1229,7 @@ def data():
             "direction": winds.get(14000, {}).get("direction", 0),
         },
         "time_label": time_label,
+        "winds_spread": winds_spread_out,
     })
     response.headers["Cache-Control"] = "no-store, max-age=0"
     return response

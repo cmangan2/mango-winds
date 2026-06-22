@@ -1044,7 +1044,7 @@ async function load(){
                     else                   agreeHtml = `<span class="agree" style="color:#ff4f4f">L</span>`;
                 }
             }
-            html+=`<div class="wind-card ${group==='high'?'upper':''}"><span class="alt">${altLabel}</span><span class="arrow">${svgArrow}</span><span class="speed ${cls}">${w.speed.toFixed(1)} kt</span><span class="dir">${w.direction.toFixed(0)}°</span>${agreeHtml}<span class="temp" style="color:${tempColor};font-weight:bold">${tempStr}</span></div>`;
+            html+=`<div class="wind-card ${group==='high'?'upper':''}"><span class="alt">${altLabel}</span><span class="arrow">${svgArrow}</span>${agreeHtml}<span class="speed ${cls}">${w.speed.toFixed(1)} kt</span><span class="dir">${w.direction.toFixed(0)}°</span><span class="temp" style="color:${tempColor};font-weight:bold">${tempStr}</span></div>`;
         }
         document.getElementById("cards").innerHTML=html;
     } catch(e) {

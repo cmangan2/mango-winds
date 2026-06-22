@@ -131,7 +131,7 @@ select:focus { border-color: var(--accent); }
 .wind-card .speed { text-align: right; font-weight: bold; }
 .wind-card .dir { color: var(--muted); font-size: 0.72rem; text-align: right; }
 .wind-card .temp { color: var(--muted); font-size: 0.68rem; text-align: right; }
-.wind-card .agree { font-size: 0.65rem; font-weight: bold; text-align: right; letter-spacing: 0.04em; }
+.wind-card .agree { font-size: 0.65rem; font-weight: bold; text-align: center; letter-spacing: 0.04em; }
 .dot-green { color: var(--green); }
 .dot-orange { color: var(--orange); }
 .dot-red { color: var(--red); }
@@ -1010,6 +1010,14 @@ async function load(){
         let html='';
         const alts=Object.keys(d.winds).map(Number).sort((a,b)=>a-b);
         html+=`<div class="alt-section-title lower">Surface & Low</div>`;
+        html+=`<div class="wind-card" style="border-bottom:1px solid var(--border);padding:2px 10px;margin-bottom:2px">
+            <span class="alt" style="color:var(--muted);font-size:0.62rem">ALT</span>
+            <span style="font-size:0.62rem;color:var(--muted);text-align:center">DIR</span>
+            <span style="font-size:0.62rem;color:var(--muted);text-align:center">AGR</span>
+            <span style="font-size:0.62rem;color:var(--muted);text-align:right">SPD</span>
+            <span style="font-size:0.62rem;color:var(--muted);text-align:right">HDG</span>
+            <span style="font-size:0.62rem;color:var(--muted);text-align:right">TMP</span>
+        </div>`;
         let lastGroup='low';
         for (const a of alts){
             const w=d.winds[a], group=a<4000?'low':'high';

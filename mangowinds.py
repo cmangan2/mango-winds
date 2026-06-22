@@ -1018,28 +1018,8 @@ def plane():
                         headers={"User-Agent": "MangoWindHub/1.0 skydiving-plane-tracker"})
         if not r.ok:
             return jsonify({"error": f"ADS-B error {r.status_code}"}), 502
-        data = r.json()
-        ac_list = data.get("ac", [])
-        if not ac_list:
-            return jsonify({"found": False, "tail": tail})
-        # Find first aircraft with a position
-        ac = next((a for a in ac_list if a.get("lat") is not None), None)
-        if not ac:
-            return jsonify({"found": False, "tail": tail})
-        lat  = ac.get("lat")
-        lon  = ac.get("lon")
-        alt  = ac.get("alt_baro") or ac.get("alt_geom")
-        spd  = ac.get("gs")
-        hdg  = ac.get("track")
-        vert = ac.get("baro_rate") or ac.get("geom_rate") or 0
-        icao = ac.get("hex", "")
-        if lat is None or lon is None:
-            return jsonify({"found": False, "tail": tail, "icao": icao})
-        return jsonify({
-            "found": True, "tail": tail, "icao": icao,
-            "lat": lat, "lon": lon, "alt": alt,
-            "spd": spd, "hdg": hdg, "vert": vert,
-        })
+        # Vercel proxy returns normalized format — pass through directly
+        return jsonify(r.json())
     except Exception as e:
         print(f"Plane tracker error: {e}")
         return jsonify({"error": str(e)}), 500
@@ -1058,31 +1038,8 @@ def plane_trace():
                         headers={"User-Agent": "MangoWindHub/1.0 skydiving-plane-tracker"})
         if not r.ok:
             return jsonify({"error": f"Trace error {r.status_code}"}), 502
-        data = r.json()
-        # Trace returns: {"icao":"...", "trace":[[timestamp, lat, lon, alt, spd, hdg, vert], ...]}
-        # adsb.lol trace: {trace: [[ts, lat, lon, alt, gs, track, baro_rate], ...]}
-        raw_trace = data.get("trace", [])
-        points = []
-        for pt in raw_trace:
-            if not isinstance(pt, list) or len(pt) < 3: continue
-            ts  = pt[0] if len(pt) > 0 else 0
-            lat = pt[1] if len(pt) > 1 else None
-            lon = pt[2] if len(pt) > 2 else None
-            alt = pt[3] if len(pt) > 3 else 0
-            spd = pt[4] if len(pt) > 4 else 0
-            hdg = pt[5] if len(pt) > 5 else 0
-            vert= pt[6] if len(pt) > 6 else 0
-            if lat is None or lon is None: continue
-            points.append({
-                "ts":   ts,
-                "lat":  lat,
-                "lon":  lon,
-                "alt":  alt  or 0,
-                "spd":  spd  or 0,
-                "hdg":  hdg  or 0,
-                "vert": vert or 0,
-            })
-        return jsonify({"icao": icao, "points": points})
+        # Vercel proxy returns normalized format — pass through directly
+        return jsonify(r.json())
     except Exception as e:
         print(f"Plane trace error: {e}")
         return jsonify({"error": str(e)}), 500

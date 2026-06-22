@@ -1006,17 +1006,19 @@ def plane():
     if not tail:
         return jsonify({"error": "tail number required"}), 400
     try:
-        url = f"https://globe.adsbexchange.com/re-api/?find={tail}"
+        url = f"https://adsb-proxy.vercel.app/api/plane?tail={tail}"
         r = requests.get(url, timeout=8,
-                        headers={"User-Agent": "MangoWindHub/1.0 skydiving-plane-tracker",
-                                 "Referer": "https://globe.adsbexchange.com/"})
+                        headers={"User-Agent": "MangoWindHub/1.0 skydiving-plane-tracker"})
         if not r.ok:
             return jsonify({"error": f"ADS-B error {r.status_code}"}), 502
         data = r.json()
         ac_list = data.get("ac", [])
         if not ac_list:
             return jsonify({"found": False, "tail": tail})
-        ac = ac_list[0]
+        # Find first aircraft with a position
+        ac = next((a for a in ac_list if a.get("lat") is not None), None)
+        if not ac:
+            return jsonify({"found": False, "tail": tail})
         lat  = ac.get("lat")
         lon  = ac.get("lon")
         alt  = ac.get("alt_baro") or ac.get("alt_geom")
@@ -1044,29 +1046,34 @@ def plane_trace():
         return jsonify({"error": "icao required"}), 400
     try:
         # ADS-B Exchange trace API returns recent track history
-        url = f"https://globe.adsbexchange.com/re-api/?icao={icao}&trace=1"
+        url = f"https://adsb-proxy.vercel.app/api/plane?icao={icao}&trace=1"
         r = requests.get(url, timeout=12,
-                        headers={"User-Agent": "MangoWindHub/1.0 skydiving-plane-tracker",
-                                 "Referer": "https://globe.adsbexchange.com/"})
+                        headers={"User-Agent": "MangoWindHub/1.0 skydiving-plane-tracker"})
         if not r.ok:
             return jsonify({"error": f"Trace error {r.status_code}"}), 502
         data = r.json()
         # Trace returns: {"icao":"...", "trace":[[timestamp, lat, lon, alt, spd, hdg, vert], ...]}
-        trace = data.get("trace", [])
-        # Normalise to list of dicts
+        # adsb.lol trace: {trace: [[ts, lat, lon, alt, gs, track, baro_rate], ...]}
+        raw_trace = data.get("trace", [])
         points = []
-        for pt in trace:
-            if len(pt) < 7: continue
-            ts, lat, lon, alt, spd, hdg, vert = pt[0], pt[1], pt[2], pt[3], pt[4], pt[5], pt[6]
+        for pt in raw_trace:
+            if not isinstance(pt, list) or len(pt) < 3: continue
+            ts  = pt[0] if len(pt) > 0 else 0
+            lat = pt[1] if len(pt) > 1 else None
+            lon = pt[2] if len(pt) > 2 else None
+            alt = pt[3] if len(pt) > 3 else 0
+            spd = pt[4] if len(pt) > 4 else 0
+            hdg = pt[5] if len(pt) > 5 else 0
+            vert= pt[6] if len(pt) > 6 else 0
             if lat is None or lon is None: continue
             points.append({
                 "ts":   ts,
                 "lat":  lat,
                 "lon":  lon,
-                "alt":  alt  if alt  is not None else 0,
-                "spd":  spd  if spd  is not None else 0,
-                "hdg":  hdg  if hdg  is not None else 0,
-                "vert": vert if vert is not None else 0,
+                "alt":  alt  or 0,
+                "spd":  spd  or 0,
+                "hdg":  hdg  or 0,
+                "vert": vert or 0,
             })
         return jsonify({"icao": icao, "points": points})
     except Exception as e:

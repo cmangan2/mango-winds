@@ -619,9 +619,10 @@ def format_winds(data, hour, lat=0, lon=0):
         # Build per-altitude spread map keyed by display altitude (1000ft increments)
         per_alt_spread = {}
         for alt in range(0, 15000, 1000):
-            matching = [(k, v) for k, v in ensemble_spreads.items() if abs(k - alt) < 600]
+            matching = [(k, v) for k, v in ensemble_spreads.items() if abs(k - alt) < 1500]
             if matching:
-                per_alt_spread[alt] = round(sum(v for _, v in matching) / len(matching), 1)
+                closest = min(matching, key=lambda x: abs(x[0] - alt))
+                per_alt_spread[alt] = round(closest[1], 1)
         return result, canopy_confidence, freefall_confidence, per_alt_spread
 
 

@@ -1223,15 +1223,17 @@ function openTrackModal(){
 }
 function closeTrackModal(){ document.getElementById("trackModal").style.display = "none"; }
 
-function planeTrackIcon(hdg){
+function planeTrackIcon(hdg, onGround){
+    const color = onGround ? "#5a7a96" : "#00d4ff";
+    const glow  = onGround ? "rgba(90,122,150,0.5)" : "rgba(0,212,255,0.9)";
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="-24 -24 48 48"
-        style="transform:rotate(${hdg}deg);overflow:visible;filter:drop-shadow(0 0 6px rgba(0,212,255,0.9))">
-      <ellipse cx="0" cy="0" rx="3" ry="11" fill="#00d4ff"/>
-      <ellipse cx="0" cy="-12" rx="2.2" ry="3.5" fill="#00aacc"/>
-      <ellipse cx="0" cy="-1" rx="17" ry="2.5" fill="#00d4ff"/>
-      <ellipse cx="0" cy="-1" rx="19" ry="1.2" fill="#0099bb" opacity="0.6"/>
-      <ellipse cx="0" cy="9" rx="7" ry="1.5" fill="#00d4ff"/>
-      <ellipse cx="0" cy="7.5" rx="1.2" ry="3" fill="#00aacc"/>
+        style="transform:rotate(${hdg}deg);overflow:visible;filter:drop-shadow(0 0 6px ${glow})">
+      <ellipse cx="0" cy="0" rx="3" ry="11" fill="${color}"/>
+      <ellipse cx="0" cy="-12" rx="2.2" ry="3.5" fill="${color}"/>
+      <ellipse cx="0" cy="-1" rx="17" ry="2.5" fill="${color}"/>
+      <ellipse cx="0" cy="-1" rx="19" ry="1.2" fill="${color}" opacity="0.6"/>
+      <ellipse cx="0" cy="9" rx="7" ry="1.5" fill="${color}"/>
+      <ellipse cx="0" cy="7.5" rx="1.2" ry="3" fill="${color}"/>
     </svg>`;
     return L.divIcon({ html: svg, className: "", iconSize: [72,72], iconAnchor: [36,36] });
 }
@@ -1276,7 +1278,7 @@ function animatePlane(timestamp){
     const pLat = planeAnimFrom.lat + (planeAnimTo.lat - planeAnimFrom.lat) * t;
     const pLng = planeAnimFrom.lng + (planeAnimTo.lng - planeAnimFrom.lng) * t;
     if (trackedPlaneMarker){ trackedPlaneMarker.setLatLng([pLat, pLng]); }
-    else { trackedPlaneMarker = L.marker([pLat, pLng], { icon: planeTrackIcon(trackedPlane.hdg||0), zIndexOffset: 1100 }).addTo(map); }
+    else { trackedPlaneMarker = L.marker([pLat, pLng], { icon: planeTrackIcon(trackedPlane.hdg||0, trackedPlane.on_ground), zIndexOffset: 1100 }).addTo(map); }
     const alt  = trackedPlane.alt  ? Math.round(trackedPlane.alt).toLocaleString() + " ft" : "—";
     const spd  = trackedPlane.spd  ? Math.round(trackedPlane.spd)  + " kt" : "—";
     const vert = trackedPlane.vert ? (trackedPlane.vert>0?"↑":"↓") + Math.abs(Math.round(trackedPlane.vert)).toLocaleString() + " fpm" : "";
@@ -1364,7 +1366,7 @@ function extractAndDrawJumpRun(){
 function updatePlaneMarker(data){
     detectJumpRun(data);
     trackedPlane = data;
-    if (trackedPlaneMarker) trackedPlaneMarker.setIcon(planeTrackIcon(data.hdg||0));
+    if (trackedPlaneMarker) trackedPlaneMarker.setIcon(planeTrackIcon(data.hdg||0, data.on_ground));
     planeAnimFrom = trackedPlaneMarker ? trackedPlaneMarker.getLatLng() : { lat: data.lat, lng: data.lon };
     planeAnimTo   = { lat: data.lat, lng: data.lon };
     planeAnimStart = null;
@@ -1374,9 +1376,10 @@ function updatePlaneMarker(data){
     const spd  = data.spd  ? Math.round(data.spd)  + " kt"  : "—";
     const vert = data.vert ? (data.vert>0?"↑":"↓") + Math.abs(Math.round(data.vert)).toLocaleString() + " fpm" : "—";
     const hdg  = data.hdg  ? Math.round(data.hdg) + "°" : "—";
+    const groundStr = data.on_ground ? ` <span style="color:var(--muted)">— On Ground</span>` : "";
     document.getElementById("planeInfo").style.display = "block";
     document.getElementById("planeInfo").innerHTML =
-        `<span style="color:var(--accent);font-weight:bold">${data.tail}</span><br>` +
+        `<span style="color:var(--accent);font-weight:bold">${data.tail}</span>${groundStr}<br>` +
         `ALT&nbsp;&nbsp;${alt}<br>SPD&nbsp;&nbsp;${spd}<br>HDG&nbsp;&nbsp;${hdg}<br>VERT&nbsp;${vert}` +
         `<br><button onclick="stopTracking()" style="margin-top:6px;width:100%;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">■ Stop Tracking</button>`;
 }

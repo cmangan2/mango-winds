@@ -1230,6 +1230,8 @@ let planeAnimStart = null;
 let planeAnimFrom = null;
 let planeAnimTo = null;
 const PLANE_ANIM_DUR = 5000;
+let planeTrail = [];          // recent positions for trail line
+let planeTrailLine = null;    // Leaflet polyline
 
 // Jump run detection history
 let planeHistory = [];          // rolling 5-min buffer of position snapshots
@@ -1307,10 +1309,24 @@ function animatePlane(timestamp){
     const alt  = trackedPlane.alt  ? Math.round(trackedPlane.alt).toLocaleString() + " ft" : "—";
     const spd  = trackedPlane.spd  ? Math.round(trackedPlane.spd)  + " kt" : "—";
     const vert = trackedPlane.vert ? (trackedPlane.vert>0?"↑":"↓") + Math.abs(Math.round(trackedPlane.vert)).toLocaleString() + " fpm" : "";
-    const lHtml = `<div style="background:rgba(7,11,16,0.88);border:1px solid #00d4ff;border-radius:6px;padding:4px 8px;font-family:'Share Tech Mono',monospace;font-size:0.7rem;color:#00d4ff;white-space:nowrap;line-height:1.6">${alt}<br>${spd} ${vert}</div>`;
+    const lHtml = `<div style="background:rgba(7,11,16,0.95);border:1px solid #00d4ff;border-radius:6px;padding:5px 10px;font-family:'Share Tech Mono',monospace;font-size:0.82rem;font-weight:bold;color:#00d4ff;white-space:nowrap;line-height:1.8;min-width:90px">${alt}<br>${spd}${vert ? '<br>'+vert : ''}</div>`;
     if (trackedPlaneLabel){ trackedPlaneLabel.setLatLng([pLat,pLng]); trackedPlaneLabel.setIcon(L.divIcon({ html: lHtml, className: "", iconAnchor: [-28,0] })); }
     else { trackedPlaneLabel = L.marker([pLat,pLng], { icon: L.divIcon({ html: lHtml, className: "", iconAnchor: [-28,0] }), zIndexOffset: 1101, interactive: false }).addTo(map); }
     updateOffscreenArrow(pLat, pLng);
+
+    // Update trail line
+    if (planeTrail.length === 0 || Math.abs(pLat - planeTrail[planeTrail.length-1][0]) > 0.0001 || Math.abs(pLng - planeTrail[planeTrail.length-1][1]) > 0.0001){
+        planeTrail.push([pLat, pLng]);
+        if (planeTrail.length > 200) planeTrail.shift(); // keep last ~16 min
+        if (planeTrailLine){
+            planeTrailLine.setLatLngs(planeTrail);
+        } else {
+            planeTrailLine = L.polyline(planeTrail, {
+                color: '#00d4ff', weight: 2, opacity: 0.5, dashArray: '4,4'
+            }).addTo(map);
+        }
+    }
+
     if (t < 1) planeAnimFrame = requestAnimationFrame(animatePlane);
 }
 
@@ -1517,13 +1533,13 @@ function drawJumpRunLine(levelPoints, label){
         const rr = (bear-90)*Math.PI/180;
         const left  = map.layerPointToLatLng(L.point(tipPx.x+12*Math.cos(rr+2.5), tipPx.y+12*Math.sin(rr+2.5)));
         const right = map.layerPointToLatLng(L.point(tipPx.x+12*Math.cos(rr-2.5), tipPx.y+12*Math.sin(rr-2.5)));
-        L.polygon([[lastPt.lat,lastPt.lon],left,right],{color:"#fff",fillColor:"#fff",fillOpacity:0.7,weight:0}).addTo(map);
+        L.polygon([[lastPt.lat,lastPt.lon],left,right],{color:"#ff4f4f",fillColor:"#ff4f4f",fillOpacity:0.85,weight:0}).addTo(map);
     }
 
     const mid = levelPoints[Math.floor(levelPoints.length/2)];
     lastJumpRunLabel = L.marker([mid.lat,mid.lon], {
         icon: L.divIcon({
-            html: `<div style="background:rgba(7,11,16,0.85);border:1px solid #fff;border-radius:5px;padding:3px 7px;font-family:'Share Tech Mono',monospace;font-size:0.68rem;color:#fff;white-space:nowrap">
+            html: `<div style="background:rgba(7,11,16,0.85);border:1px solid #ff4f4f;border-radius:5px;padding:3px 7px;font-family:'Share Tech Mono',monospace;font-size:0.68rem;color:#ff4f4f;white-space:nowrap">
                 Last JR&nbsp; ${altFt} &nbsp;${hdgDeg} &nbsp;${lenMi}mi
             </div>`,
             className: "", iconAnchor: [0,24]
@@ -1558,6 +1574,8 @@ function stopTracking(){
     const arrow = document.getElementById("planeOffscreenArrow");
     if (arrow) arrow.remove();
     trackedPlane = null; planeHistory = []; divingConfirmed = 0;
+    planeTrail = [];
+    if (planeTrailLine){ planeTrailLine.remove(); planeTrailLine = null; }
     showJumpRunStatus(null);
     document.getElementById("planeInfo").style.display = "none";
     const tb = document.getElementById("trackBtn");

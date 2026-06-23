@@ -1239,9 +1239,9 @@ let planeHistory = [];          // rolling 5-min buffer of position snapshots
 let lastJumpRunLine = null;     // Leaflet polyline for last jump run
 let lastJumpRunLabel = null;    // Leaflet marker label
 let divingConfirmed = 0;        // consecutive dive polls
-const LEVEL_THRESHOLD = 300;   // fpm — within this = level flight
-const DIVE_THRESHOLD  = -500;  // fpm — below this = diving after drop
-const DIVE_CONFIRM    = 2;     // consecutive dive polls to confirm
+const LEVEL_THRESHOLD = 600;   // fpm — within this = level flight
+const DIVE_THRESHOLD  = -1000; // fpm — below this = diving after drop
+const DIVE_CONFIRM    = 3;     // consecutive dive polls to confirm
 
 function openTrackModal(){
     const m = document.getElementById("trackModal");
@@ -1315,17 +1315,14 @@ function animatePlane(timestamp){
     else { trackedPlaneLabel = L.marker([pLat,pLng], { icon: L.divIcon({ html: lHtml, className: "", iconAnchor: [-28,0] }), zIndexOffset: 1101, interactive: false }).addTo(map); }
     updateOffscreenArrow(pLat, pLng);
 
-    // Update trail line
-    if (planeTrail.length === 0 || Math.abs(pLat - planeTrail[planeTrail.length-1][0]) > 0.0001 || Math.abs(pLng - planeTrail[planeTrail.length-1][1]) > 0.0001){
-        planeTrail.push([pLat, pLng]);
-        if (planeTrail.length > 200) planeTrail.shift(); // keep last ~16 min
-        if (planeTrailLine){
-            planeTrailLine.setLatLngs(planeTrail);
-        } else {
-            planeTrailLine = L.polyline(planeTrail, {
-                color: '#00d4ff', weight: 2, opacity: 0.5, dashArray: '4,4'
-            }).addTo(map);
-        }
+    // Update trail — always append to build full flight path
+    planeTrail.push([pLat, pLng]);
+    if (planeTrailLine){
+        planeTrailLine.setLatLngs(planeTrail);
+    } else {
+        planeTrailLine = L.polyline(planeTrail, {
+            color: '#00d4ff', weight: 2, opacity: 0.5, dashArray: '4,4'
+        }).addTo(map);
     }
 
     if (t < 1) planeAnimFrame = requestAnimationFrame(animatePlane);
@@ -1434,11 +1431,29 @@ async function fetchFromSource(url){
 }
 
 async function pollPlane(tail){
-    // Try multiple open CORS-friendly ADS-B sources in order
     try {
         const data = await fetchFromSource(`/plane?tail=${encodeURIComponent(tail)}`);
         if (!data.found){
-            if (!trackedPlane) showJumpRunStatus(`✈️ ${tail} not found — may be on the ground or no transponder`);
+            if (!trackedPlane){
+                showJumpRunStatus(`✈️ ${tail} not found — may be on the ground or no transponder`);
+            } else {
+                // Signal lost — dead reckon forward using last known heading/speed
+                if (trackedPlane.spd > 5 && trackedPlane.hdg != null){
+                    const distM = trackedPlane.spd * 0.514444 * 5;
+                    const R = 6378137;
+                    const rad = trackedPlane.hdg * Math.PI / 180;
+                    const lat1 = trackedPlane.lat * Math.PI / 180;
+                    const lon1 = trackedPlane.lon * Math.PI / 180;
+                    const lat2 = Math.asin(Math.sin(lat1)*Math.cos(distM/R) + Math.cos(lat1)*Math.sin(distM/R)*Math.cos(rad));
+                    const lon2 = lon1 + Math.atan2(Math.sin(rad)*Math.sin(distM/R)*Math.cos(lat1), Math.cos(distM/R)-Math.sin(lat1)*Math.sin(lat2));
+                    trackedPlane = {...trackedPlane, lat: lat2*180/Math.PI, lon: lon2*180/Math.PI};
+                    planeAnimFrom = planeAnimTo || {lat: trackedPlane.lat, lng: trackedPlane.lon};
+                    planeAnimTo = {lat: trackedPlane.lat, lng: trackedPlane.lon};
+                    planeAnimStart = null;
+                    if (planeAnimFrame) cancelAnimationFrame(planeAnimFrame);
+                    planeAnimFrame = requestAnimationFrame(animatePlane);
+                }
+            }
             return;
         }
         updatePlaneMarker(data);
@@ -1471,7 +1486,7 @@ async function fetchTraceHistory(icao, tail){
         }).filter(p => p.lat != null);
 
         if (pts.length === 0){ showJumpRunStatus(null); return; }
-        const LEVEL = 300, DIVE = -500;
+        const LEVEL = 500, DIVE = -1000;
 
         // Find all dive events in history
         let lastDiveIdx = -1;

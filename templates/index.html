@@ -1255,7 +1255,7 @@ function planeTrackIcon(hdg, onGround){
     const color = onGround ? "#5a7a96" : "#00d4ff";
     const glow  = onGround ? "rgba(90,122,150,0.5)" : "rgba(0,212,255,0.9)";
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="-24 -24 48 48"
-        style="transform:rotate(${hdg}deg);overflow:visible;filter:drop-shadow(0 0 6px ${glow})">
+        style="transform:rotate(${(hdg+180)%360}deg);overflow:visible;filter:drop-shadow(0 0 6px ${glow})">
       <ellipse cx="0" cy="0" rx="3" ry="11" fill="${color}"/>
       <ellipse cx="0" cy="-12" rx="2.2" ry="3.5" fill="${color}"/>
       <ellipse cx="0" cy="-1" rx="17" ry="2.5" fill="${color}"/>
@@ -1321,7 +1321,7 @@ function animatePlane(timestamp){
         planeTrailLine.setLatLngs(planeTrail);
     } else {
         planeTrailLine = L.polyline(planeTrail, {
-            color: '#00d4ff', weight: 2, opacity: 0.5, dashArray: '4,4'
+            color: '#00d4ff', weight: 4, opacity: 0.6, dashArray: '6,4'
         }).addTo(map);
     }
 
@@ -1555,7 +1555,7 @@ function drawJumpRunLine(levelPoints, label){
     const mid = levelPoints[Math.floor(levelPoints.length/2)];
     lastJumpRunLabel = L.marker([mid.lat,mid.lon], {
         icon: L.divIcon({
-            html: `<div style="background:rgba(7,11,16,0.85);border:1px solid #ff4f4f;border-radius:5px;padding:3px 7px;font-family:'Share Tech Mono',monospace;font-size:0.68rem;color:#ff4f4f;white-space:nowrap">
+            html: `<div style="background:rgba(7,11,16,0.92);border:1px solid #ff4f4f;border-radius:5px;padding:5px 10px;font-family:'Share Tech Mono',monospace;font-size:0.75rem;font-weight:bold;color:#ff4f4f;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.6)">
                 Last JR&nbsp; ${altFt} &nbsp;${hdgDeg} &nbsp;${lenMi}mi
             </div>`,
             className: "", iconAnchor: [0,24]

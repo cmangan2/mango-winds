@@ -1254,14 +1254,22 @@ function closeTrackModal(){ document.getElementById("trackModal").style.display 
 function planeTrackIcon(hdg, onGround){
     const color = onGround ? "#5a7a96" : "#00d4ff";
     const glow  = onGround ? "rgba(90,122,150,0.5)" : "rgba(0,212,255,0.9)";
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="-24 -24 48 48"
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="-30 -30 60 60"
         style="transform:rotate(${(hdg+180)%360}deg);overflow:visible;filter:drop-shadow(0 0 6px ${glow})">
-      <ellipse cx="0" cy="0" rx="3" ry="11" fill="${color}"/>
-      <ellipse cx="0" cy="-12" rx="2.2" ry="3.5" fill="${color}"/>
-      <ellipse cx="0" cy="-1" rx="17" ry="2.5" fill="${color}"/>
-      <ellipse cx="0" cy="-1" rx="19" ry="1.2" fill="${color}" opacity="0.6"/>
-      <ellipse cx="0" cy="9" rx="7" ry="1.5" fill="${color}"/>
-      <ellipse cx="0" cy="7.5" rx="1.2" ry="3" fill="${color}"/>
+      <!-- Fuselage — boxy Caravan style -->
+      <rect x="-4" y="-18" width="8" height="36" rx="3" fill="${color}"/>
+      <!-- Nose cone -->
+      <polygon points="0,-28 -3,-18 3,-18" fill="${color}"/>
+      <!-- Wide high wings -->
+      <polygon points="-28,-2 -4,-5 -4,1 -28,3" fill="${color}"/>
+      <polygon points="28,-2 4,-5 4,1 28,3" fill="${color}"/>
+      <!-- Horizontal stabilizers -->
+      <polygon points="-14,17 -3,15 -3,19 -14,19" fill="${color}"/>
+      <polygon points="14,17 3,15 3,19 14,19" fill="${color}"/>
+      <!-- Vertical stab -->
+      <polygon points="0,10 -2,18 2,18" fill="${color}"/>
+      <!-- Engine pod (same color, no dark tip) -->
+      <ellipse cx="0" cy="-24" rx="3.5" ry="4" fill="${color}"/>
     </svg>`;
     return L.divIcon({ html: svg, className: "", iconSize: [72,72], iconAnchor: [36,36] });
 }

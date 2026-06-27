@@ -1363,6 +1363,16 @@ function showJumpRunStatus(msg){
     setTimeout(() => { const e = document.getElementById("jumpRunStatus"); if (e) e.remove(); }, 6000);
 }
 
+function clearTrackedJR(){
+    if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
+    if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
+    if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
+    if (planeTrailLine){ planeTrailLine.remove(); planeTrailLine = null; }
+    if (historyTrailLine){ historyTrailLine.remove(); historyTrailLine = null; }
+    planeTrail = [];
+    showJumpRunStatus(null);
+}
+
 function showLastJumpRun(){
     if (lastJumpRunLine){ map.fitBounds(lastJumpRunLine.getBounds(), {padding:[60,60], maxZoom:13}); }
     else { showJumpRunStatus("No jump run detected yet"); }
@@ -1433,6 +1443,7 @@ function updatePlaneMarker(data){
         `ALT&nbsp;&nbsp;${alt}<br>SPD&nbsp;&nbsp;${spd}<br>HDG&nbsp;&nbsp;${hdg}<br>VERT&nbsp;${vert}` +
         `<br><div style="display:flex;gap:4px;margin-top:6px">` +
         `<button onclick="showLastJumpRun()" style="flex:1;padding:4px;background:none;border:1px solid #ff4f4f;color:#ff4f4f;border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">Last JR</button>` +
+        `<button onclick="clearTrackedJR()" style="flex:1;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✕ JR</button>` +
         `<button onclick="freezeTrail()" style="flex:1;padding:4px;background:none;border:1px solid var(--freefall);color:var(--freefall);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">Freeze</button>` +
         `<button onclick="stopTracking()" style="flex:1;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">&#9646; Stop</button>` +
         `</div>`;
@@ -1595,6 +1606,9 @@ function stopTracking(){
     planeTrail = [];
     if (planeTrailLine){ planeTrailLine.remove(); planeTrailLine = null; }
     if (historyTrailLine){ historyTrailLine.remove(); historyTrailLine = null; }
+    if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
+    if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
+    if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
     showJumpRunStatus(null);
     document.getElementById("planeInfo").style.display = "none";
     const tb = document.getElementById("trackBtn");

@@ -1609,6 +1609,8 @@ function stopTracking(){
     if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
     if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
     if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
+    if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
+    if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
     showJumpRunStatus(null);
     document.getElementById("planeInfo").style.display = "none";
     const tb = document.getElementById("trackBtn");
@@ -1709,17 +1711,35 @@ function drawAndSaveCommunityJR(){
     const start = jrMarkPoints[0];
     const end   = jrMarkPoints[1];
 
-    // Draw the line
     if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
     if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
     if (communityJrArrow){ communityJrArrow.remove(); communityJrArrow = null; }
 
-    communityJrLine = L.polyline([[start.lat, start.lng], [end.lat, end.lng]], {
+    // Extract trail segment between the two snapped points
+    const trail = frozenTrailPoints || planeTrail;
+    let coords = [[start.lat, start.lng], [end.lat, end.lng]]; // fallback straight line
+    if (trail && trail.length > 1){
+        // Find indices of start and end in trail
+        let si = 0, ei = trail.length - 1, sd = Infinity, ed = Infinity;
+        for (let i = 0; i < trail.length; i++){
+            const ds = map.distance(start, L.latLng(trail[i][0], trail[i][1]));
+            const de = map.distance(end,   L.latLng(trail[i][0], trail[i][1]));
+            if (ds < sd){ sd = ds; si = i; }
+            if (de < ed){ ed = de; ei = i; }
+        }
+        // Ensure start < end
+        if (si > ei){ const tmp = si; si = ei; ei = tmp; }
+        const seg = trail.slice(si, ei + 1);
+        if (seg.length >= 2) coords = seg;
+    }
+
+    communityJrLine = L.polyline(coords, {
         color: "#ff4f4f", weight: 4, opacity: 0.9
     }).addTo(map);
 
-    const hdg = bearing([start.lat, start.lng], [end.lat, end.lng]);
-    const mid = { lat: (start.lat+end.lat)/2, lng: (start.lng+end.lng)/2 };
+    const hdg = bearing(coords[0], coords[coords.length-1]);
+    const mid = coords[Math.floor(coords.length/2)];
+    const midLL = { lat: Array.isArray(mid) ? mid[0] : mid.lat, lng: Array.isArray(mid) ? mid[1] : mid.lng };
 
     communityJrLabel = L.marker([mid.lat, mid.lng], {
         icon: L.divIcon({

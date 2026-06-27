@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, make_response, jsonify, request
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
@@ -1435,7 +1435,11 @@ def data():
 def index():
     # Pass only lat/lon to frontend (strip ICAO)
     dz_frontend = {k: (v[0], v[1]) for k, v in DROPZONES.items()}
-    return render_template("index.html", dz=dz_frontend)
+    resp = make_response(render_template("index.html", dz=dz_frontend))
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
 if __name__ == "__main__":

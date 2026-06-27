@@ -1844,21 +1844,20 @@ async function loadCommunityJR(){
             showJumpRunStatus("No jump run saved for this DZ today");
             return;
         }
-        // Check if recent (within 8 hours)
+        // Show age in label
         const ts = new Date(d.timestamp);
         const ageHours = (Date.now() - ts.getTime()) / 3600000;
-        if (ageHours > 8){
-            showJumpRunStatus(`Last saved jump run was ${Math.round(ageHours)} hours ago`);
-            return;
-        }
+        let timeStr;
+        if (ageHours < 0.25) timeStr = "just now";
+        else if (ageHours < 1) timeStr = `${Math.round(ageHours*60)}min ago`;
+        else if (ageHours < 24) timeStr = ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+        else timeStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
         // Draw it
         if (communityJrLine){ communityJrLine.remove(); }
         if (communityJrLabel){ communityJrLabel.remove(); }
         communityJrLine = L.polyline([d.start, d.end], {
             color: "#ff4f4f", weight: 4, opacity: 0.9
         }).addTo(map);
-        const mid = { lat: (d.start[0]+d.end[0])/2, lng: (d.start[1]+d.end[1])/2 };
-        const timeStr = ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
         communityJrLabel = L.marker(d.start, {
             icon: L.divIcon({
                 html: `<div style="display:inline-block;background:rgba(7,11,16,0.95);border:1.5px solid #ff4f4f;border-radius:6px;padding:5px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;font-weight:700;color:#ff4f4f;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.7);white-space:nowrap;line-height:1.5">Jump Run ${d.heading ? d.heading+'°' : ''}<br><span style="font-weight:600;font-size:0.78rem;letter-spacing:0.06em">${timeStr}${d.tail ? ' · '+d.tail : ''}${d.submission_count > 1 ? ' · '+d.submission_count+' reports' : ''}</span></div>`,

@@ -9,6 +9,6 @@ Jumptown (Orange, MA): 42.569102,-72.287524,KORE
 Skydive New England (Lebanon, ME): 43.371169,-70.925974,KSFM
 Skydive Cross Keys (Monroe, NJ): 39.707255,-75.036002,KPHL
 Skydive Danielson (Danielson, CT): 41.822770,-71.900823,KLZD
-Vermont Skydiving Adventures (Addison, VT): 44.071759,-73.378554,K6B0
+Vermont Skydiving Adventures (Addison, VT): 44.072834, -73.372103,K6B0
 STF - Youngstown (Youngstown, NY): 43.261517,-78.966329,KIAG
 STF - Niagara Airport (Niagara Falls, NY): 43.100355,-78.948219,KIAG

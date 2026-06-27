@@ -896,7 +896,7 @@ def stats():
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;700&display=swap" rel="stylesheet">
     </head><body>
-    <h2>🪂 Mango Wind Hub</h2>
+    <h2>Mango Wind Hub</h2>
     <p>Community usage stats — updated in real time</p>
 
     <div style="margin:16px 0">
@@ -1001,7 +1001,7 @@ def admin():
         td{{border-bottom:1px solid #0d1520}} .stat{{display:inline-block;background:#0d1520;border:1px solid #1e3045;border-radius:8px;padding:12px 20px;margin:6px}}
         .stat .n{{font-size:2rem;color:#00d4ff;font-weight:bold}} .stat .l{{font-size:0.75rem;color:#5a7a96;text-transform:uppercase}}
     </style></head><body>
-    <h2>🪂 Mango Wind Hub — Admin</h2>
+    <h2>Mango Wind Hub — Admin</h2>
     <p style="color:#5a7a96;font-size:0.8rem">Visit = page load at hour=0 (unique data fetches, not refreshes)</p>
 
     <div style="margin:16px 0">

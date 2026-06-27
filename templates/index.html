@@ -1741,11 +1741,19 @@ function drawAndSaveCommunityJR(){
         color: "#ff4f4f", weight: 4, opacity: 0.9
     }).addTo(map);
 
-    const hdg = bearing(coords[0], coords[coords.length-1]);
-    const mid = coords[Math.floor(coords.length/2)];
-    const midLL = { lat: Array.isArray(mid) ? mid[0] : mid.lat, lng: Array.isArray(mid) ? mid[1] : mid.lng };
+    // coords is array of [lat,lon] pairs
+    const hdg = bearing(
+        Array.isArray(coords[0]) ? coords[0] : [coords[0].lat, coords[0].lng],
+        Array.isArray(coords[coords.length-1]) ? coords[coords.length-1] : [coords[coords.length-1].lat, coords[coords.length-1].lng]
+    );
+    const midPt = coords[Math.floor(coords.length/2)];
+    const midLat = Array.isArray(midPt) ? midPt[0] : midPt.lat;
+    const midLng = Array.isArray(midPt) ? midPt[1] : midPt.lng;
+    const startPt2 = coords[0];
+    const startLat = Array.isArray(startPt2) ? startPt2[0] : startPt2.lat;
+    const startLng = Array.isArray(startPt2) ? startPt2[1] : startPt2.lng;
 
-    communityJrLabel = L.marker([mid.lat, mid.lng], {
+    communityJrLabel = L.marker([startLat, startLng], {
         icon: L.divIcon({
             html: `<div style="background:rgba(7,11,16,0.92);border:1px solid #ff4f4f;border-radius:6px;padding:5px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;font-weight:700;color:#ff4f4f;letter-spacing:0.08em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.6)">Jump Run</div>`,
             className: "", iconAnchor: [0,0]
@@ -1757,13 +1765,15 @@ function drawAndSaveCommunityJR(){
     const alt = trackedPlane ? trackedPlane.alt : null;
     const tail = trackedPlane ? trackedPlane.tail : "";
 
+    const saveStart = Array.isArray(coords[0]) ? coords[0] : [coords[0].lat, coords[0].lng];
+    const saveEnd = Array.isArray(coords[coords.length-1]) ? coords[coords.length-1] : [coords[coords.length-1].lat, coords[coords.length-1].lng];
     fetch('/jumprun', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             dz: dzName,
-            start: [start.lat, start.lng],
-            end: [end.lat, end.lng],
+            start: saveStart,
+            end: saveEnd,
             alt: alt,
             heading: Math.round(hdg),
             tail: tail,

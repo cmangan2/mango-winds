@@ -1616,6 +1616,10 @@ function stopTracking(){
     if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
     if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
     showJumpRunStatus(null);
+    // Clean up frozen trail state
+    frozenTrailPoints = null; jrMarkPoints = [];
+    jrMarkMarkers.forEach(m => m.remove()); jrMarkMarkers = [];
+    map.getContainer().style.cursor = "";
     document.getElementById("planeInfo").style.display = "none";
     const tb = document.getElementById("trackBtn");
     tb.textContent = "✈️ Track Plane";
@@ -1755,7 +1759,7 @@ function drawAndSaveCommunityJR(){
 
     communityJrLabel = L.marker([startLat, startLng], {
         icon: L.divIcon({
-            html: `<div style="background:rgba(7,11,16,0.92);border:1px solid #ff4f4f;border-radius:6px;padding:5px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;font-weight:700;color:#ff4f4f;letter-spacing:0.08em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.6)">Jump Run</div>`,
+            html: `<div style="display:inline-block;background:rgba(7,11,16,0.95);border:1.5px solid #ff4f4f;border-radius:6px;padding:4px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;font-weight:700;color:#ff4f4f;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.7);white-space:nowrap">Jump Run</div>`,
             className: "", iconAnchor: [0,0]
         }), interactive: false
     }).addTo(map);

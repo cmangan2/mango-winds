@@ -8,6 +8,18 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
+<meta name="app-version" content="2.4.0">
+<script>
+// Force reload if cached version is older than current
+const CURRENT_VERSION = "2.4.0";
+const cached = localStorage.getItem("mwh-version");
+if (cached && cached !== CURRENT_VERSION) {
+    localStorage.setItem("mwh-version", CURRENT_VERSION);
+    window.location.reload(true);
+} else {
+    localStorage.setItem("mwh-version", CURRENT_VERSION);
+}
+</script>
 <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
 
 <style>

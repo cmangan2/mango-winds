@@ -1668,33 +1668,32 @@ function freezeTrail(){
         showJumpRunStatus("No flight trail to freeze yet");
         return;
     }
-    // Stop polling but keep trail
-    if (planeTrackInterval){ clearInterval(planeTrackInterval); planeTrackInterval = null; }
-    if (planeAnimFrame){ cancelAnimationFrame(planeAnimFrame); planeAnimFrame = null; }
 
-    // Store trail points for click selection
-    frozenTrailPoints = [...planeTrail];
+    // Save trail before stopTracking clears it
+    const savedTrail = [...planeTrail];
+    const savedTrailLine = planeTrailLine;
 
-    // Make trail brighter to indicate frozen
+    // Stop everything cleanly — but intercept trail removal
+    planeTrail = [];          // prevent stopTracking from using stale trail
+    planeTrailLine = null;    // prevent stopTracking from removing the line
+
+    stopTracking();           // full cleanup of plane marker, intervals, JR lines etc
+
+    // Restore frozen trail
+    frozenTrailPoints = savedTrail;
+    planeTrailLine = savedTrailLine;
     if (planeTrailLine){ planeTrailLine.setStyle({ opacity: 0.9, weight: 5 }); }
 
-    // Update button state
-    const tb = document.getElementById("trackBtn");
-    tb.textContent = "✈️ Track Plane";
-    tb.style.background = "var(--card-bg)";
-    tb.style.color = "#00d4ff";
-    tb.style.borderColor = "#00d4ff";
-    tb.onclick = openTrackModal;
-
-    // Update planeInfo to show mark mode button
+    // Show freeze UI
+    document.getElementById("planeInfo").style.display = "block";
     document.getElementById("planeInfo").innerHTML =
-        `<span style="color:var(--freefall);font-weight:bold">Trail frozen — click two points to mark jump run</span>` +
+        `<span style="color:var(--freefall);font-weight:bold">Trail frozen</span>` +
         `<br><div style="display:flex;gap:4px;margin-top:6px">` +
         `<button onclick="startJrMarkMode()" style="flex:1;padding:5px;background:none;border:1px solid #ff4f4f;color:#ff4f4f;border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✏️ Mark Jump Run</button>` +
-        `<button onclick="clearFrozenTrail()" style="flex:1;padding:5px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✕ Clear</button>` +
+        `<button onclick="clearFrozenTrail()" style="flex:1;padding:5px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✕ Clear All</button>` +
         `</div>`;
 
-    showJumpRunStatus("Trail frozen! Click 'Mark Jump Run' then click start and end points on the trail.");
+    showJumpRunStatus("Tap 'Mark Jump Run' then tap start and end on the trail.");
 }
 
 function nearestTrailPoint(clickLatLng){
@@ -1815,7 +1814,10 @@ function drawAndSaveCommunityJR(){
             // Update planeInfo
             document.getElementById("planeInfo").innerHTML =
                 `<span style="color:#39ff89;font-weight:bold">Jump run saved!</span>` +
-                `<br><button onclick="clearFrozenTrail()" style="margin-top:6px;width:100%;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✕ Clear All</button>`;
+                `<br><div style="display:flex;gap:4px;margin-top:6px">` +
+                `<button onclick="startJrMarkMode()" style="flex:1;padding:5px;background:none;border:1px solid #ff4f4f;color:#ff4f4f;border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✏️ Re-mark</button>` +
+                `<button onclick="clearFrozenTrail()" style="flex:1;padding:5px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✕ Clear All</button>` +
+                `</div>`;
         }
     }).catch(e => showJumpRunStatus("⚠️ Could not save — check connection"));
 }

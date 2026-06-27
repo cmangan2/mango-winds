@@ -1118,7 +1118,17 @@ def jumprun():
     if request.method == "GET":
         dz_name = request.args.get("dz", "")
         if dz_name and dz_name in _jumprun_log:
-            return jsonify(_jumprun_log[dz_name])
+            entry = _jumprun_log[dz_name]
+            # Reset if from a previous calendar day (local time)
+            try:
+                ts = datetime.fromisoformat(entry.get("timestamp", ""))
+                entry_date = ts.astimezone().date()
+                today = datetime.now().astimezone().date()
+                if entry_date < today:
+                    return jsonify({})
+            except Exception:
+                pass
+            return jsonify(entry)
         return jsonify({})
 
     # POST — save a jump run, averaging with recent submissions

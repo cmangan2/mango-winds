@@ -333,6 +333,13 @@ select:focus { border-color: var(--accent); }
     </div>
 </div>
 
+<!-- ── CLOUD FORECAST POPUP ── -->
+<div id="cloudPopup" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:8002;background:rgba(13,21,32,0.97);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:0 8px 32px rgba(0,0,0,0.7);backdrop-filter:blur(10px);min-width:320px;max-width:95vw">
+    <button onclick="document.getElementById('cloudPopup').style.display='none'" style="position:absolute;top:8px;right:10px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
+    <div style="font-size:0.65rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">☁️ Cloud Forecast</div>
+    <div id="cloudContent" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text)">Loading...</div>
+</div>
+
 <div id="loader"><div class="spinner"></div></div>
 
 <!-- ── WIND SUMMARY BOX ── -->
@@ -371,6 +378,7 @@ select:focus { border-color: var(--accent); }
                         <button onclick="clearAndReload();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.85rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Clear cache & refresh">↺</button>
                         <button onclick="window.open('/stats','_blank');event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Stats">📊</button>
                         <button onclick="document.getElementById('windSummary').style.display='block';event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Show wind summary">💨</button>
+                        <button onclick="toggleCloudPopup();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Cloud forecast">☁️</button>
                         <button onclick="openWelcome();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;font-weight:700;cursor:pointer;line-height:1;padding:0;flex-shrink:0">?</button>
                     </div>
                 </div>
@@ -383,6 +391,7 @@ select:focus { border-color: var(--accent); }
                     <button id="refreshBtn" onclick="clearAndReload()" title="Clear cache & refresh">↺</button>
                     <button id="statsBtn" onclick="window.open('/stats','_blank')" title="Usage stats">📊</button>
                     <button id="summaryBtn" onclick="document.getElementById('windSummary').style.display='block'" title="Show wind summary" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:22px;height:22px;font-size:0.75rem;cursor:pointer;line-height:1;flex-shrink:0;transition:border-color 0.15s,color 0.15s;-webkit-tap-highlight-color:transparent;padding:0">💨</button>
+                    <button id="cloudBtn" onclick="toggleCloudPopup()" title="Cloud forecast" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:22px;height:22px;font-size:0.75rem;cursor:pointer;line-height:1;flex-shrink:0;transition:border-color 0.15s,color 0.15s;-webkit-tap-highlight-color:transparent;padding:0">☁️</button>
                     <button id="helpBtn" onclick="openWelcome()" title="Quick Start Guide">?</button>
                 </div>
             </div>
@@ -948,6 +957,7 @@ async function load(){
         lastWind14k = d.wind_14k;
         lastCanopyWind = { speed: d.canopy.speed, direction: d.canopy.direction };
         window._lastWinds = d.winds;
+        window._lastClouds = d.clouds || null;
         updateWindSummary(d);
         if (landingSpot) drawPattern();
         if (jrStart && jrEnd) drawFreefallParallel();
@@ -1031,8 +1041,8 @@ async function load(){
             const tf=w.temp_f; let tempStr='', tempColor='var(--muted)';
             if (tf!==null&&tf!==undefined){
                 tempStr=`${tf}°F`;
-                if (tf>=85) tempColor='#ff4f4f';
-                else if (tf>=75) tempColor=lerpColor('#ff8c00','#ff4f4f',(tf-75)/10);
+                if (tf>=86) tempColor='#ff4f4f';
+                else if (tf>=80) tempColor=lerpColor('#ff8c00','#ff4f4f',(tf-80)/6);
                 else if (tf>=60) tempColor='#39ff89';
                 else if (tf>=45) tempColor=lerpColor('#ffe033','#39ff89',(tf-45)/15);
                 else if (tf>=35) tempColor=lerpColor('#4488ff','#ffe033',(tf-35)/10);
@@ -1781,6 +1791,99 @@ async function loadCommunityJR(){
     } catch(e){
         showJumpRunStatus("⚠️ Could not load jump run data");
     }
+}
+
+function skyIcon(sky, cover){
+    if (cover < 13) return '&#9728;'; // sun
+    if (cover < 38) return '&#127780;'; // sun behind small cloud
+    if (cover < 63) return '&#9925;'; // sun behind cloud
+    if (cover < 88) return '&#9729;'; // cloud
+    return '&#127745;'; // cloudy
+}
+
+function toggleCloudPopup(){
+    const popup = document.getElementById("cloudPopup");
+    if (popup.style.display !== "none"){ popup.style.display="none"; return; }
+    popup.style.display = "block";
+    renderCloudPopup();
+}
+
+function renderCloudPopup(){
+    const el = document.getElementById("cloudContent");
+    const clouds = window._lastClouds;
+    if (!clouds || !clouds.length){ el.innerHTML = '<span style="color:var(--muted)">No cloud data available</span>'; return; }
+
+    // Get current time for column headers
+    const now = new Date();
+    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+    // Build table
+    let html = '<table style="border-collapse:collapse;width:100%">';
+
+    // Header row — time labels
+    html += '<tr>';
+    html += '<td style="padding:3px 6px;color:var(--muted);font-size:0.6rem"></td>';
+    for (const b of clouds){
+        const t = new Date(now.getTime() + b.offset_h * 3600000);
+        const hr = t.getHours();
+        const ampm = hr >= 12 ? 'PM' : 'AM';
+        const h12 = hr % 12 || 12;
+        const dayStr = b.offset_h === 0 ? 'Now' : `${h12}${ampm}`;
+        html += `<td style="text-align:center;padding:3px 8px;color:var(--muted);font-size:0.65rem;white-space:nowrap">${dayStr}</td>`;
+    }
+    html += '</tr>';
+
+    // Icon row
+    html += '<tr>';
+    html += '<td style="padding:3px 6px;color:var(--muted);font-size:0.6rem"></td>';
+    for (const b of clouds){
+        const iconColor = b.precip > 30 ? '#4488ff' : b.cover > 70 ? 'var(--muted)' : '#ffdd88';
+        html += `<td style="text-align:center;padding:4px 8px;font-size:1.4rem">${skyIcon(b.sky, b.cover)}</td>`;
+    }
+    html += '</tr>';
+
+    // Sky condition row
+    html += '<tr>';
+    html += '<td style="padding:3px 6px;color:var(--muted);font-size:0.6rem"></td>';
+    for (const b of clouds){
+        const label = b.sky.replace(' ', '<br>');
+        html += `<td style="text-align:center;padding:2px 4px;font-size:0.62rem;color:var(--text);line-height:1.3">${label}</td>`;
+    }
+    html += '</tr>';
+
+    // Cover % row
+    html += '<tr>';
+    html += `<td style="padding:3px 6px;color:var(--muted);font-size:0.6rem;white-space:nowrap">% Cov</td>`;
+    for (const b of clouds){
+        const col = b.cover > 75 ? 'var(--muted)' : b.cover > 40 ? '#ffaa00' : '#39ff89';
+        html += `<td style="text-align:center;padding:2px 4px;color:${col};font-size:0.72rem">${b.cover}%</td>`;
+    }
+    html += '</tr>';
+
+    // Cloud base row
+    html += '<tr style="border-top:1px solid var(--border)">';
+    html += `<td style="padding:4px 6px;color:var(--muted);font-size:0.6rem;white-space:nowrap">Base</td>`;
+    for (const b of clouds){
+        const baseStr = b.base_ft != null ? (b.base_ft >= 1000 ? `${(b.base_ft/1000).toFixed(1)}k ft` : `${b.base_ft} ft`) : '—';
+        const baseCol = b.base_ft != null && b.base_ft < 3000 ? '#ff4f4f' : b.base_ft != null && b.base_ft < 6000 ? '#ffaa00' : 'var(--muted)';
+        html += `<td style="text-align:center;padding:4px 4px;color:${baseCol};font-size:0.68rem">${baseStr}</td>`;
+    }
+    html += '</tr>';
+
+    // Precip row (only if any precip)
+    const anyPrecip = clouds.some(b => b.precip > 10);
+    if (anyPrecip){
+        html += '<tr>';
+        html += `<td style="padding:3px 6px;color:var(--muted);font-size:0.6rem;white-space:nowrap">💧 Rain</td>`;
+        for (const b of clouds){
+            const col = b.precip > 50 ? '#ff4f4f' : b.precip > 20 ? '#ffaa00' : 'var(--muted)';
+            html += `<td style="text-align:center;padding:2px 4px;color:${col};font-size:0.68rem">${b.precip > 0 ? b.precip+'%' : '—'}</td>`;
+        }
+        html += '</tr>';
+    }
+
+    html += '</table>';
+    el.innerHTML = html;
 }
 
 function initDZ(){

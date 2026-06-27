@@ -9,3 +9,4 @@ Jumptown (Orange, MA): 42.569102,-72.287524,KORE
 Skydive New England (Lebanon, ME): 43.371169,-70.925974,KSFM
 Skydive Cross Keys (Monroe, NJ): 39.707255,-75.036002,KPHL
 Skydive Danielson (Danielson, CT): 41.822770,-71.900823,KLZD
+Vermont Skydiving Adventures (Addison, VT): 44.072883, -73.372074,K6B0

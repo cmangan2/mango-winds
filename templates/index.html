@@ -1554,12 +1554,11 @@ function drawJumpRunLine(pts){
     if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
     if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
     const coords = pts.map(p => [p.lat, p.lon]);
-    const mid = pts[Math.floor(pts.length/2)];
     lastJumpRunLine = L.polyline(coords, { color: "#ff4f4f", weight: 4, opacity: 0.9 }).addTo(map);
-    lastJumpRunLabel = L.marker([mid.lat, mid.lon], {
+    lastJumpRunLabel = L.marker([pts[0].lat, pts[0].lon], {
         icon: L.divIcon({
-            html: `<div style="background:rgba(7,11,16,0.92);border:1px solid #ff4f4f;border-radius:6px;padding:5px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;font-weight:700;color:#ff4f4f;letter-spacing:0.08em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.6)">Jump Run</div>`,
-            className: "", iconAnchor: [0,0]
+            html: `<div style="background:rgba(7,11,16,0.92);border:1px solid #ff4f4f;border-radius:6px;padding:4px 10px;font-family:'Barlow Condensed',sans-serif;font-size:0.85rem;font-weight:700;color:#ff4f4f;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.6);white-space:nowrap">Jump Run</div>`,
+            className: "", iconAnchor: [0, 24]
         }), interactive: false
     }).addTo(map);
 }
@@ -1650,25 +1649,37 @@ function freezeTrail(){
     showJumpRunStatus("Trail frozen! Click 'Mark Jump Run' then click start and end points on the trail.");
 }
 
+function nearestTrailPoint(clickLatLng){
+    const trail = frozenTrailPoints || planeTrail;
+    if (!trail || trail.length === 0) return clickLatLng;
+    let best = null, bestDist = Infinity;
+    for (const pt of trail){
+        const d = map.distance(clickLatLng, L.latLng(pt[0], pt[1]));
+        if (d < bestDist){ bestDist = d; best = L.latLng(pt[0], pt[1]); }
+    }
+    return best || clickLatLng;
+}
+
 function startJrMarkMode(){
     jrMarkMode = true;
     jrMarkPoints = [];
     jrMarkMarkers.forEach(m => m.remove()); jrMarkMarkers = [];
     map.getContainer().style.cursor = "crosshair";
-    showJumpRunStatus("Click the START of the jump run on the trail...");
+    showJumpRunStatus("Tap the START of the jump run on the trail...");
 
-    // Listen for map clicks
     map.once('click', function(e){
-        jrMarkPoints.push(e.latlng);
-        const m = L.circleMarker([e.latlng.lat, e.latlng.lng], {
+        const snapped = nearestTrailPoint(e.latlng);
+        jrMarkPoints.push(snapped);
+        const m = L.circleMarker([snapped.lat, snapped.lng], {
             radius: 8, color: '#ff4f4f', fillColor: '#ff4f4f', fillOpacity: 0.9, weight: 2
         }).addTo(map);
         jrMarkMarkers.push(m);
-        showJumpRunStatus("Now click the END of the jump run...");
+        showJumpRunStatus("Now tap the END of the jump run on the trail...");
 
         map.once('click', function(e2){
-            jrMarkPoints.push(e2.latlng);
-            const m2 = L.circleMarker([e2.latlng.lat, e2.latlng.lng], {
+            const snapped2 = nearestTrailPoint(e2.latlng);
+            jrMarkPoints.push(snapped2);
+            const m2 = L.circleMarker([snapped2.lat, snapped2.lng], {
                 radius: 8, color: '#ff4f4f', fillColor: '#ff4f4f', fillOpacity: 0.9, weight: 2
             }).addTo(map);
             jrMarkMarkers.push(m2);
@@ -1772,10 +1783,10 @@ async function loadCommunityJR(){
         }).addTo(map);
         const mid = { lat: (d.start[0]+d.end[0])/2, lng: (d.start[1]+d.end[1])/2 };
         const timeStr = ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
-        communityJrLabel = L.marker([mid.lat, mid.lng], {
+        communityJrLabel = L.marker(d.start, {
             icon: L.divIcon({
-                html: `<div style="background:rgba(7,11,16,0.92);border:1px solid #ff4f4f;border-radius:6px;padding:5px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.85rem;font-weight:700;color:#ff4f4f;letter-spacing:0.06em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.6)">Jump Run ${d.heading ? d.heading+'°' : ''}<br><span style="font-size:0.7rem;font-weight:400;letter-spacing:0.04em">${timeStr}${d.tail ? ' · '+d.tail : ''}${d.submission_count > 1 ? ' · '+d.submission_count+' reports' : ''}</span></div>`,
-                className: "", iconAnchor: [0,0]
+                html: `<div style="background:rgba(7,11,16,0.92);border:1px solid #ff4f4f;border-radius:6px;padding:4px 10px;font-family:'Barlow Condensed',sans-serif;font-size:0.85rem;font-weight:700;color:#ff4f4f;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.6);white-space:nowrap">Jump Run ${d.heading ? d.heading+'°' : ''}&nbsp;<span style="font-weight:400;font-size:0.75rem">${timeStr}${d.tail ? ' · '+d.tail : ''}${d.submission_count > 1 ? ' · '+d.submission_count+' reports' : ''}</span></div>`,
+                className: "", iconAnchor: [0, 24]
             }), interactive: false
         }).addTo(map);
         btn.style.color = "#ff4f4f";

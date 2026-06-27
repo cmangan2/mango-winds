@@ -85,9 +85,10 @@ def save_api_log():
         print(f"API log save error: {e}")
 
 def record_api_call(n=1):
-    now = datetime.now(timezone.utc)
-    date = now.strftime("%Y-%m-%d")
-    hour = str(now.hour)
+    import pytz as _pytz_log
+    now_est = datetime.now(timezone.utc).astimezone(_pytz_log.timezone("America/New_York"))
+    date = now_est.strftime("%Y-%m-%d")
+    hour = str(now_est.hour)
     if date not in _api_log:
         _api_log[date] = {}
     _api_log[date][hour] = _api_log[date].get(hour, 0) + n
@@ -884,9 +885,11 @@ def stats():
         cnt = today_api.get(str(h), 0)
         if cnt == 0: continue
         bar = int(cnt / max(today_api.values(), default=1) * 150)
-        _utc_t = _dt2(today_est.year, today_est.month, today_est.day, h, 0, tzinfo=timezone.utc)
-        _est_local = _utc_t.astimezone(_pytz2.timezone("America/New_York")); _est_lbl = str(int(_est_local.strftime("%I"))) + _est_local.strftime("%p").lower()
-        api_hourly_rows += f"<tr><td style='padding:2px 8px;color:#5a7a96'>{_est_lbl}</td><td><div style='background:#00d4ff;height:10px;width:{bar}px;border-radius:2px;display:inline-block'></div></td><td style='padding:2px 8px;color:#c8daea'>{cnt}</td></tr>"
+        # Hours already stored in EST
+        ampm = "am" if h < 12 else "pm"
+        h12 = h % 12 or 12
+        est_lbl = f"{h12}{ampm}"
+        api_hourly_rows += f"<tr><td style='padding:2px 8px;color:#5a7a96'>{est_lbl}</td><td><div style='background:#00d4ff;height:10px;width:{bar}px;border-radius:2px;display:inline-block'></div></td><td style='padding:2px 8px;color:#c8daea'>{cnt}</td></tr>"
 
     dz_rows = ""
     for dz in sorted(dz_totals, key=lambda x: dz_totals[x], reverse=True):
@@ -980,9 +983,11 @@ def admin():
         cnt = today_api.get(str(h), 0)
         if cnt == 0: continue
         bar = int(cnt / max(today_api.values(), default=1) * 150)
-        _utc_t = _dt2(today_est.year, today_est.month, today_est.day, h, 0, tzinfo=timezone.utc)
-        _est_local = _utc_t.astimezone(_pytz2.timezone("America/New_York")); _est_lbl = str(int(_est_local.strftime("%I"))) + _est_local.strftime("%p").lower()
-        api_hourly_rows += f"<tr><td style='padding:2px 8px;color:#5a7a96'>{_est_lbl}</td><td><div style='background:#00d4ff;height:10px;width:{bar}px;border-radius:2px;display:inline-block'></div></td><td style='padding:2px 8px;color:#c8daea'>{cnt}</td></tr>"
+        # Hours already stored in EST
+        ampm = "am" if h < 12 else "pm"
+        h12 = h % 12 or 12
+        est_lbl = f"{h12}{ampm}"
+        api_hourly_rows += f"<tr><td style='padding:2px 8px;color:#5a7a96'>{est_lbl}</td><td><div style='background:#00d4ff;height:10px;width:{bar}px;border-radius:2px;display:inline-block'></div></td><td style='padding:2px 8px;color:#c8daea'>{cnt}</td></tr>"
 
     # Build DZ rows
     dz_rows = ""

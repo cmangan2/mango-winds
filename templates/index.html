@@ -334,7 +334,7 @@ select:focus { border-color: var(--accent); }
 </div>
 
 <!-- ── CLOUD FORECAST POPUP ── -->
-<div id="cloudPopup" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:8002;background:rgba(13,21,32,0.97);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:0 8px 32px rgba(0,0,0,0.7);backdrop-filter:blur(10px);min-width:320px;max-width:95vw">
+<div id="cloudPopup" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:8002;background:rgba(13,21,32,0.97);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:0 8px 32px rgba(0,0,0,0.7);backdrop-filter:blur(10px);min-width:320px;max-width:95vw;cursor:grab;user-select:none;touch-action:none">
     <button onclick="document.getElementById('cloudPopup').style.display='none'" style="position:absolute;top:8px;right:10px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
     <div style="font-size:0.65rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">☁️ Cloud Forecast</div>
     <div id="cloudContent" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text)">Loading...</div>
@@ -1792,6 +1792,43 @@ async function loadCommunityJR(){
         showJumpRunStatus("⚠️ Could not load jump run data");
     }
 }
+
+// ── CLOUD POPUP DRAG ──
+(function(){
+    function initCloudDrag(){
+        const box = document.getElementById("cloudPopup");
+        if (!box) return;
+        let dragging=false, startX=0, startY=0, origX=0, origY=0;
+        function getPos(e){ return e.touches ? e.touches[0] : e; }
+        function onStart(e){
+            if (e.target.tagName==="BUTTON") return;
+            dragging=true;
+            const p=getPos(e); startX=p.clientX; startY=p.clientY;
+            const rect=box.getBoundingClientRect(); origX=rect.left; origY=rect.top;
+            box.style.cursor="grabbing"; box.style.transition="none";
+            box.style.left=origX+"px"; box.style.top=origY+"px";
+            box.style.bottom="auto"; box.style.transform="none";
+            e.preventDefault();
+        }
+        function onMove(e){
+            if (!dragging) return;
+            const p=getPos(e);
+            box.style.left=(origX+p.clientX-startX)+"px";
+            box.style.top=(origY+p.clientY-startY)+"px";
+            e.preventDefault();
+        }
+        function onEnd(){ dragging=false; box.style.cursor="grab"; }
+        box.addEventListener("mousedown", onStart);
+        box.addEventListener("touchstart", onStart, {passive:false});
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("touchmove", onMove, {passive:false});
+        window.addEventListener("mouseup", onEnd);
+        window.addEventListener("touchend", onEnd);
+    }
+    // Init after DOM ready
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initCloudDrag);
+    else initCloudDrag();
+})();
 
 function skyIcon(sky, cover){
     if (cover < 13) return '&#9728;'; // sun

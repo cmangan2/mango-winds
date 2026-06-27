@@ -1427,6 +1427,10 @@ function updatePlaneMarker(data){
     trackedPlane = data;
     if (trackedPlaneMarker) trackedPlaneMarker.setIcon(planeTrackIcon(data.hdg||0, data.on_ground));
     if (data.fr24id) trackedPlane.fr24id = data.fr24id;
+    // Always record real position to trail regardless of tab visibility
+    planeTrail.push([data.lat, data.lon]);
+    if (planeTrailLine){ planeTrailLine.setLatLngs(planeTrail); }
+    else { planeTrailLine = L.polyline(planeTrail, { color: '#00d4ff', weight: 4, opacity: 0.6 }).addTo(map); }
     planeAnimFrom = trackedPlaneMarker ? trackedPlaneMarker.getLatLng() : { lat: data.lat, lng: data.lon };
     planeAnimTo   = { lat: data.lat, lng: data.lon };
     planeAnimStart = null;

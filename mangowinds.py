@@ -17,6 +17,28 @@ CACHE_TTL = timedelta(minutes=120)  # 2 hour cache to reduce API calls
 CACHE_FILE  = os.path.join(os.path.dirname(__file__), "winds_cache.json")
 VISITS_FILE   = os.environ.get("VISITS_FILE",   os.path.join(os.path.dirname(__file__), "visits.json"))
 JUMPRUN_FILE  = os.environ.get("JUMPRUN_FILE",  os.path.join(os.path.dirname(__file__), "jumprun.json"))
+TAILS_FILE    = os.environ.get("TAILS_FILE",    os.path.join(os.path.dirname(__file__), "tails.json"))
+
+# Tail number storage: {dz_name: ["N123AB", "N456CD", ...]}
+_tails_log = {}
+
+def load_tails():
+    global _tails_log
+    try:
+        if os.path.exists(TAILS_FILE):
+            with open(TAILS_FILE) as f:
+                _tails_log = json.load(f)
+    except Exception as e:
+        print(f"Tails load error: {e}")
+
+def save_tails():
+    try:
+        with open(TAILS_FILE, "w") as f:
+            json.dump(_tails_log, f)
+    except Exception as e:
+        print(f"Tails save error: {e}")
+
+load_tails()
 
 # Jump run storage: {dz_name: {start, end, alt, heading, timestamp, tail}}
 _jumprun_log = {}
@@ -1065,6 +1087,30 @@ def plane_trace():
     except Exception as e:
         print(f"Plane trace error: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/tails", methods=["GET", "POST"])
+def tails():
+    if request.method == "GET":
+        dz_name = request.args.get("dz", "")
+        return jsonify(_tails_log.get(dz_name, []))
+
+    # POST — record a tail number for a DZ
+    data = request.json
+    dz_name = data.get("dz", "").strip()
+    tail = data.get("tail", "").strip().upper()
+    if not dz_name or not tail:
+        return jsonify({"error": "dz and tail required"}), 400
+
+    tails = _tails_log.get(dz_name, [])
+    # Move to front if already exists, otherwise prepend
+    if tail in tails:
+        tails.remove(tail)
+    tails.insert(0, tail)
+    # Keep max 10 per DZ
+    _tails_log[dz_name] = tails[:10]
+    save_tails()
+    return jsonify({"status": "saved", "tails": _tails_log[dz_name]})
 
 
 @app.route("/jumprun", methods=["GET", "POST"])

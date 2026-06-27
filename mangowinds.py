@@ -256,7 +256,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
         api_key = os.environ.get("OPENMETEO_API_KEY")
         base_url = "https://customer-api.open-meteo.com/v1/forecast" if api_key else "https://api.open-meteo.com/v1/forecast"
         hourly_fields = [
-            "windspeed_10m","winddirection_10m","windspeed_80m","winddirection_80m","temperature_2m",
+            "windspeed_10m","winddirection_10m","windspeed_80m","winddirection_80m","temperature_2m","cloudcover_low","cloudcover_mid","cloudcover_high","cloudcover","precipitation_probability","visibility","dewpoint_2m",
             "windspeed_1000hPa","winddirection_1000hPa",
             "windspeed_975hPa","winddirection_975hPa",
             "windspeed_950hPa","winddirection_950hPa",
@@ -1164,6 +1164,65 @@ def clearcache():
     return jsonify({"status": "cache cleared"})
 
 
+def build_cloud_forecast(raw, current_hour):
+    """Extract cloud cover, precip, visibility for next 8 hours in 2-hour blocks."""
+    try:
+        if not raw or raw.get("source") != "openmeteo_ensemble":
+            return None
+        # Use first available model for cloud data
+        models = raw.get("models", {})
+        if not models:
+            return None
+        mh = list(models.values())[0].get("hourly", {})
+
+        def safe_get(field, idx, default=None):
+            arr = mh.get(field, [])
+            return arr[idx] if idx < len(arr) else default
+
+        blocks = []
+        for offset in range(0, 9, 2):  # 0, 2, 4, 6, 8 hours from now
+            h = current_hour + offset
+            cl  = safe_get("cloudcover_low",  h, 0)
+            cm  = safe_get("cloudcover_mid",  h, 0)
+            ch  = safe_get("cloudcover_high", h, 0)
+            cc  = safe_get("cloudcover",      h, 0)
+            pp  = safe_get("precipitation_probability", h, 0)
+            vis = safe_get("visibility",      h)
+            temp= safe_get("temperature_2m",  h)
+            dew = safe_get("dewpoint_2m",     h)
+
+            # Estimate cloud base from surface temp/dewpoint spread
+            # LCL approximation: base (ft) ≈ (T - Td) * 400
+            cloud_base_ft = None
+            if temp is not None and dew is not None and cc and cc > 20:
+                spread = temp - dew
+                cloud_base_ft = max(0, round(spread * 400 / 100) * 100)
+
+            # Sky condition label
+            if cc is None: cc = 0
+            if cc < 13:   sky = "Clear"
+            elif cc < 38: sky = "Few"
+            elif cc < 63: sky = "Partly Cloudy"
+            elif cc < 88: sky = "Mostly Cloudy"
+            else:          sky = "Cloudy"
+
+            blocks.append({
+                "offset_h":  offset,
+                "sky":       sky,
+                "cover":     round(cc) if cc else 0,
+                "low":       round(cl) if cl else 0,
+                "mid":       round(cm) if cm else 0,
+                "high":      round(ch) if ch else 0,
+                "precip":    round(pp) if pp else 0,
+                "vis_mi":    round(vis / 1609.34, 1) if vis else None,
+                "base_ft":   cloud_base_ft,
+            })
+        return blocks
+    except Exception as e:
+        print(f"Cloud forecast error: {e}")
+        return None
+
+
 @app.route("/data")
 def data():
     lat = request.args.get("lat", type=float)
@@ -1297,6 +1356,7 @@ def data():
         },
         "time_label": time_label,
         "winds_spread": winds_spread_out,
+        "clouds": build_cloud_forecast(raw, current_hour_index),
     })
     response.headers["Cache-Control"] = "no-store, max-age=0"
     return response

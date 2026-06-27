@@ -1169,11 +1169,13 @@ def build_cloud_forecast(raw, current_hour):
     try:
         if not raw or raw.get("source") != "openmeteo_ensemble":
             return None
-        # Use first available model for cloud data
+        # Use GFS for cloud data — best calibrated for US locations
         models = raw.get("models", {})
         if not models:
             return None
-        mh = list(models.values())[0].get("hourly", {})
+        # Prefer GFS, fall back to first available
+        gfs_data = models.get("gfs_seamless") or models.get("gfs")
+        mh = (gfs_data or list(models.values())[0]).get("hourly", {})
 
         def safe_get(field, idx, default=None):
             arr = mh.get(field, [])

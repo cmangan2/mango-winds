@@ -958,6 +958,7 @@ async function load(){
         lastCanopyWind = { speed: d.canopy.speed, direction: d.canopy.direction };
         window._lastWinds = d.winds;
         window._lastClouds = d.clouds || null;
+        if (document.getElementById("cloudPopup").style.display !== "none") renderCloudPopup();
         updateWindSummary(d);
         if (landingSpot) drawPattern();
         if (jrStart && jrEnd) drawFreefallParallel();
@@ -1850,22 +1851,24 @@ function renderCloudPopup(){
     const clouds = window._lastClouds;
     if (!clouds || !clouds.length){ el.innerHTML = '<span style="color:var(--muted)">No cloud data available</span>'; return; }
 
-    // Get current time for column headers
+    // Get base time from forecast offset slider
+    const forecastOffsetH = parseInt(document.getElementById("hour").value) || 0;
     const now = new Date();
-    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const baseTime = new Date(now.getTime() + forecastOffsetH * 3600000);
+    baseTime.setMinutes(0, 0, 0);
 
     // Build table
     let html = '<table style="border-collapse:collapse;width:100%">';
 
-    // Header row — time labels
+    // Header row — time labels relative to slider position
     html += '<tr>';
     html += '<td style="padding:3px 6px;color:var(--muted);font-size:0.6rem"></td>';
     for (const b of clouds){
-        const t = new Date(now.getTime() + b.offset_h * 3600000);
+        const t = new Date(baseTime.getTime() + b.offset_h * 3600000);
         const hr = t.getHours();
         const ampm = hr >= 12 ? 'PM' : 'AM';
         const h12 = hr % 12 || 12;
-        const dayStr = b.offset_h === 0 ? 'Now' : `${h12}${ampm}`;
+        const dayStr = b.offset_h === 0 ? document.getElementById("timeLabel").innerText : `${h12}${ampm}`;
         html += `<td style="text-align:center;padding:3px 8px;color:var(--muted);font-size:0.65rem;white-space:nowrap">${dayStr}</td>`;
     }
     html += '</tr>';

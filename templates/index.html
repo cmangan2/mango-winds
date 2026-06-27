@@ -401,6 +401,7 @@ select:focus { border-color: var(--accent); }
                 <button id="defineBtn" onclick="openDefineModal()">📐 Define Jump Run</button>
                 <button id="patternBtn" onclick="togglePatternMode()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid #ff4f4f;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🎯 Place Landing Spot</button>
                 <button id="trackBtn" onclick="openTrackModal()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#00d4ff;border:1px solid #00d4ff;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">✈️ Track Plane</button>
+                <button id="communityJrBtn" onclick="loadCommunityJR()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">📍 Show Last Jump Run</button>
                 <div id="planeInfo" style="display:none;margin-top:6px;background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--muted);line-height:1.8"></div>
                 <div id="patternControls" style="display:none;margin-top:6px;background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px">
                     <div style="display:flex;gap:8px;margin-bottom:6px">
@@ -1382,39 +1383,22 @@ function detectJumpRun(data){
 }
 
 function extractAndDrawJumpRun(){
-    if (planeHistory.length < 4) return;
-
-    // Walk backwards from dive point to find level segment
-    // Find where level flight started (transition from climb to level)
-    const levelPoints = [];
+    if (planeHistory.length < 2) return;
+    // Use last 3 miles of track before the dive
+    const THREE_MILES_M = 4828;
+    const pts = [];
+    let totalDist = 0;
     for (let i = planeHistory.length - 1; i >= 0; i--){
         const p = planeHistory[i];
-        if (Math.abs(p.vert) <= LEVEL_THRESHOLD){
-            levelPoints.unshift(p);
-        } else if (levelPoints.length > 0){
-            // Found the start of the climb — stop here
-            break;
+        if (pts.length > 0){
+            totalDist += distMeters([p.lat, p.lon], [pts[0].lat, pts[0].lon]);
+            if (totalDist > THREE_MILES_M) break;
         }
+        pts.unshift(p);
     }
-
-    if (levelPoints.length < 2){
-        showJumpRunStatus("⚠️ Jump run not detected — insufficient level flight data");
-        return;
-    }
-
-    // Clear any previous status message
+    if (pts.length < 2){ showJumpRunStatus("⚠️ Jump run not detected — not enough track data"); return; }
     showJumpRunStatus(null);
-
-    // Draw the jump run line
-    const coords = levelPoints.map(p => [p.lat, p.lon]);
-    const firstPt = levelPoints[0];
-    const lastPt  = levelPoints[levelPoints.length - 1];
-    const altFt   = lastPt.alt ? Math.round(lastPt.alt).toLocaleString() + " ft" : "—";
-    const hdgDeg  = lastPt.hdg ? Math.round(lastPt.hdg) + "°" : "—";
-    const lenMi   = (distMeters([firstPt.lat, firstPt.lon], [lastPt.lat, lastPt.lon]) / 1609.344).toFixed(1);
-
-    drawJumpRunLine(levelPoints, "");
-    console.log(`Jump run detected: ${lenMi}mi @ ${altFt} hdg ${hdgDeg}`);
+    drawJumpRunLine(pts);
 }
 
 function updatePlaneMarker(data){
@@ -1438,6 +1422,7 @@ function updatePlaneMarker(data){
         `ALT&nbsp;&nbsp;${alt}<br>SPD&nbsp;&nbsp;${spd}<br>HDG&nbsp;&nbsp;${hdg}<br>VERT&nbsp;${vert}` +
         `<br><div style="display:flex;gap:4px;margin-top:6px">` +
         `<button onclick="showLastJumpRun()" style="flex:1;padding:4px;background:none;border:1px solid #ff4f4f;color:#ff4f4f;border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">Last JR</button>` +
+        `<button onclick="freezeTrail()" style="flex:1;padding:4px;background:none;border:1px solid var(--freefall);color:var(--freefall);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">Freeze</button>` +
         `<button onclick="stopTracking()" style="flex:1;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">&#9646; Stop</button>` +
         `</div>`;
 }
@@ -1523,21 +1508,23 @@ async function fetchTraceHistory(icao, tail){
             return;
         }
 
-        // Walk back from last dive to find start of that jump run
-        const levelPoints = [];
+        // Walk back from dive — take last 3 miles of track
+        const THREE_MI = 4828;
+        const jrPts = [];
+        let tDist = 0;
         for (let i = lastDiveIdx - 1; i >= 0; i--){
-            if (Math.abs(pts[i].vert||0) <= LEVEL){
-                levelPoints.unshift(pts[i]);
-            } else if (levelPoints.length > 0){
-                break;
+            const p = pts[i];
+            if (jrPts.length > 0){
+                tDist += distMeters([p.lat, p.lon], [jrPts[0].lat, jrPts[0].lon]);
+                if (tDist > THREE_MI) break;
             }
+            jrPts.unshift(p);
         }
 
-        // Load history up to dive point for future detection
         planeHistory = pts.slice(Math.max(0, lastDiveIdx - 60), lastDiveIdx).map(p => ({...p, ts: p.ts * 1000}));
 
-        if (levelPoints.length >= 2){
-            drawJumpRunLine(levelPoints, tail + " (last)");
+        if (jrPts.length >= 2){
+            drawJumpRunLine(jrPts);
             showJumpRunStatus(null);
         } else {
             showJumpRunStatus(null);
@@ -1551,35 +1538,16 @@ async function fetchTraceHistory(icao, tail){
     }
 }
 
-function drawJumpRunLine(levelPoints, label){
+function drawJumpRunLine(pts){
     if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
     if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
     if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
-    if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
-
-    const coords = levelPoints.map(p => [p.lat, p.lon]);
-    const firstPt = levelPoints[0], lastPt = levelPoints[levelPoints.length-1];
-    const altFt = lastPt.alt ? Math.round(lastPt.alt).toLocaleString() + " ft" : "—";
-    const hdgDeg = lastPt.hdg ? Math.round(lastPt.hdg) + "°" : "—";
-    const lenMi = (distMeters([firstPt.lat,firstPt.lon],[lastPt.lat,lastPt.lon])/1609.344).toFixed(1);
-
+    const coords = pts.map(p => [p.lat, p.lon]);
+    const mid = pts[Math.floor(pts.length/2)];
     lastJumpRunLine = L.polyline(coords, { color: "#ff4f4f", weight: 4, opacity: 0.9 }).addTo(map);
-
-    if (coords.length >= 2){
-        const bear = bearing(coords[coords.length-2], coords[coords.length-1]);
-        const tipPx = map.latLngToLayerPoint(L.latLng(lastPt.lat, lastPt.lon));
-        const rr = (bear-90)*Math.PI/180;
-        const left  = map.layerPointToLatLng(L.point(tipPx.x+12*Math.cos(rr+2.5), tipPx.y+12*Math.sin(rr+2.5)));
-        const right = map.layerPointToLatLng(L.point(tipPx.x+12*Math.cos(rr-2.5), tipPx.y+12*Math.sin(rr-2.5)));
-        lastJumpRunArrow = L.polygon([[lastPt.lat,lastPt.lon],left,right],{color:"#ff4f4f",fillColor:"#ff4f4f",fillOpacity:0.9,weight:0}).addTo(map);
-    }
-
-    const mid = levelPoints[Math.floor(levelPoints.length/2)];
-    lastJumpRunLabel = L.marker([mid.lat,mid.lon], {
+    lastJumpRunLabel = L.marker([mid.lat, mid.lon], {
         icon: L.divIcon({
-            html: `<div style="background:rgba(7,11,16,0.95);border:1px solid #ff4f4f;border-radius:6px;padding:6px 10px;font-family:'Share Tech Mono',monospace;font-size:0.75rem;font-weight:bold;color:#ff4f4f;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.6);line-height:1.6">
-                Last JR&nbsp; ${altFt} &nbsp;${hdgDeg} &nbsp;${lenMi}mi
-            </div>`,
+            html: `<div style="background:rgba(7,11,16,0.92);border:1px solid #ff4f4f;border-radius:6px;padding:5px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;font-weight:700;color:#ff4f4f;letter-spacing:0.08em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.6)">Jump Run</div>`,
             className: "", iconAnchor: [0,0]
         }), interactive: false
     }).addTo(map);
@@ -1625,6 +1593,194 @@ function stopTracking(){
     tb.style.color = "#00d4ff";
     tb.style.borderColor = "#00d4ff";
     tb.onclick = openTrackModal;
+}
+
+// ── COMMUNITY JUMP RUN ──
+let frozenTrailPoints = null;   // points from frozen trail for click selection
+let jrMarkMode = false;         // waiting for user to click start/end
+let jrMarkPoints = [];          // [start, end] latlng clicks
+let jrMarkMarkers = [];         // temp markers during selection
+let communityJrLine = null;
+let communityJrLabel = null;
+let communityJrArrow = null;
+let frozenTrailLine = null;
+
+function freezeTrail(){
+    if (!trackedPlane || planeTrail.length < 2){
+        showJumpRunStatus("No flight trail to freeze yet");
+        return;
+    }
+    // Stop polling but keep trail
+    if (planeTrackInterval){ clearInterval(planeTrackInterval); planeTrackInterval = null; }
+    if (planeAnimFrame){ cancelAnimationFrame(planeAnimFrame); planeAnimFrame = null; }
+
+    // Store trail points for click selection
+    frozenTrailPoints = [...planeTrail];
+
+    // Make trail brighter to indicate frozen
+    if (planeTrailLine){ planeTrailLine.setStyle({ opacity: 0.9, weight: 5 }); }
+
+    // Update button state
+    const tb = document.getElementById("trackBtn");
+    tb.textContent = "✈️ Track Plane";
+    tb.style.background = "var(--card-bg)";
+    tb.style.color = "#00d4ff";
+    tb.style.borderColor = "#00d4ff";
+    tb.onclick = openTrackModal;
+
+    // Update planeInfo to show mark mode button
+    document.getElementById("planeInfo").innerHTML =
+        `<span style="color:var(--freefall);font-weight:bold">Trail frozen — click two points to mark jump run</span>` +
+        `<br><div style="display:flex;gap:4px;margin-top:6px">` +
+        `<button onclick="startJrMarkMode()" style="flex:1;padding:5px;background:none;border:1px solid #ff4f4f;color:#ff4f4f;border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✏️ Mark Jump Run</button>` +
+        `<button onclick="clearFrozenTrail()" style="flex:1;padding:5px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✕ Clear</button>` +
+        `</div>`;
+
+    showJumpRunStatus("Trail frozen! Click 'Mark Jump Run' then click start and end points on the trail.");
+}
+
+function startJrMarkMode(){
+    jrMarkMode = true;
+    jrMarkPoints = [];
+    jrMarkMarkers.forEach(m => m.remove()); jrMarkMarkers = [];
+    map.getContainer().style.cursor = "crosshair";
+    showJumpRunStatus("Click the START of the jump run on the trail...");
+
+    // Listen for map clicks
+    map.once('click', function(e){
+        jrMarkPoints.push(e.latlng);
+        const m = L.circleMarker([e.latlng.lat, e.latlng.lng], {
+            radius: 8, color: '#ff4f4f', fillColor: '#ff4f4f', fillOpacity: 0.9, weight: 2
+        }).addTo(map);
+        jrMarkMarkers.push(m);
+        showJumpRunStatus("Now click the END of the jump run...");
+
+        map.once('click', function(e2){
+            jrMarkPoints.push(e2.latlng);
+            const m2 = L.circleMarker([e2.latlng.lat, e2.latlng.lng], {
+                radius: 8, color: '#ff4f4f', fillColor: '#ff4f4f', fillOpacity: 0.9, weight: 2
+            }).addTo(map);
+            jrMarkMarkers.push(m2);
+            map.getContainer().style.cursor = "";
+            jrMarkMode = false;
+            drawAndSaveCommunityJR();
+        });
+    });
+}
+
+function drawAndSaveCommunityJR(){
+    if (jrMarkPoints.length < 2) return;
+    const start = jrMarkPoints[0];
+    const end   = jrMarkPoints[1];
+
+    // Draw the line
+    if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
+    if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
+    if (communityJrArrow){ communityJrArrow.remove(); communityJrArrow = null; }
+
+    communityJrLine = L.polyline([[start.lat, start.lng], [end.lat, end.lng]], {
+        color: "#ff4f4f", weight: 4, opacity: 0.9
+    }).addTo(map);
+
+    const hdg = bearing([start.lat, start.lng], [end.lat, end.lng]);
+    const mid = { lat: (start.lat+end.lat)/2, lng: (start.lng+end.lng)/2 };
+
+    communityJrLabel = L.marker([mid.lat, mid.lng], {
+        icon: L.divIcon({
+            html: `<div style="background:rgba(7,11,16,0.92);border:1px solid #ff4f4f;border-radius:6px;padding:5px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;font-weight:700;color:#ff4f4f;letter-spacing:0.08em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.6)">Jump Run</div>`,
+            className: "", iconAnchor: [0,0]
+        }), interactive: false
+    }).addTo(map);
+
+    // Save to server
+    const dzName = document.getElementById("dz").value;
+    const alt = trackedPlane ? trackedPlane.alt : null;
+    const tail = trackedPlane ? trackedPlane.tail : "";
+
+    fetch('/jumprun', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            dz: dzName,
+            start: [start.lat, start.lng],
+            end: [end.lat, end.lng],
+            alt: alt,
+            heading: Math.round(hdg),
+            tail: tail,
+        })
+    }).then(r => r.json()).then(d => {
+        if (d.status === 'saved'){
+            const n = d.submissions || 1;
+            const msg = n > 1 ? `✅ Saved! Averaged with ${n} submissions today.` : '✅ Jump run saved! Others at this DZ can now see it.';
+            showJumpRunStatus(msg);
+            jrMarkMarkers.forEach(m => m.remove()); jrMarkMarkers = [];
+            // Update planeInfo
+            document.getElementById("planeInfo").innerHTML =
+                `<span style="color:#39ff89;font-weight:bold">Jump run saved!</span>` +
+                `<br><button onclick="clearFrozenTrail()" style="margin-top:6px;width:100%;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✕ Clear All</button>`;
+        }
+    }).catch(e => showJumpRunStatus("⚠️ Could not save — check connection"));
+}
+
+function clearFrozenTrail(){
+    if (planeTrailLine){ planeTrailLine.remove(); planeTrailLine = null; }
+    if (frozenTrailLine){ frozenTrailLine.remove(); frozenTrailLine = null; }
+    if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
+    if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
+    if (communityJrArrow){ communityJrArrow.remove(); communityJrArrow = null; }
+    jrMarkMarkers.forEach(m => m.remove()); jrMarkMarkers = [];
+    frozenTrailPoints = null; jrMarkPoints = [];
+    document.getElementById("planeInfo").style.display = "none";
+    planeTrail = [];
+    map.getContainer().style.cursor = "";
+    showJumpRunStatus(null);
+}
+
+async function loadCommunityJR(){
+    const dzName = document.getElementById("dz").value;
+    const btn = document.getElementById("communityJrBtn");
+    try {
+        const r = await fetch(`/jumprun?dz=${encodeURIComponent(dzName)}`);
+        const d = await r.json();
+        if (!d.start || !d.end){
+            showJumpRunStatus("No jump run saved for this DZ today");
+            return;
+        }
+        // Check if recent (within 8 hours)
+        const ts = new Date(d.timestamp);
+        const ageHours = (Date.now() - ts.getTime()) / 3600000;
+        if (ageHours > 8){
+            showJumpRunStatus(`Last saved jump run was ${Math.round(ageHours)} hours ago`);
+            return;
+        }
+        // Draw it
+        if (communityJrLine){ communityJrLine.remove(); }
+        if (communityJrLabel){ communityJrLabel.remove(); }
+        communityJrLine = L.polyline([d.start, d.end], {
+            color: "#ff4f4f", weight: 4, opacity: 0.9
+        }).addTo(map);
+        const mid = { lat: (d.start[0]+d.end[0])/2, lng: (d.start[1]+d.end[1])/2 };
+        const timeStr = ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+        communityJrLabel = L.marker([mid.lat, mid.lng], {
+            icon: L.divIcon({
+                html: `<div style="background:rgba(7,11,16,0.92);border:1px solid #ff4f4f;border-radius:6px;padding:5px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.85rem;font-weight:700;color:#ff4f4f;letter-spacing:0.06em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.6)">Jump Run ${d.heading ? d.heading+'°' : ''}<br><span style="font-size:0.7rem;font-weight:400;letter-spacing:0.04em">${timeStr}${d.tail ? ' · '+d.tail : ''}${d.submission_count > 1 ? ' · '+d.submission_count+' reports' : ''}</span></div>`,
+                className: "", iconAnchor: [0,0]
+            }), interactive: false
+        }).addTo(map);
+        btn.style.color = "#ff4f4f";
+        btn.style.borderColor = "#ff4f4f";
+        btn.textContent = "📍 Hide Jump Run";
+        btn.onclick = () => {
+            if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
+            if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
+            btn.style.color = "#ff4f4f";
+            btn.style.borderColor = "var(--border)";
+            btn.textContent = "📍 Show Last Jump Run";
+            btn.onclick = loadCommunityJR;
+        };
+    } catch(e){
+        showJumpRunStatus("⚠️ Could not load jump run data");
+    }
 }
 
 function initDZ(){

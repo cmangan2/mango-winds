@@ -324,8 +324,11 @@ select:focus { border-color: var(--accent); }
         <div style="padding:14px 18px;display:flex;flex-direction:column;gap:10px">
             <div class="df-row">
                 <label class="df-label">Tail Number (e.g. N123AB)</label>
-                <input type="text" id="planeTail" placeholder="N123AB" class="df-input" style="text-transform:uppercase"
+                <input type="text" id="planeTail" placeholder="N123AB" class="df-input"
+                    style="text-transform:uppercase" list="tailSuggestions"
                     oninput="this.value=this.value.toUpperCase()">
+                <datalist id="tailSuggestions"></datalist>
+                <div id="tailSuggestionBtns" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
             </div>
             <div id="trackError" style="display:none;color:var(--red);font-size:0.8rem"></div>
         </div>
@@ -1257,11 +1260,29 @@ const LEVEL_THRESHOLD = 600;   // fpm — within this = level flight
 const DIVE_THRESHOLD  = -1000; // fpm — below this = diving after drop
 const DIVE_CONFIRM    = 3;     // consecutive dive polls to confirm
 
-function openTrackModal(){
+async function openTrackModal(){
     const m = document.getElementById("trackModal");
     m.style.display = "flex"; m.style.alignItems = "center"; m.style.justifyContent = "center";
     document.getElementById("planeTail").focus();
     document.getElementById("trackError").style.display = "none";
+    // Load tail suggestions for this DZ
+    try {
+        const dz = document.getElementById("dz").value;
+        const r = await fetch(`/tails?dz=${encodeURIComponent(dz)}`);
+        const tails = await r.json();
+        // Populate datalist
+        const dl = document.getElementById("tailSuggestions");
+        dl.innerHTML = tails.map(t => `<option value="${t}">`).join('');
+        // Populate quick-tap buttons
+        const btns = document.getElementById("tailSuggestionBtns");
+        if (tails.length > 0){
+            btns.innerHTML = tails.map(t =>
+                `<button onclick="document.getElementById('planeTail').value='${t}'" style="padding:3px 10px;background:var(--card-alt);border:1px solid var(--border);color:var(--accent);border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:0.75rem;cursor:pointer">${t}</button>`
+            ).join('');
+        } else {
+            btns.innerHTML = '';
+        }
+    } catch(e){ console.warn("Could not load tail suggestions:", e); }
 }
 function closeTrackModal(){ document.getElementById("trackModal").style.display = "none"; }
 
@@ -1582,6 +1603,10 @@ async function startTracking(){
     const tail = document.getElementById("planeTail").value.trim().toUpperCase();
     if (!tail){ document.getElementById("trackError").textContent="Enter a tail number"; document.getElementById("trackError").style.display="block"; return; }
     closeTrackModal();
+    // Save tail for this DZ
+    const dzName = document.getElementById("dz").value;
+    fetch('/tails', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ dz: dzName, tail: tail }) }).catch(()=>{});
     document.getElementById("trackBtn").textContent = "■ Stop Tracking " + tail;
     document.getElementById("trackBtn").style.color = "var(--red)";
     document.getElementById("trackBtn").style.borderColor = "var(--red)";

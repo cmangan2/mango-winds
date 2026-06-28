@@ -278,26 +278,26 @@ def fetch_forecast(lat, lon, hour_offset=0):
     try:
         api_key = os.environ.get("OPENMETEO_API_KEY")
         base_url = "https://customer-api.open-meteo.com/v1/forecast" if api_key else "https://api.open-meteo.com/v1/forecast"
-        hourly_fields = [
-            "windspeed_10m","winddirection_10m","windspeed_80m","winddirection_80m","temperature_2m","cloudcover_low","cloudcover_mid","cloudcover_high","cloudcover","precipitation_probability","visibility","dewpoint_2m",
+        # Wind fields only — 9 variables = 1.0 API call each
+        wind_fields = [
+            "windspeed_10m","winddirection_10m",
             "windspeed_1000hPa","winddirection_1000hPa",
-            "windspeed_975hPa","winddirection_975hPa",
-            "windspeed_950hPa","winddirection_950hPa",
-            "windspeed_925hPa","winddirection_925hPa",
             "windspeed_850hPa","winddirection_850hPa",
             "windspeed_700hPa","winddirection_700hPa",
-            "windspeed_600hPa","winddirection_600hPa",
             "windspeed_500hPa","winddirection_500hPa",
-            "temperature_1000hPa","temperature_975hPa",
-            "temperature_950hPa","temperature_925hPa",
-            "temperature_850hPa","temperature_700hPa",
-            "temperature_600hPa","temperature_500hPa",
-            "geopotential_height_1000hPa","geopotential_height_975hPa",
-            "geopotential_height_950hPa","geopotential_height_925hPa",
-            "geopotential_height_850hPa","geopotential_height_700hPa",
-            "geopotential_height_600hPa","geopotential_height_500hPa",
         ]
-        hourly_str = ",".join(hourly_fields)
+        # Temp + height fields — 9 variables = 1.0 API call each
+        temp_fields = [
+            "temperature_2m",
+            "temperature_1000hPa","temperature_850hPa",
+            "temperature_700hPa","temperature_500hPa",
+            "geopotential_height_1000hPa","geopotential_height_850hPa",
+            "geopotential_height_700hPa","geopotential_height_500hPa",
+        ]
+        # Combine for the main hourly request — still under 10 per model call split
+        hourly_str = ",".join(wind_fields + temp_fields)
+        # Cloud fields fetched separately from GFS only (not all 4 models)
+        cloud_fields_str = "cloudcover_low,cloudcover_mid,cloudcover_high,cloudcover,precipitation_probability,visibility,dewpoint_2m,temperature_2m"
         # Short range (0-18h): GFS + ICON + HRRR + NAM — best resolution for current conditions
         # Long range (19-72h): GFS + ICON + ECMWF — HRRR/NAM don't go that far out
         if hour_offset <= 18:
@@ -325,34 +325,45 @@ def fetch_forecast(lat, lon, hour_offset=0):
                 fcast_days = 2
             else:
                 fcast_days = 3
-            if model in ("hrrr_conus", "nam_conus"):
-                full_url = (f"{endpoint}?latitude={lat}&longitude={lon}"
-                            f"&hourly={hourly_str}"
-                            f"&forecast_days={fcast_days}&timezone=auto"
-                            f"&wind_speed_unit=kn")
-            else:
-                full_url = (f"{endpoint}?latitude={lat}&longitude={lon}"
-                            f"&hourly={hourly_str}"
-                            f"&forecast_days={fcast_days}&timezone=auto"
-                            f"&wind_speed_unit=kn"
-                            f"&models={model}")
-            if api_key:
-                full_url += f"&apikey={api_key}"
-            try:
-                r = requests.get(full_url, timeout=15,
+            model_param = "" if model in ("hrrr_conus", "nam_conus") else f"&models={model}"
+            key_param = f"&apikey={api_key}" if api_key else ""
+            base_params = (f"?latitude={lat}&longitude={lon}"
+                          f"&forecast_days={fcast_days}&timezone=auto"
+                          f"&wind_speed_unit=kn{model_param}{key_param}")
+
+            def fetch_url(fields_str):
+                url = f"{endpoint}{base_params}&hourly={fields_str}"
+                r = requests.get(url, timeout=15,
                                  headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
-                if not r.ok:
-                    print(f"Open-Meteo {model} {r.status_code}: {r.text[:200]}")
-                    # On 429 rate limit, extend any existing cache to 6 hours
-                    if r.status_code == 429 and cached_model:
+                return r
+
+            try:
+                # Fetch winds (≤10 vars = 1.0 call)
+                r1 = fetch_url(",".join(wind_fields))
+                if not r1.ok:
+                    print(f"Open-Meteo {model} wind {r1.status_code}: {r1.text[:200]}")
+                    if r1.status_code == 429 and cached_model:
                         extended = now + timedelta(hours=6)
                         _forecast_cache[model_key] = {"data": cached_model["data"], "expires": extended}
                         print(f"Rate limited — extending cache for {model} by 6h")
                         return model, cached_model["data"]
                     return model, None
-                mdata = r.json()
+                # Fetch temps/heights (≤10 vars = 1.0 call)
+                r2 = fetch_url(",".join(temp_fields))
+                if not r2.ok:
+                    print(f"Open-Meteo {model} temp {r2.status_code}: {r2.text[:200]}")
+                    if r2.status_code == 429 and cached_model:
+                        extended = now + timedelta(hours=6)
+                        _forecast_cache[model_key] = {"data": cached_model["data"], "expires": extended}
+                        return model, cached_model["data"]
+                    return model, None
+                # Merge the two responses
+                mdata = r1.json()
+                t2 = r2.json()
+                if "hourly" in t2:
+                    mdata.setdefault("hourly", {}).update(t2["hourly"])
                 _forecast_cache[model_key] = {"data": mdata, "expires": now + CACHE_TTL}
-                print(f"Open-Meteo {model} OK")
+                print(f"Open-Meteo {model} OK (2 calls)")
                 return model, mdata
             except Exception as me:
                 print(f"Open-Meteo {model} error: {me}")
@@ -374,7 +385,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
             return None
 
         print(f"Ensemble: {len(model_data)}/{len(ensemble_models)} models loaded: {list(model_data.keys())}")
-        record_api_call(len(ensemble_models))  # count attempted calls
+        record_api_call(len(ensemble_models) * 2)  # 2 calls per model (wind + temp split)
         result = {"source": "openmeteo_ensemble", "models": model_data}
         _forecast_cache[dz_key] = {"data": result, "expires": now + CACHE_TTL}
         save_cache_to_disk()
@@ -1225,6 +1236,32 @@ def clearcache():
     return jsonify({"status": "cache cleared"})
 
 
+def fetch_cloud_data(lat, lon):
+    """Fetch cloud/precip data from GFS only — separate cached call, 1.0 API cost."""
+    cloud_key = ("cloud", round(lat,3), round(lon,3))
+    now = datetime.now(timezone.utc)
+    cached = _forecast_cache.get(cloud_key)
+    if cached and cached["expires"] > now:
+        return cached["data"]
+    try:
+        api_key = os.environ.get("OPENMETEO_API_KEY")
+        base = "https://customer-api.open-meteo.com/v1/gfs" if api_key else "https://api.open-meteo.com/v1/gfs"
+        fields = "cloudcover_low,cloudcover_mid,cloudcover_high,cloudcover,precipitation_probability,visibility,dewpoint_2m,temperature_2m"
+        url = (f"{base}?latitude={lat}&longitude={lon}&hourly={fields}"
+               f"&forecast_days=3&timezone=auto&models=gfs_seamless")
+        if api_key:
+            url += f"&apikey={api_key}"
+        r = requests.get(url, timeout=10, headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
+        if r.ok:
+            data = r.json()
+            _forecast_cache[cloud_key] = {"data": data, "expires": now + CACHE_TTL}
+            record_api_call(1)
+            return data
+    except Exception as e:
+        print(f"Cloud fetch error: {e}")
+    return None
+
+
 def build_cloud_forecast(raw, current_hour):
     """Extract cloud cover, precip, visibility for next 8 hours in 2-hour blocks."""
     try:
@@ -1236,7 +1273,11 @@ def build_cloud_forecast(raw, current_hour):
             return None
         # Prefer GFS, fall back to first available
         gfs_data = models.get("gfs_seamless") or models.get("gfs")
-        mh = (gfs_data or list(models.values())[0]).get("hourly", {})
+        model_data = gfs_data or list(models.values())[0]
+        mh = model_data.get("hourly", {})
+        # Cloud fields may have been fetched separately — check if present
+        if not mh.get("cloudcover"):
+            return None
 
         def safe_get(field, idx, default=None):
             arr = mh.get(field, [])
@@ -1419,7 +1460,10 @@ def data():
         },
         "time_label": time_label,
         "winds_spread": winds_spread_out,
-        "clouds": build_cloud_forecast(raw, current_hour_index),
+        "clouds": build_cloud_forecast(
+            {"source":"openmeteo_ensemble","models":{"gfs_seamless": fetch_cloud_data(lat, lon) or {}}},
+            current_hour_index
+        ),
     })
     response.headers["Cache-Control"] = "no-store, max-age=0"
     return response

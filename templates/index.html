@@ -1,2066 +1,1500 @@
-<!DOCTYPE html>
-<html>
-<head>
-<title>Mango Wind Hub</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+from flask import Flask, render_template, make_response, jsonify, request
+import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import requests
+import math
+import re
+import os
+from datetime import datetime, timezone, timedelta
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="2.4.3">
-<script>
-try {
-    const CURRENT_VERSION = "2.4.3";
-    const cached = localStorage.getItem("mwh-version");
-    if (cached && cached !== CURRENT_VERSION) {
-        localStorage.setItem("mwh-version", CURRENT_VERSION);
-        window.location.reload(true);
-    } else {
-        localStorage.setItem("mwh-version", CURRENT_VERSION);
-    }
-} catch(e) { /* localStorage blocked in private mode — ignore */ }
-</script>
-<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+app = Flask(__name__)
 
-<style>
-:root {
-    --bg: #070b10;
-    --panel-bg: #0d1520;
-    --card-bg: #111d2b;
-    --card-alt: #0c1825;
-    --border: #1e3045;
-    --text: #c8daea;
-    --muted: #5a7a96;
-    --accent: #00d4ff;
-    --canopy: #39ff89;
-    --freefall: #ffaa00;
-    --surface: #ffd166;
-    --green: #39ff89;
-    --orange: #ffaa00;
-    --red: #ff4f4f;
-    --panel-w: 340px;
-    --drawer-h: 56px;
-}
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-    font-family: 'Barlow Condensed', sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    height: 100vh; height: 100dvh;
-    overflow: hidden;
-    -webkit-tap-highlight-color: transparent;
-}
-#wrap { display: flex; height: 100vh; height: 100dvh; }
-#map { flex: 1; min-width: 0; }
-#panel {
-    width: var(--panel-w);
-    background: var(--panel-bg);
-    display: flex; flex-direction: column;
-    border-left: 1px solid var(--border);
-    overflow: hidden;
-    transition: transform 0.3s ease;
-}
-@media (max-width: 599px) {
-    #wrap { flex-direction: column; position: relative; }
-    #map { position: absolute; inset: 0; z-index: 1; }
-    #panel {
-        position: absolute; bottom: 0; left: 0; right: 0; width: 100%;
-        max-height: 88dvh; border-left: none;
-        border-top: 2px solid var(--border);
-        border-radius: 18px 18px 0 0; z-index: 10;
-        transform: translateY(calc(100% - var(--drawer-h)));
-        transition: transform 0.35s cubic-bezier(.4,0,.2,1);
-        box-shadow: 0 -8px 32px rgba(0,0,0,0.6);
-    }
-    #panel.open { transform: translateY(0); }
-    #panel-handle {
-        display: flex; align-items: center; justify-content: space-between;
-        padding: 10px 16px 6px; cursor: grab; flex-shrink: 0;
-        height: var(--drawer-h); border-bottom: 1px solid var(--border);
-        user-select: none; touch-action: none;
-    }
-    #panel-handle .handle-bar {
-        width: 36px; height: 4px; background: var(--muted);
-        border-radius: 2px; margin: 0 auto 4px; transition: background 0.2s;
-    }
-    #panel-handle:active .handle-bar { background: var(--accent); }
-    #panel-handle .handle-title { font-weight: 700; font-size: 1rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
-    #panel-handle-inner { display: flex; flex-direction: column; align-items: center; width: 100%; }
-    #panel-header { display: none; }
-    #panel-body { overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1; }
-    select { padding: 10px 12px; font-size: 1rem; }
-    #hour { height: 28px; }
-    #drawBtn, #replayBtn { padding: 12px 10px; font-size: 1.05rem; }
-    .wind-card { padding: 8px 10px; }
-    .summary-card { padding: 10px 14px; }
-    .sc-data { font-size: 0.85rem !important; gap: 10px !important; }
-}
-@media (min-width: 600px) {
-    #panel-handle { display: none; }
-    #panel-body { display: contents; }
-}
-#panel-header { padding: 14px 16px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-#panel-header h1 { font-weight: 700; font-size: 1.35rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
-#panel-header p { font-family: 'Share Tech Mono', monospace; font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
-#controls { padding: 12px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-label { font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 4px; }
-select {
-    width: 100%; background: var(--card-bg); color: var(--text);
-    border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px;
-    font-family: 'Barlow Condensed', sans-serif; font-size: 0.95rem;
-    outline: none; cursor: pointer; appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235a7a96' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-    background-repeat: no-repeat; background-position: right 10px center;
-}
-select:focus { border-color: var(--accent); }
-.time-row { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; margin-bottom: 4px; }
-.time-row label { margin: 0; }
-#timeLabel { font-family: 'Share Tech Mono', monospace; font-size: 0.72rem; color: var(--accent); white-space: nowrap; }
-#hour { width: 100%; accent-color: var(--accent); cursor: pointer; height: 6px; border-radius: 3px; }
-#summaries { padding: 10px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; }
-.summary-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; position: relative; overflow: hidden; }
-.summary-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
-.summary-card.canopy::before { background: var(--canopy); }
-.summary-card.freefall::before { background: var(--freefall); }
-.summary-card .sc-label { font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 5px; }
-.summary-card.canopy .sc-label { color: var(--canopy); }
-.summary-card.freefall .sc-label { color: var(--freefall); }
-.summary-card .sc-data { display: flex; gap: 16px; font-family: 'Share Tech Mono', monospace; font-size: 0.8rem; color: var(--text); flex-wrap: wrap; }
-.summary-card .sc-data span { color: var(--muted); font-size: 0.7rem; margin-right: 2px; }
-#cards-wrap { flex: 1; overflow-y: auto; padding: 10px 14px 14px; -webkit-overflow-scrolling: touch; }
-#cards-wrap::-webkit-scrollbar { width: 4px; }
-#cards-wrap::-webkit-scrollbar-track { background: transparent; }
-#cards-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-.alt-section-title { font-size: 0.64rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin: 10px 0 4px; }
-.alt-section-title.upper { color: var(--freefall); }
-.alt-section-title.lower { color: var(--canopy); }
-.wind-card { display: grid; grid-template-columns: 52px 20px 42px 68px 38px 42px; align-items: center; gap: 4px; padding: 6px 10px; margin: 2px 0; border-radius: 6px; background: var(--card-alt); border: 1px solid transparent; transition: border-color 0.15s; font-family: 'Share Tech Mono', monospace; font-size: 0.78rem; }
-.wind-card:hover { border-color: var(--border); }
-.wind-card.upper { background: rgba(255,170,0,0.06); }
-.wind-card.upper .alt { color: var(--freefall); opacity: 0.75; }
-.wind-card .alt { color: var(--muted); font-size: 0.7rem; }
-.wind-card:not(.upper) .alt { color: var(--canopy); opacity: 0.85; }
-.wind-card .speed { text-align: right; font-weight: bold; }
-.wind-card .dir { color: var(--muted); font-size: 0.72rem; text-align: right; }
-.wind-card .temp { color: var(--muted); font-size: 0.68rem; text-align: right; }
-.wind-card .agree { font-size: 0.65rem; font-weight: bold; text-align: center; letter-spacing: 0.04em; }
-.dot-green { color: var(--green); }
-.dot-orange { color: var(--orange); }
-.dot-red { color: var(--red); }
-#loader { position: fixed; inset: 0; background: rgba(7,11,16,0.75); display: flex; align-items: center; justify-content: center; z-index: 9999; backdrop-filter: blur(2px); transition: opacity 0.3s; }
-#loader.hidden { opacity: 0; pointer-events: none; }
-.spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-#welcomeModal { position: fixed; inset: 0; background: rgba(7,11,16,0.88); z-index: 99999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); padding: 16px; }
-#welcomeBox { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 16px; max-width: 480px; width: 100%; max-height: 90dvh; display: flex; flex-direction: column; box-shadow: 0 24px 64px rgba(0,0,0,0.6); overflow: hidden; }
-#welcomeHeader { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px 12px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 1.1rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); flex-shrink: 0; }
-#welcomeVersion { font-size: 0.65rem; color: var(--muted); letter-spacing: 0.1em; font-weight: 400; }
-#welcomeBody { overflow-y: auto; padding: 14px 20px; flex: 1; -webkit-overflow-scrolling: touch; }
-.wc-section { display: flex; gap: 14px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--border); }
-.wc-section:last-child { border-bottom: none; }
-.wc-icon { font-size: 1.4rem; flex-shrink: 0; width: 28px; text-align: center; margin-top: 2px; }
-.wc-title { font-weight: 700; font-size: 0.85rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text); margin-bottom: 4px; }
-.wc-text { font-size: 0.82rem; color: var(--muted); line-height: 1.55; font-family: 'Barlow Condensed', sans-serif; }
-.wc-text b { color: var(--text); font-weight: 600; }
-#welcomeClose { margin: 14px 20px 16px; padding: 12px; background: var(--accent); color: var(--bg); border: none; border-radius: 8px; font-family: 'Barlow Condensed', sans-serif; font-size: 1.05rem; font-weight: 700; letter-spacing: 0.08em; cursor: pointer; flex-shrink: 0; transition: opacity 0.15s; -webkit-tap-highlight-color: transparent; }
-#welcomeClose:hover { opacity: 0.85; }
-#defineModal { position: fixed; inset: 0; background: rgba(7,11,16,0.88); z-index: 99999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); padding: 16px; }
-#defineBox { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 16px; max-width: 360px; width: 100%; display: flex; flex-direction: column; box-shadow: 0 24px 64px rgba(0,0,0,0.6); overflow: hidden; }
-#defineHeader { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px 12px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 1rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
-#defineCloseBtn { background: none; border: none; color: var(--muted); font-size: 1.1rem; cursor: pointer; padding: 0 4px; line-height: 1; }
-#defineCloseBtn:hover { color: var(--text); }
-#defineBody { padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; }
-.df-row { display: flex; flex-direction: column; gap: 4px; }
-.df-label { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
-.df-pair { display: flex; gap: 8px; }
-.df-input { background: var(--card-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-family: 'Share Tech Mono', monospace; font-size: 0.9rem; outline: none; width: 100%; }
-.df-input:focus { border-color: var(--accent); }
-.df-short { width: 90px; flex-shrink: 0; }
-.df-select { background: var(--card-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.9rem; outline: none; cursor: pointer; flex: 1; appearance: none; }
-.df-select:focus { border-color: var(--accent); }
-#dfSubmitBtn { margin: 6px 18px 16px; padding: 11px; background: var(--accent); color: var(--bg); border: none; border-radius: 8px; font-family: 'Barlow Condensed', sans-serif; font-size: 1rem; font-weight: 700; letter-spacing: 0.08em; cursor: pointer; transition: opacity 0.15s; -webkit-tap-highlight-color: transparent; }
-#dfSubmitBtn:hover { opacity: 0.85; }
-#refreshBtn { background: none; border: 1px solid var(--muted); color: var(--muted); border-radius: 50%; width: 22px; height: 22px; font-size: 1rem; cursor: pointer; line-height: 1; flex-shrink: 0; transition: border-color 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; padding: 0; }
-#refreshBtn:hover { border-color: var(--accent); color: var(--accent); }
-#statsBtn { background: none; border: 1px solid var(--muted); color: var(--muted); border-radius: 50%; width: 22px; height: 22px; font-size: 0.75rem; cursor: pointer; line-height: 1; flex-shrink: 0; transition: border-color 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; padding: 0; }
-#statsBtn:hover { border-color: var(--accent); color: var(--accent); }
-#helpBtn { background: none; border: 1px solid var(--muted); color: var(--muted); border-radius: 50%; width: 22px; height: 22px; font-size: 0.8rem; font-weight: 700; cursor: pointer; line-height: 1; flex-shrink: 0; transition: border-color 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; padding: 0; }
-#helpBtn:hover { border-color: var(--accent); color: var(--accent); }
-#defineBtn { margin-top: 6px; width: 100%; padding: 7px 10px; background: var(--card-bg); color: #cc88ff; border: 1px solid #cc88ff; border-radius: 6px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.95rem; cursor: pointer; letter-spacing: 0.06em; transition: background 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; }
-#defineBtn:hover, #defineBtn:active { background: var(--border); color: var(--text); }
-#drawBtn { margin-top: 10px; width: 100%; padding: 7px 10px; background: var(--card-bg); color: var(--accent); border: 1px solid var(--accent); border-radius: 6px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.95rem; cursor: pointer; letter-spacing: 0.06em; transition: background 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; }
-#drawBtn:hover, #drawBtn:active { background: var(--accent); color: var(--bg); }
-#drawBtn.active { background: var(--accent); color: var(--bg); }
-#replayBtn { margin-top: 6px; width: 100%; padding: 6px 10px; background: var(--card-bg); color: var(--freefall); border: 1px solid var(--freefall); border-radius: 6px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.95rem; cursor: pointer; letter-spacing: 0.06em; transition: background 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; }
-#replayBtn:hover, #replayBtn:active { background: var(--freefall); color: var(--bg); }
-#clearBtn { margin-top: 6px; width: 100%; padding: 6px 10px; background: var(--card-bg); color: var(--muted); border: 1px solid var(--border); border-radius: 6px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.95rem; cursor: pointer; letter-spacing: 0.06em; transition: background 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; }
-#clearBtn:hover, #clearBtn:active { background: var(--border); color: var(--text); }
-#attribution { padding: 10px 4px 4px; font-size: 0.62rem; color: var(--muted); text-align: center; line-height: 1.8; border-top: 1px solid var(--border); margin-top: 8px; }
-#attribution a { color: var(--muted); text-decoration: none; }
-#attribution a:hover { color: var(--accent); }
-#jumpRunInfo { margin-top: 6px; font-family: 'Share Tech Mono', monospace; font-size: 0.72rem; color: var(--muted); line-height: 1.6; }
-</style>
-</head>
-<body>
+# =====================================================
+# 🗄️ CACHE
+# =====================================================
+_forecast_cache = {}
+CACHE_TTL = timedelta(minutes=120)  # 2 hour cache to reduce API calls
+CACHE_FILE  = os.environ.get("CACHE_FILE", os.path.join(os.path.dirname(__file__), "winds_cache.json"))
+VISITS_FILE   = os.environ.get("VISITS_FILE",   os.path.join(os.path.dirname(__file__), "visits.json"))
+JUMPRUN_FILE  = os.environ.get("JUMPRUN_FILE",  os.path.join(os.path.dirname(__file__), "jumprun.json"))
+TAILS_FILE    = os.environ.get("TAILS_FILE",    os.path.join(os.path.dirname(__file__), "tails.json"))
 
-<div id="welcomeModal">
-    <div id="welcomeBox">
-        <div id="welcomeHeader">
-            <span>Mango Wind Hub</span>
-            <span id="welcomeVersion">Quick Start Guide</span>
-        </div>
-        <div id="welcomeBody">
-            <div class="wc-section">
-                <div class="wc-icon" style="color:var(--canopy)">◉</div>
-                <div>
-                    <div class="wc-title">Canopy Circles</div>
-                    <div class="wc-text">The <b>dashed circle</b> = zero-wind reach. The <b>solid shape</b> = wind-adjusted reach. Open inside the shape and you should make it back.</div>
-                </div>
-            </div>
-            <div class="wc-section">
-                <div class="wc-icon" style="color:#fff">✏️</div>
-                <div>
-                    <div class="wc-title">Jump Run</div>
-                    <div class="wc-text"><b>Draw</b> by dragging on the map, or <b>Define</b> by heading/distance. Shows freefall drift, animates jumpers, and auto-calculates recommended separation based on ground speed.</div>
-                </div>
-            </div>
-            <div class="wc-section">
-                <div class="wc-icon" style="color:var(--red)">🎯</div>
-                <div>
-                    <div class="wc-title">Landing Pattern</div>
-                    <div class="wc-text">Tap <b>Place Landing Spot</b>, click anywhere on the map, then choose final heading and traffic direction. Wind-adjusted legs are drawn at 1,000 / 600 / 300 ft.</div>
-                </div>
-            </div>
-            <div class="wc-section">
-                <div class="wc-icon" style="color:var(--accent)">✈️</div>
-                <div>
-                    <div class="wc-title">Plane Tracker</div>
-                    <div class="wc-text">Enter your jump plane's <b>tail number</b> to track it live on the map with dead-reckoning animation. Automatically detects and draws the <b>last jump run</b> when the plane dives after exit.</div>
-                </div>
-            </div>
-            <div class="wc-section">
-                <div class="wc-icon" style="color:var(--muted)">⚙️</div>
-                <div>
-                    <div class="wc-title">Canopy Settings</div>
-                    <div class="wc-text">Enter your <b>canopy size, exit weight, and type</b> to customize the circles to your gear. Defaults to a Sabre3 150 at 1.5 wing loading.</div>
-                </div>
-            </div>
-            <div class="wc-section">
-                <div class="wc-icon" style="color:var(--accent)">⏱</div>
-                <div>
-                    <div class="wc-title">Forecast Scroll</div>
-                    <div class="wc-text">Slide the <b>Forecast Offset</b> up to <b>72 hours</b> ahead. All wind data, circles, and drift lines update automatically.</div>
-                </div>
-            </div>
-            <div class="wc-section">
-                <div class="wc-icon" style="color:var(--muted)">📍</div>
-                <div>
-                    <div class="wc-title">Dropzone</div>
-                    <div class="wc-text">Switch DZs from the dropdown. Map recenters and all data updates instantly.</div>
-                </div>
-            </div>
-        </div>
-        <button id="welcomeClose" onclick="closeWelcome()">Got it — Let's Jump! 🪂</button>
-    </div>
-</div>
+# Tail number storage: {dz_name: ["N123AB", "N456CD", ...]}
+_tails_log = {}
 
-<div id="advancedModal" style="display:none;position:fixed;inset:0;background:rgba(7,11,16,0.88);z-index:99999;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px">
-    <div style="background:var(--panel-bg);border:1px solid var(--border);border-radius:16px;max-width:360px;width:100%;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.6);overflow:hidden">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px 12px;border-bottom:1px solid var(--border);font-weight:700;font-size:1rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--accent)">
-            <span>⚙️ Canopy Settings</span>
-            <button onclick="closeAdvancedModal()" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:0 4px">✕</button>
-        </div>
-        <div style="padding:14px 18px;display:flex;flex-direction:column;gap:12px">
-            <div class="df-row"><label class="df-label">Canopy Size (sq ft)</label><input type="number" id="advSize" min="50" max="400" placeholder="e.g. 150" class="df-input" value="150"></div>
-            <div class="df-row"><label class="df-label">Exit Weight (lbs)</label><input type="number" id="advWeight" min="100" max="400" placeholder="e.g. 225" class="df-input" value="225"></div>
-            <div class="df-row"><label class="df-label">Canopy Type</label>
-                <select id="advType" class="df-select">
-                    <option value="student">Student / Rental (7-cell)</option>
-                    <option value="sport" selected>Sport 9-cell (Sabre, Pilot)</option>
-                    <option value="hp">High Performance (Katana, Velocity)</option>
-                </select>
-            </div>
-            <div style="border-top:1px solid var(--border);padding-top:10px">
-                <div style="font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;cursor:pointer" onclick="toggleAdvBonus(this)">▶ I know more (optional)</div>
-                <div id="advBonus" style="display:none;flex-direction:column;gap:10px">
-                    <div class="df-row"><label class="df-label">Opening Altitude (ft AGL)</label><input type="number" id="advOpenAlt" min="1000" max="10000" placeholder="3000" class="df-input" value="3000"></div>
-                    <div class="df-row"><label class="df-label">Known Glide Ratio (e.g. 3.0)</label><input type="number" id="advGlide" min="1" max="6" step="0.1" placeholder="leave blank to calculate" class="df-input"></div>
-                </div>
-            </div>
-            <div id="advPreview" style="background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:'Share Tech Mono',monospace;font-size:0.72rem;color:var(--muted);line-height:1.8"></div>
-        </div>
-        <button onclick="applyAdvancedSettings()" style="margin:6px 18px 16px;padding:11px;background:var(--accent);color:var(--bg);border:none;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">Apply to Map</button>
-    </div>
-</div>
+def load_tails():
+    global _tails_log
+    try:
+        if os.path.exists(TAILS_FILE):
+            with open(TAILS_FILE) as f:
+                _tails_log = json.load(f)
+    except Exception as e:
+        print(f"Tails load error: {e}")
 
-<div id="defineModal" style="display:none">
-    <div id="defineBox">
-        <div id="defineHeader">
-            <span>📐 Define Jump Run</span>
-            <button id="defineCloseBtn" onclick="closeDefineModal()">✕</button>
-        </div>
-        <div id="defineBody">
-            <div class="df-row"><label class="df-label">Direction (°)</label><input type="number" id="dfDir" min="0" max="360" placeholder="e.g. 270" class="df-input"></div>
-            <div class="df-row"><label class="df-label">Distance from DZ (mi)</label>
-                <div class="df-pair">
-                    <input type="number" id="dfDist" min="0" step="0.1" placeholder="0.0" class="df-input df-short">
-                    <select id="dfDistDir" class="df-select"><option value="prior">Prior</option><option value="past">Past</option></select>
-                </div>
-            </div>
-            <div class="df-row"><label class="df-label">Offset from DZ (mi)</label>
-                <div class="df-pair">
-                    <input type="number" id="dfOffset" min="0" step="0.1" placeholder="0.0" class="df-input df-short">
-                    <select id="dfOffsetDir" class="df-select"><option value="N">North</option><option value="S">South</option><option value="E">East</option><option value="W">West</option></select>
-                </div>
-            </div>
-            <div class="df-row"><label class="df-label">Jump Run Length (mi)</label><input type="number" id="dfLength" min="0" step="0.1" placeholder="e.g. 2.0" class="df-input"></div>
-            <div id="dfError" style="display:none;color:var(--red);font-size:0.8rem;margin-top:6px"></div>
-        </div>
-        <button id="dfSubmitBtn" onclick="submitDefineJumpRun()">✈️ Draw Jump Run</button>
-        <script>
-        document.addEventListener('keydown', function(e){
-            if (e.key === 'Enter' && document.getElementById('defineModal').style.display !== 'none')
-                submitDefineJumpRun();
-        });
-        </script>
-    </div>
-</div>
+def save_tails():
+    try:
+        with open(TAILS_FILE, "w") as f:
+            json.dump(_tails_log, f)
+    except Exception as e:
+        print(f"Tails save error: {e}")
 
-<!-- ── TRACK PLANE MODAL ── -->
-<div id="trackModal" style="display:none;position:fixed;inset:0;background:rgba(7,11,16,0.88);z-index:99999;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px">
-    <div style="background:var(--panel-bg);border:1px solid var(--border);border-radius:16px;max-width:340px;width:100%;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.6);overflow:hidden">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px 12px;border-bottom:1px solid var(--border);font-weight:700;font-size:1rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--accent)">
-            <span>✈️ Track Jump Plane</span>
-            <button onclick="closeTrackModal()" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:0 4px">✕</button>
-        </div>
-        <div style="padding:14px 18px;display:flex;flex-direction:column;gap:10px">
-            <div class="df-row">
-                <label class="df-label">Tail Number (e.g. N123AB)</label>
-                <input type="text" id="planeTail" placeholder="N123AB" class="df-input"
-                    style="text-transform:uppercase" list="tailSuggestions"
-                    oninput="this.value=this.value.toUpperCase()">
-                <datalist id="tailSuggestions"></datalist>
-                <div id="tailSuggestionBtns" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
-            </div>
-            <div id="trackError" style="display:none;color:var(--red);font-size:0.8rem"></div>
-        </div>
-        <button onclick="startTracking()" style="margin:6px 18px 16px;padding:11px;background:var(--accent);color:var(--bg);border:none;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">Start Tracking</button>
-    </div>
-</div>
+load_tails()
 
-<!-- ── CLOUD FORECAST POPUP ── -->
-<div id="cloudPopup" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:8002;background:rgba(13,21,32,0.97);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:0 8px 32px rgba(0,0,0,0.7);backdrop-filter:blur(10px);min-width:320px;max-width:95vw;cursor:grab;user-select:none;touch-action:none">
-    <button onclick="document.getElementById('cloudPopup').style.display='none'" style="position:absolute;top:8px;right:10px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
-    <div style="font-size:0.65rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">☁️ Cloud Forecast</div>
-    <div id="cloudContent" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text)">Loading...</div>
-</div>
+# Jump run storage: {dz_name: {start, end, alt, heading, timestamp, tail}}
+_jumprun_log = {}
 
-<div id="loader"><div class="spinner"></div></div>
+def load_jumprun():
+    global _jumprun_log
+    try:
+        if os.path.exists(JUMPRUN_FILE):
+            with open(JUMPRUN_FILE) as f:
+                _jumprun_log = json.load(f)
+    except Exception as e:
+        print(f"Jumprun load error: {e}")
 
-<!-- ── WIND SUMMARY BOX ── -->
-<div id="windSummary" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:8000;background:rgba(13,21,32,0.92);border:1px solid var(--border);border-radius:12px;padding:10px 14px;box-shadow:0 8px 32px rgba(0,0,0,0.6);backdrop-filter:blur(8px);cursor:grab;user-select:none;touch-action:none;min-width:240px">
-    <button onclick="document.getElementById('windSummary').style.display='none'" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
-    <div style="display:flex;gap:16px;align-items:center;justify-content:center">
-        <div style="text-align:center">
-            <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--freefall);margin-bottom:3px">Freefall</div>
-            <div id="wsBalloonArrow" style="font-size:1.4rem;line-height:1">—</div>
-            <div id="wsBalloonVal" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text);margin-top:2px">—</div>
-        </div>
-        <div style="width:1px;height:40px;background:var(--border)"></div>
-        <div style="text-align:center">
-            <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--canopy);margin-bottom:3px">Canopy</div>
-            <div id="wsCanopyArrow" style="font-size:1.4rem;line-height:1">—</div>
-            <div id="wsCanopyVal" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text);margin-top:2px">—</div>
-        </div>
-        <div style="width:1px;height:40px;background:var(--border)"></div>
-        <div style="text-align:center">
-            <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);margin-bottom:3px">Surface</div>
-            <div id="wsSurfaceArrow" style="font-size:1.4rem;line-height:1">—</div>
-            <div id="wsSurfaceVal" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text);margin-top:2px">—</div>
-        </div>
-    </div>
-</div>
+def save_jumprun():
+    try:
+        with open(JUMPRUN_FILE, "w") as f:
+            json.dump(_jumprun_log, f)
+    except Exception as e:
+        print(f"Jumprun save error: {e}")
 
-<div id="wrap">
-    <div id="map"></div>
-    <div id="panel">
-        <div id="panel-handle">
-            <div id="panel-handle-inner">
-                <div class="handle-bar"></div>
-                <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
-                    <span class="handle-title">Mango Wind Hub</span>
-                    <div style="display:flex;gap:6px;align-items:center">
-                        <button onclick="clearAndReload();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.85rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Clear cache & refresh">↺</button>
-                        <button onclick="window.open('/stats','_blank');event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Stats">📊</button>
-                        <button onclick="document.getElementById('windSummary').style.display='block';event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Show wind summary">💨</button>
-                        <button onclick="toggleCloudPopup();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Cloud forecast">☁️</button>
-                        <button onclick="openWelcome();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;font-weight:700;cursor:pointer;line-height:1;padding:0;flex-shrink:0">?</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div id="panel-header">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start">
-                <h1>Mango Wind Hub</h1>
-                <div style="display:flex;gap:6px;align-items:center">
-                    <button id="refreshBtn" onclick="clearAndReload()" title="Clear cache & refresh">↺</button>
-                    <button id="statsBtn" onclick="window.open('/stats','_blank')" title="Usage stats">📊</button>
-                    <button id="summaryBtn" onclick="document.getElementById('windSummary').style.display='block'" title="Show wind summary" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:22px;height:22px;font-size:0.75rem;cursor:pointer;line-height:1;flex-shrink:0;transition:border-color 0.15s,color 0.15s;-webkit-tap-highlight-color:transparent;padding:0">💨</button>
-                    <button id="cloudBtn" onclick="toggleCloudPopup()" title="Cloud forecast" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:22px;height:22px;font-size:0.75rem;cursor:pointer;line-height:1;flex-shrink:0;transition:border-color 0.15s,color 0.15s;-webkit-tap-highlight-color:transparent;padding:0">☁️</button>
-                    <button id="helpBtn" onclick="openWelcome()" title="Quick Start Guide">?</button>
-                </div>
-            </div>
-            <p id="utcLabel"></p>
-        </div>
-        <div id="panel-body">
-            <div id="controls">
-                <label>Dropzone</label>
-                <select id="dz"></select>
-                <div class="time-row">
-                    <label>Forecast Offset</label>
-                    <span id="timeLabel">+0h</span>
-                </div>
-                <input type="range" min="0" max="71" value="0" id="hour">
-                <button id="drawBtn" onclick="toggleDrawMode()">✏️ Draw Jump Run</button>
-                <button id="defineBtn" onclick="openDefineModal()">📐 Define Jump Run</button>
-                <button id="patternBtn" onclick="togglePatternMode()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid #ff4f4f;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🎯 Place Landing Spot</button>
-                <button id="trackBtn" onclick="openTrackModal()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#00d4ff;border:1px solid #00d4ff;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">✈️ Track Plane</button>
-                <button id="communityJrBtn" onclick="loadCommunityJR()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">📍 Show Last Jump Run</button>
-                <div id="planeInfo" style="display:none;margin-top:6px;background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--muted);line-height:1.8"></div>
-                <div id="patternControls" style="display:none;margin-top:6px;background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px">
-                    <div style="display:flex;gap:8px;margin-bottom:6px">
-                        <div style="flex:1">
-                            <label class="df-label">Final Heading</label>
-                            <select id="patternHeading" style="width:100%;background:var(--card-bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:5px 8px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem" onchange="updatePattern()">
-                                <option value="wind">Into Wind</option>
-                                <option value="custom">Custom °</option>
-                            </select>
-                        </div>
-                        <div style="flex:1">
-                            <label class="df-label">Pattern Direction</label>
-                            <select id="patternTraffic" style="width:100%;background:var(--card-bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:5px 8px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem" onchange="updatePattern()">
-                                <option value="left">Right Hand Pattern</option>
-                                <option value="right">Left Hand Pattern</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div id="customHeadingRow" style="display:none;margin-bottom:6px">
-                        <label class="df-label">Final Heading (°)</label>
-                        <input type="number" id="patternCustomHdg" min="0" max="360" placeholder="e.g. 360" class="df-input" oninput="updatePattern()">
-                    </div>
-                    <button onclick="clearPattern()" style="width:100%;padding:5px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.85rem;cursor:pointer">✕ Clear Pattern</button>
-                </div>
-                <button id="replayBtn" onclick="startPlaneAnimation()" style="display:none">▶ Replay</button>
-                <button id="clearBtn" onclick="clearJumpRun()" style="display:none">✕ Clear</button>
+load_jumprun()
 
-                <button id="advancedBtn" onclick="openAdvancedModal()" style="margin-top:6px;width:100%;padding:6px 10px;background:var(--card-bg);color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">⚙️ Canopy Settings</button>
-                <div id="jumpRunInfo" style="display:none"></div>
-            </div>
-            <div id="summaries">
-                <div class="summary-card canopy" id="canopyBlock"><div class="sc-label">Canopy  •  SFC – 3 000 ft</div><div class="sc-data">—</div></div>
-                <div class="summary-card freefall" id="freefallBlock"><div class="sc-label">Freefall  •  4 000 – 14 000 ft</div><div class="sc-data">—</div></div>
-            </div>
-            <div id="cards-header" style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px 0">
-                <span style="font-size:0.64rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)">Winds by Altitude</span>
-                <button id="toggleCardsBtn" onclick="toggleCards()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:2px 8px;font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;letter-spacing:0.08em;cursor:pointer;-webkit-tap-highlight-color:transparent">Hide</button>
-            </div>
-            <div id="modelCard" style="margin:0 14px 6px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;flex-shrink:0">—</div>
-            <div id="cards-wrap">
-                <div id="cards"></div>
-                <div id="attribution">
-                    Weather: <a href="https://open-meteo.com" target="_blank">Open-Meteo</a> (CC BY 4.0)
-                    &nbsp;|&nbsp; Surface: <a href="https://aviationweather.gov" target="_blank">aviationweather.gov</a>
-                    &nbsp;|&nbsp; Maps: <a href="https://www.esri.com" target="_blank">Esri</a>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+# Visit tracking: {dz_name: {date: count}}
+_visit_log = {}
 
-<script>
-let dz = {{ dz | tojson }};
-let lat, lon;
-let canopyAirspeedKt = 27;
-let canopyDescentTime = 158;
-let map, marker, canopyCircle, canopyCircleShifted, highLine;
-let loadTimeout = null;
-let firstLoad = true;
-let drawMode = false;
-let jumpRunLine = null, freefallLine = null;
-let jrStart = null, jrEnd = null;
-let lastFreefall = null, lastWind14k = null, lastGndSpeedKts = null;
-let planeMarker = null, planeAnimId = null;
-let animGeneration = 0;
-let patternMode = false, landingSpot = null, patternLines = [], landingMarker = null, lastCanopyWind = null;
+# API call tracking: {date: {hour: count}}
+_api_log = {}
+API_LOG_FILE = os.environ.get("API_LOG_FILE", os.path.join(os.path.dirname(__file__), "api_log.json"))
 
-function renderTime(){
-    const h = +document.getElementById("hour").value;
-    const now = new Date();
-    const future = new Date(now.getTime() + h * 3600 * 1000);
-    future.setMinutes(0, 0, 0);
-    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-    const day = days[future.getDay()];
-    const raw = future.getHours();
-    const ampm = raw >= 12 ? 'pm' : 'am';
-    const h12 = raw % 12 === 0 ? 12 : raw % 12;
-    const label = h === 0 ? `${day} ${h12}${ampm} (now)` : `${day} ${h12}${ampm} (+${h}h)`;
-    document.getElementById("timeLabel").innerText = label;
-}
+def load_api_log():
+    global _api_log
+    try:
+        if os.path.exists(API_LOG_FILE):
+            with open(API_LOG_FILE) as f:
+                _api_log = json.load(f)
+    except Exception as e:
+        print(f"API log load error: {e}")
 
-function windAtAlt(altFt){
-    if (!window._lastWinds) return { speed: 0, direction: 0 };
-    const alts = Object.keys(window._lastWinds).map(Number).sort((a,b)=>a-b);
-    for (let i = 0; i < alts.length-1; i++){
-        if (alts[i] <= altFt && alts[i+1] >= altFt){
-            const t = (altFt - alts[i]) / (alts[i+1] - alts[i]);
-            const w0 = window._lastWinds[alts[i]], w1 = window._lastWinds[alts[i+1]];
-            const spd = w0.speed + (w1.speed - w0.speed) * t;
-            const r0 = w0.direction * Math.PI/180, r1 = w1.direction * Math.PI/180;
-            const sinA = Math.sin(r0) + (Math.sin(r1)-Math.sin(r0))*t;
-            const cosA = Math.cos(r0) + (Math.cos(r1)-Math.cos(r0))*t;
-            return { speed: spd, direction: Math.atan2(sinA,cosA)*180/Math.PI };
+def save_api_log():
+    try:
+        with open(API_LOG_FILE, "w") as f:
+            json.dump(_api_log, f)
+    except Exception as e:
+        print(f"API log save error: {e}")
+
+def record_api_call(n=1):
+    import pytz as _pytz_log
+    now_est = datetime.now(timezone.utc).astimezone(_pytz_log.timezone("America/New_York"))
+    date = now_est.strftime("%Y-%m-%d")
+    hour = str(now_est.hour)
+    if date not in _api_log:
+        _api_log[date] = {}
+    _api_log[date][hour] = _api_log[date].get(hour, 0) + n
+    save_api_log()
+
+load_api_log()
+
+# METAR cache — short TTL since surface winds change frequently
+_metar_cache = {}
+METAR_TTL = timedelta(minutes=5)
+
+def load_visits():
+    global _visit_log
+    try:
+        if os.path.exists(VISITS_FILE):
+            with open(VISITS_FILE) as f:
+                _visit_log = json.load(f)
+    except Exception as e:
+        print(f"Visit load error: {e}")
+
+def save_visits():
+    try:
+        with open(VISITS_FILE, "w") as f:
+            json.dump(_visit_log, f)
+    except Exception as e:
+        print(f"Visit save error: {e}")
+
+def record_visit(dz_name):
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if dz_name not in _visit_log:
+        _visit_log[dz_name] = {}
+    _visit_log[dz_name][today] = _visit_log[dz_name].get(today, 0) + 1
+    save_visits()
+
+load_visits()
+
+
+def load_cache_from_disk():
+    """Load persisted cache from disk on startup."""
+    try:
+        if os.path.exists(CACHE_FILE):
+            with open(CACHE_FILE, "r") as f:
+                raw = json.load(f)
+            now = datetime.now(timezone.utc)
+            for k, v in raw.items():
+                expires = datetime.fromisoformat(v["expires"])
+                if expires > now:
+                    # Restore tuple key from string
+                    parts = k.split(",")
+                    key = (float(parts[0]), float(parts[1]))
+                    _forecast_cache[key] = {"data": v["data"], "expires": expires}
+            print(f"Loaded {len(_forecast_cache)} cache entries from disk")
+    except Exception as e:
+        print(f"Cache load error: {e}")
+
+
+def save_cache_to_disk():
+    """Persist current cache to disk."""
+    try:
+        serializable = {}
+        for k, v in _forecast_cache.items():
+            str_key = f"{k[0]},{k[1]}"
+            serializable[str_key] = {
+                "data": v["data"],
+                "expires": v["expires"].isoformat()
+            }
+        with open(CACHE_FILE, "w") as f:
+            json.dump(serializable, f)
+    except Exception as e:
+        print(f"Cache save error: {e}")
+
+
+load_cache_from_disk()
+
+# =====================================================
+# 🪂 DROPZONES
+# =====================================================
+
+def load_dropzones(path="Dropzone list.txt"):
+    dz = {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if ":" not in line:
+                    continue
+                name, rest = line.split(":", 1)
+                parts = [p.strip() for p in rest.split(",")]
+                lat = float(parts[0])
+                lon = float(parts[1])
+                icao = parts[2] if len(parts) > 2 else None
+                dz[name.strip()] = (lat, lon, icao)
+    except Exception:
+        dz = {"default DZ": (43.3712, -70.9259, "KLEB")}
+    return dz
+
+
+DROPZONES = load_dropzones()
+
+
+# =====================================================
+# 🌐 FORECAST — Mark Schulze winds_openmeteo.php proxy
+# Falls back to Open-Meteo if unavailable
+# =====================================================
+
+def fetch_schulze(lat, lon, hour_offset=0):
+    """Fetch winds from Schulze's parsed Open-Meteo endpoint."""
+    try:
+        url = "https://www.markschulze.net/winds/winds_openmeteo.php"
+        params = {
+            "lat": round(lat, 4),
+            "lon": round(lon, 4),
+            "hourOffset": hour_offset,
+            "referrer": "MangoWindHub"
         }
-    }
-    if (altFt <= alts[0]) return window._lastWinds[alts[0]];
-    return window._lastWinds[alts[alts.length-1]];
-}
+        headers = {"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"}
+        r = requests.get(url, timeout=15, params=params, headers=headers)
+        r.raise_for_status()
+        data = r.json()
+        if "direction" in data and "speed" in data:
+            print(f"Schulze fetch OK: validtime={data.get('validtime')}")
+            return {"source": "schulze", "data": data}
+        print(f"Schulze response missing fields: {list(data.keys())[:5]}")
+        return None
+    except Exception as e:
+        print(f"Schulze fetch error: {e}")
+        return None
 
-function groundSpeedForLeg(flyingHdgDeg, altFt){
-    const canopyMs = canopyAirspeedKt * 0.514444;
-    const w = windAtAlt(altFt);
-    const wMs = w.speed * 0.514444;
-    const diff = ((w.direction - flyingHdgDeg + 180 + 360) % 360) - 180;
-    const hw = wMs * Math.cos(diff * Math.PI/180);
-    return Math.max(canopyMs - hw, canopyMs * 0.3);
-}
 
-function drawFreefallParallel(){
-    if (!jrStart || !jrEnd || !lastFreefall) return;
-    if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
-    const ff = lastFreefall;
-    const ffDist = Math.min(ff.distance, 8000);
-    const ffRad = ff.direction * Math.PI / 180;
-    const cosLat = Math.cos(jrStart[0] * Math.PI / 180);
-    const dlatFF = Math.cos(ffRad) * ffDist / 111000;
-    const dlonFF = Math.sin(ffRad) * ffDist / (111000 * cosLat);
-    const pStart = [jrStart[0] + dlatFF, jrStart[1] + dlonFF];
-    const pEnd = [jrEnd[0] + dlatFF, jrEnd[1] + dlonFF];
-    const connector = L.polyline([jrStart, pStart], { color: '#ffaa00', weight: 2, opacity: 0.45, dashArray: '5,6' }).addTo(map);
-    const parallel = L.polyline([pStart, pEnd], { color: '#ffaa00', weight: 4, opacity: 0.9 }).addTo(map);
-    freefallLine = [connector, parallel];
-    const jrLenM = distMeters(jrStart, jrEnd);
-    const bear = bearing(jrStart, jrEnd);
-    let gndKts = '—';
-    if (lastWind14k) {
-        const airspeedMs = 110 * 0.514444;
-        const wSpdMs = lastWind14k.speed * 0.514444;
-        const angleDiff = ((lastWind14k.direction - bear + 180 + 360) % 360) - 180;
-        const headwindMs = wSpdMs * Math.cos(angleDiff * Math.PI / 180);
-        const gndMs = Math.max(airspeedMs - headwindMs, airspeedMs * 0.4);
-        lastGndSpeedKts = gndMs / 0.514444;
-        gndKts = lastGndSpeedKts.toFixed(0) + ' kt';
-    }
-    document.getElementById("jumpRunInfo").style.display = "block";
-    const sepSuggested = recommendedSep(lastGndSpeedKts);
-    const sepLine = sepSuggested ? `Rec. Jumper Sep: <span style="color:var(--accent)">${sepSuggested} sec</span>` : "";
-    document.getElementById("jumpRunInfo").innerHTML =
-        `JR heading: ${bear.toFixed(0)}°<br>JR length: ${(jrLenM/1609.344).toFixed(2)} mi<br>JR speed: ${gndKts}<br>FF drift: ${(ffDist/1609.344).toFixed(2)} mi @ ${ff.direction.toFixed(0)}°${sepLine ? "<br>" + sepLine : ""}`;
-}
+def fetch_metar(icao):
+    """Fetch current surface wind from aviationweather.gov METAR API."""
+    if not icao:
+        return None
+    now = datetime.now(timezone.utc)
+    cached = _metar_cache.get(icao)
+    if cached and cached["expires"] > now:
+        print(f"METAR cache HIT for {icao}")
+        return cached["data"]
+    try:
+        url = "https://aviationweather.gov/api/data/metar"
+        params = {"ids": icao, "format": "json"}
+        headers = {"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"}
+        r = requests.get(url, timeout=10, params=params, headers=headers)
+        r.raise_for_status()
+        data = r.json()
+        print(f"METAR raw {icao}: {data[0] if data else 'empty'}")
+        if data and len(data) > 0:
+            obs = data[0]
+            wdir = obs.get("wdir")
+            wspd = obs.get("wspd")
+            temp = obs.get("temp")
+            # Handle variable winds (VRB) — use 0° direction, still show speed
+            if str(wdir).upper() == "VRB":
+                wdir = 0
+            if wdir is not None and wspd is not None:
+                try:
+                    wdir_f = float(wdir)
+                    wspd_f = float(wspd)
+                    print(f"METAR {icao}: {wspd_f}kt @ {wdir_f}°")
+                    result = {
+                        "wdir": wdir_f,
+                        "wspd": wspd_f,
+                        "temp": float(temp) if temp is not None else None,
+                    }
+                    _metar_cache[icao] = {"data": result, "expires": now + METAR_TTL}
+                    return result
+                except (ValueError, TypeError) as e:
+                    print(f"METAR {icao} parse error: {e} wdir={wdir} wspd={wspd}")
+            else:
+                print(f"METAR {icao}: missing wdir or wspd — obs={obs}")
+    except Exception as e:
+        print(f"METAR fetch error for {icao}: {e}")
+    return None
 
-function recommendedSep(gndKts){
-    if (!gndKts || gndKts <= 0) return null;
-    if (gndKts < 70)  return 12;
-    if (gndKts < 80)  return 10;
-    if (gndKts < 90)  return 8;
-    if (gndKts < 100) return 7;
-    if (gndKts < 110) return 6;
-    if (gndKts <= 120) return 5;
-    return 4;
-}
 
-function drawJumpRun(){
-    if (jumpRunLine) jumpRunLine.forEach(l => l.remove());
-    clearAnimation();
-    const jrLine = L.polyline([jrStart, jrEnd], { color: '#fff', weight: 3, opacity: 0.85, dashArray: '8,5' }).addTo(map);
-    const bear = bearing(jrStart, jrEnd);
-    const arrowHead = makeArrowhead(jrEnd, bear);
-    jumpRunLine = [jrLine, arrowHead];
-    drawFreefallParallel();
-    startPlaneAnimation();
-    document.getElementById("replayBtn").style.display = "block";
-    document.getElementById("clearBtn").style.display = "block";
-}
+def fetch_forecast(lat, lon, hour_offset=0):
+    # All hours use Open-Meteo, keyed by (lat, lon, hour)
+    dz_key = (round(lat, 3), round(lon, 3), hour_offset)
+    now = datetime.now(timezone.utc)
 
-function makeArrowhead(tip, hdg){
-    const tipPx = map.latLngToLayerPoint(L.latLng(tip));
-    const r = (hdg - 90) * Math.PI / 180;
-    function pt(dist, ang){ return map.layerPointToLatLng(L.point(tipPx.x + dist*Math.cos(r+ang), tipPx.y + dist*Math.sin(r+ang))); }
-    return L.polygon([tip, pt(14,2.5), pt(14,-2.5)], { color: '#fff', fillColor: '#fff', fillOpacity: 1, weight: 0 }).addTo(map);
-}
+    cached = _forecast_cache.get(dz_key)
+    if cached and cached["expires"] > now:
+        print(f"Cache HIT for {dz_key}")
+        return cached["data"]
 
-let jumperMarkers = [], jumperTimers = [];
+    print(f"Fetching Open-Meteo ensemble for hour={hour_offset}")
+    try:
+        api_key = os.environ.get("OPENMETEO_API_KEY")
+        base_url = "https://customer-api.open-meteo.com/v1/forecast" if api_key else "https://api.open-meteo.com/v1/forecast"
+        # Wind fields — split into two requests, each under 10 vars = 1.0 API call each
+        wind_fields = [
+            "windspeed_10m","winddirection_10m","windspeed_80m","winddirection_80m",
+            "windspeed_1000hPa","winddirection_1000hPa",
+            "windspeed_975hPa","winddirection_975hPa",
+            "windspeed_950hPa","winddirection_950hPa",
+        ]
+        wind_fields2 = [
+            "windspeed_925hPa","winddirection_925hPa",
+            "windspeed_850hPa","winddirection_850hPa",
+            "windspeed_700hPa","winddirection_700hPa",
+            "windspeed_600hPa","winddirection_600hPa",
+            "windspeed_500hPa","winddirection_500hPa",
+        ]
+        # Temp + height fields — split into two requests under 10 vars each
+        temp_fields = [
+            "temperature_2m",
+            "temperature_1000hPa","temperature_975hPa",
+            "temperature_950hPa","temperature_925hPa",
+            "temperature_850hPa","temperature_700hPa",
+            "temperature_600hPa","temperature_500hPa",
+        ]
+        height_fields = [
+            "geopotential_height_1000hPa","geopotential_height_975hPa",
+            "geopotential_height_950hPa","geopotential_height_925hPa",
+            "geopotential_height_850hPa","geopotential_height_700hPa",
+            "geopotential_height_600hPa","geopotential_height_500hPa",
+        ]
+        # Cloud fields fetched separately from GFS only (not all 4 models)
+        cloud_fields_str = "cloudcover_low,cloudcover_mid,cloudcover_high,cloudcover,precipitation_probability,visibility,dewpoint_2m,temperature_2m"
+        # Short range (0-18h): GFS + ICON + HRRR + NAM — best resolution for current conditions
+        # Long range (19-72h): GFS + ICON + ECMWF — HRRR/NAM don't go that far out
+        if hour_offset <= 18:
+            ensemble_models = ["gfs_seamless", "icon_seamless", "hrrr_conus", "nam_conus"]
+        else:
+            ensemble_models = ["gfs_seamless", "icon_seamless", "ecmwf_ifs025"]
 
-function planeIcon(hdg){
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="-18 -18 36 36" style="transform:rotate(${hdg}deg);overflow:visible">
-      <ellipse cx="0" cy="0" rx="2.5" ry="9" fill="#ff4f4f"/>
-      <ellipse cx="0" cy="-10" rx="1.8" ry="3" fill="#cc2222"/>
-      <ellipse cx="0" cy="-1" rx="14" ry="2.2" fill="#ff6666"/>
-      <ellipse cx="0" cy="-1" rx="16" ry="1.1" fill="#dd4444" opacity="0.6"/>
-      <ellipse cx="0" cy="8" rx="6" ry="1.3" fill="#ff6666"/>
-      <ellipse cx="0" cy="6.5" rx="1" ry="2.5" fill="#cc2222"/>
-      <ellipse cx="0" cy="-11.5" rx="1.2" ry="1.8" fill="#aa2222"/>
-      <ellipse cx="0" cy="-13" rx="4" ry="0.6" fill="#ff4f4f" opacity="0.7"/>
-    </svg>`;
-    return L.divIcon({ html: svg, className: '', iconSize: [36,36], iconAnchor: [18,18] });
-}
+        # Model-to-endpoint mapping — HRRR and NAM require /v1/gfs endpoint
+        GFS_ENDPOINT_MODELS = {"hrrr_conus", "nam_conus", "gfs_seamless"}
+        def model_endpoint(m):
+            if m in GFS_ENDPOINT_MODELS:
+                return base_url.replace("/v1/forecast", "/v1/gfs")
+            return base_url
 
-// jumperCounter tracks how many jumpers have exited for numbering
-let jumperCounter = 0;
+        def fetch_one_model(model):
+            model_key = (round(lat, 3), round(lon, 3), hour_offset, model)
+            cached_model = _forecast_cache.get(model_key)
+            if cached_model and cached_model["expires"] > now:
+                print(f"Cache HIT {model}")
+                return model, cached_model["data"]
+            endpoint = model_endpoint(model)
+            if model == "hrrr_conus":
+                fcast_days = 1
+            elif model == "nam_conus":
+                fcast_days = 2
+            else:
+                fcast_days = 3
+            model_param = "" if model in ("hrrr_conus", "nam_conus") else f"&models={model}"
+            key_param = f"&apikey={api_key}" if api_key else ""
+            base_params = (f"?latitude={lat}&longitude={lon}"
+                          f"&forecast_days={fcast_days}&timezone=auto"
+                          f"&wind_speed_unit=kn{model_param}{key_param}")
 
-function parachuteIcon(num){
-    const html = `<div style="
-        background:#ff4f4f;
-        color:#fff;
-        font-family:'Share Tech Mono',monospace;
-        font-size:11px;
-        font-weight:bold;
-        width:22px;height:22px;
-        border-radius:4px;
-        display:flex;align-items:center;justify-content:center;
-        border:1.5px solid #cc2222;
-        box-shadow:0 1px 4px rgba(0,0,0,0.5);
-        line-height:1;
-    ">${num}</div>`;
-    return L.divIcon({ html, className: '', iconSize: [22,22], iconAnchor: [11,11] });
-}
+            def fetch_url(fields_str):
+                url = f"{endpoint}{base_params}&hourly={fields_str}"
+                r = requests.get(url, timeout=15,
+                                 headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
+                return r
 
-function stopPlane(){
-    animGeneration++;
-    jumperCounter = 0;
-    if (planeAnimId) { cancelAnimationFrame(planeAnimId); planeAnimId = null; }
-    if (planeMarker) { planeMarker.remove(); planeMarker = null; }
-    jumperTimers.forEach(t => clearTimeout(t)); jumperTimers = [];
-    jumperMarkers.forEach(m => m.remove()); jumperMarkers = [];
-}
+            def handle_429(r):
+                if r.status_code == 429 and cached_model:
+                    extended = now + timedelta(hours=6)
+                    _forecast_cache[model_key] = {"data": cached_model["data"], "expires": extended}
+                    print(f"Rate limited — extending cache for {model} by 6h")
+                    return True
+                return False
 
-function startPlaneAnimation(){
-    stopPlane();
-    if (!jrStart || !jrEnd || !lastWind14k || !lastFreefall) return;
-    const hdg = bearing(jrStart, jrEnd);
-    const jrDist = distMeters(jrStart, jrEnd);
-    const airspeed = 110 * 0.514444;
-    const wSpd = lastWind14k.speed * 0.514444;
-    const wDir = lastWind14k.direction;
-    const angleDiff = ((wDir - hdg + 180 + 360) % 360) - 180;
-    const headwind = wSpd * Math.cos(angleDiff * Math.PI / 180);
-    const gndSpeed = Math.max(airspeed - headwind, airspeed * 0.4);
-    lastGndSpeedKts = gndSpeed / 0.514444;
-    const realisticDuration = (jrDist / gndSpeed) * 1000;
-    const displayDuration = 10000;
-    const timeScale = displayDuration / realisticDuration;
-    const ffDist = lastFreefall.distance;
-    const ffRad = lastFreefall.direction * Math.PI / 180;
-    const sepSec = recommendedSep(lastGndSpeedKts) || 8;
-    const realisticDropTimes = [];
-    for (let t = 2000; t < realisticDuration; t += sepSec * 1000) realisticDropTimes.push(t);
-    const dropTimes = realisticDropTimes.map(t => t * timeScale);
-    dropTimes.forEach((dropMs, idx) => {
-        const tid = setTimeout(() => {
-            const frac = realisticDropTimes[idx] / realisticDuration;
-            const exitLat = jrStart[0] + (jrEnd[0] - jrStart[0]) * frac;
-            const exitLon = jrStart[1] + (jrEnd[1] - jrStart[1]) * frac;
-            const dlatFF = Math.cos(ffRad) * ffDist / 111000;
-            const dlonFF = Math.sin(ffRad) * ffDist / (111000 * Math.cos(exitLat * Math.PI / 180));
-            const landLat = exitLat + dlatFF, landLon = exitLon + dlonFF;
-            jumperCounter++;
-            const jumper = L.marker([exitLat, exitLon], { icon: parachuteIcon(jumperCounter), zIndexOffset: 900 }).addTo(map);
-            jumperMarkers.push(jumper);
-            const animDuration = Math.min(4000, Math.max(1000, 8000 * timeScale));
-            const jStart = performance.now();
-            const myGen = animGeneration;
-            function driftAnimate(now){
-                if (animGeneration !== myGen) return;
-                const jt = Math.min((now - jStart) / animDuration, 1);
-                jumper.setLatLng([exitLat + (landLat-exitLat)*jt, exitLon + (landLon-exitLon)*jt]);
-                if (jt < 1) { requestAnimationFrame(driftAnimate); }
-                else {
-                    if (animGeneration !== myGen) return;
-                    // No circle — jumper icon stays at landing spot
+            try:
+                # 4 requests per model, each ≤10 vars = 1.0 API call each
+                responses = []
+                field_groups = [wind_fields, wind_fields2, temp_fields, height_fields]
+                for fg in field_groups:
+                    r = fetch_url(",".join(fg))
+                    if not r.ok:
+                        print(f"Open-Meteo {model} {r.status_code}: {r.text[:200]}")
+                        if handle_429(r):
+                            return model, cached_model["data"]
+                        return model, None
+                    responses.append(r.json())
+                # Merge all responses
+                mdata = responses[0]
+                for resp in responses[1:]:
+                    if "hourly" in resp:
+                        mdata.setdefault("hourly", {}).update(resp["hourly"])
+                _forecast_cache[model_key] = {"data": mdata, "expires": now + CACHE_TTL}
+                print(f"Open-Meteo {model} OK (4 calls)")
+                return model, mdata
+            except Exception as me:
+                print(f"Open-Meteo {model} error: {me}")
+                return model, None
+
+        # Fetch all models in parallel
+        model_data = {}
+        with ThreadPoolExecutor(max_workers=len(ensemble_models)) as executor:
+            futures = {executor.submit(fetch_one_model, m): m for m in ensemble_models}
+            for future in as_completed(futures):
+                model, mdata = future.result()
+                if mdata is not None:
+                    model_data[model] = mdata
+
+        if not model_data:
+            print("All ensemble models failed")
+            if cached:
+                return cached["data"]
+            return None
+
+        print(f"Ensemble: {len(model_data)}/{len(ensemble_models)} models loaded: {list(model_data.keys())}")
+        record_api_call(len(ensemble_models) * 4)  # 4 calls per model (wind1+wind2+temp+height)
+        result = {"source": "openmeteo_ensemble", "models": model_data}
+        _forecast_cache[dz_key] = {"data": result, "expires": now + CACHE_TTL}
+        save_cache_to_disk()
+        return result
+    except Exception as e:
+        print(f"Open-Meteo ensemble error: {e}")
+        if cached:
+            return cached["data"]
+        return None
+
+
+# =====================================================
+# 📊 WIND MODEL
+# =====================================================
+
+def wind_arrow(d):
+    return ["↑","↗","→","↘","↓","↙","←","↖","↑"][int((d % 360) / 45)]
+
+
+def color(s):
+    if s < 10: return "green"
+    if s < 25: return "orange"
+    return "red"
+
+
+def interpolate(base, alt):
+    base = [(a, s, d) for a, s, d in base if s is not None and d is not None]
+    if not base:
+        return 0, 0
+    if alt <= base[0][0]:
+        return base[0][1], base[0][2]
+    if alt >= base[-1][0]:
+        return base[-1][1], base[-1][2]
+    for i in range(len(base) - 1):
+        a0, s0, d0 = base[i]
+        a1, s1, d1 = base[i + 1]
+        if a0 <= alt <= a1:
+            t = (alt - a0) / (a1 - a0)
+            speed = s0 + (s1 - s0) * t
+            r0 = math.radians(d0)
+            r1 = math.radians(d1)
+            sin_avg = math.sin(r0) + (math.sin(r1) - math.sin(r0)) * t
+            cos_avg = math.cos(r0) + (math.cos(r1) - math.cos(r0)) * t
+            direction = math.degrees(math.atan2(sin_avg, cos_avg)) % 360
+            return speed, direction
+    return base[-1][1], base[-1][2]
+
+
+def format_winds(data, hour, lat=0, lon=0):
+    if not data:
+        print("format_winds: data is None")
+        return {}
+    try:
+        source = data.get("source", "openmeteo")
+
+        if source == "schulze":
+            d = data["data"]
+            directions = d.get("direction", {})
+            speeds     = d.get("speed", {})
+            temps      = d.get("temp", {})  # °C at every 1000ft
+            result = {}
+            for alt in [0] + list(range(1000, 15000, 1000)):
+                key = str(alt)
+                spd  = float(speeds.get(key, 0))
+                dirn = float(directions.get(key, 0))
+                tc   = temps.get(key)
+                tf   = round(tc * 9/5 + 32) if tc is not None else None
+                result[alt] = {
+                    "speed":     round(spd, 1),
+                    "direction": round(dirn % 360, 0),
+                    "arrow":     wind_arrow(dirn),
+                    "color":     color(spd),
+                    "temp_f":    tf,
                 }
+            # Override SFC with Schulze's ground observation
+            gspd = float(d.get("groundSpd", speeds.get("0", 0)))
+            gdir = float(d.get("groundDir", directions.get("0", 0)))
+            gt   = d.get("groundTemp")
+            gtf  = round(gt * 9/5 + 32) if gt is not None else None
+            result[0] = {
+                "speed":     round(gspd, 1),
+                "direction": round(gdir % 360, 0),
+                "arrow":     wind_arrow(gdir),
+                "color":     color(gspd),
+                "temp_f":    gtf,
             }
-            requestAnimationFrame(driftAnimate);
-        }, dropMs);
-        jumperTimers.push(tid);
-    });
-    planeMarker = L.marker(jrStart, { icon: planeIcon(hdg), zIndexOffset: 1000 }).addTo(map);
-    const startTime = performance.now();
-    function animate(now){
-        const t = Math.min((now - startTime) / displayDuration, 1);
-        planeMarker.setLatLng([jrStart[0]+(jrEnd[0]-jrStart[0])*t, jrStart[1]+(jrEnd[1]-jrStart[1])*t]);
-        if (t < 1) { planeAnimId = requestAnimationFrame(animate); }
-        else { planeAnimId = null; document.getElementById("replayBtn").style.display = "block"; }
-    }
-    planeAnimId = requestAnimationFrame(animate);
-}
+            print(f"format_winds (schulze): {len(result)} levels")
+            return result, 100, 100  # Schulze = single source, no ensemble confidence
 
-function distMeters(a, b){
-    const R = 6378137;
-    const dLat = (b[0]-a[0]) * Math.PI/180, dLon = (b[1]-a[1]) * Math.PI/180;
-    const s = Math.sin(dLat/2)**2 + Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.sin(dLon/2)**2;
-    return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
-}
+        # Open-Meteo ensemble — weighted average across models
+        # Get hourly data from each available model
+        models_h = {}
+        if source == "openmeteo_ensemble":
+            for mname, mdata in data["models"].items():
+                models_h[mname] = mdata.get("hourly", {})
+        else:
+            # Single model fallback
+            models_h["gfs_seamless"] = data["data"]["hourly"]
+        h = list(models_h.values())[0]  # use first for geopotential/temp
 
-function bearing(a, b){
-    const dLon = (b[1]-a[1]) * Math.PI/180;
-    const y = Math.sin(dLon) * Math.cos(b[0]*Math.PI/180);
-    const x = Math.cos(a[0]*Math.PI/180)*Math.sin(b[0]*Math.PI/180) - Math.sin(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.cos(dLon);
-    return (Math.atan2(y, x) * 180/Math.PI + 360) % 360;
-}
+        # Standard atmosphere fallback heights (ft MSL) for models that don't support geopotential
+        STD_HEIGHTS = {
+            1000: 364, 975: 820, 950: 1555, 925: 2500,
+            850: 4780, 700: 9843, 600: 14108, 500: 18289
+        }
+        def gh(lvl):
+            val = h.get(f"geopotential_height_{lvl}hPa", [None]*200)[hour]
+            if val is None:
+                return float(STD_HEIGHTS.get(lvl, 0))
+            return val * 3.28084
 
-function clearJumpRun(){
-    if (jumpRunLine) { jumpRunLine.forEach(l => l.remove()); jumpRunLine = null; }
-    if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
-    stopPlane(); jrStart = null; jrEnd = null;
-    document.getElementById("jumpRunInfo").style.display = "none";
-    document.getElementById("replayBtn").style.display = "none";
-    document.getElementById("clearBtn").style.display = "none";
-}
+        def tc_to_f(tc):
+            return round(tc * 9/5 + 32) if tc is not None else None
 
-function togglePatternMode(){
-    patternMode = !patternMode;
-    const btn = document.getElementById("patternBtn");
-    if (patternMode){
-        btn.textContent = "✕ Cancel Placement";
-        btn.style.background = "#ff4f4f"; btn.style.color = "var(--bg)";
-        map.getContainer().style.cursor = "crosshair";
-    } else {
-        btn.textContent = "🎯 Place Landing Spot";
-        btn.style.background = "var(--card-bg)"; btn.style.color = "#ff4f4f";
-        map.getContainer().style.cursor = "";
-        if (!landingSpot) document.getElementById("patternControls").style.display = "none";
-    }
-}
+        all_levels = [
+            (gh(1000), h["windspeed_1000hPa"][hour], h["winddirection_1000hPa"][hour], h.get("temperature_1000hPa", [None]*200)[hour]),
+            (gh(975),  h["windspeed_975hPa"][hour],  h["winddirection_975hPa"][hour],  h.get("temperature_975hPa",  [None]*200)[hour]),
+            (gh(950),  h["windspeed_950hPa"][hour],  h["winddirection_950hPa"][hour],  h.get("temperature_950hPa",  [None]*200)[hour]),
+            (gh(925),  h["windspeed_925hPa"][hour],  h["winddirection_925hPa"][hour],  h.get("temperature_925hPa",  [None]*200)[hour]),
+            (gh(850),  h["windspeed_850hPa"][hour],  h["winddirection_850hPa"][hour],  h.get("temperature_850hPa",  [None]*200)[hour]),
+            (gh(700),  h["windspeed_700hPa"][hour],  h["winddirection_700hPa"][hour],  h.get("temperature_700hPa",  [None]*200)[hour]),
+            (gh(600),  h["windspeed_600hPa"][hour],  h["winddirection_600hPa"][hour],  h.get("temperature_600hPa",  [None]*200)[hour]),
+            (gh(500),  h["windspeed_500hPa"][hour],  h["winddirection_500hPa"][hour],  h.get("temperature_500hPa",  [None]*200)[hour]),
+        ]
+        # Get site elevation from Open-Meteo response (top-level field)
+        try:
+            elev_m = float(data["data"].get("elevation") or 0)
+            elev_ft = elev_m * 3.28084
+        except Exception:
+            elev_ft = 0
+        # Only keep pressure levels at least 300ft above site elevation
+        min_alt_ft = elev_ft + 300
+        pressure_levels = [(a, s, d, t) for a, s, d, t in all_levels
+                           if a > min_alt_ft and s is not None and d is not None]
+        # Safety: if filter removed everything, fall back to all valid levels
+        if not pressure_levels:
+            pressure_levels = [(a, s, d, t) for a, s, d, t in all_levels
+                               if s is not None and d is not None and a > 0]
 
-function clearPattern(){
-    patternLines.forEach(l => l.remove()); patternLines = [];
-    if (landingMarker) { landingMarker.remove(); landingMarker = null; }
-    landingSpot = null;
-    document.getElementById("patternControls").style.display = "none";
-    document.getElementById("patternBtn").textContent = "🎯 Place Landing Spot";
-    document.getElementById("patternBtn").style.background = "var(--card-bg)";
-    document.getElementById("patternBtn").style.color = "#ff4f4f";
-}
+        # ── ENSEMBLE WEIGHTED AVERAGE ──
+        # For each pressure level, get speed+direction from each model
+        # Weight each model by how much it agrees with the other two
+        LEVELS = [1000, 975, 950, 925, 850, 700, 600, 500]
+        STD_H = {1000:364,975:820,950:1555,925:2500,850:4780,700:9843,600:14108,500:18289}
 
-function getFinalHeading(){
-    const sel = document.getElementById("patternHeading").value;
-    if (sel === "wind" && lastCanopyWind) return lastCanopyWind.direction;
-    if (sel === "custom") return parseFloat(document.getElementById("patternCustomHdg").value) || 0;
-    return lastCanopyWind ? lastCanopyWind.direction : 0;
-}
+        def angle_diff(a, b):
+            """Shortest angular difference between two directions."""
+            d = abs(a - b) % 360
+            return d if d <= 180 else 360 - d
 
-function drawPattern(){
-    if (!landingSpot) return;
-    patternLines.forEach(l => l.remove()); patternLines = [];
-    const finalHdg = getFinalHeading() % 360;
-    const traffic = document.getElementById("patternTraffic").value;
-    const turnDir = traffic === "left" ? -90 : 90;
-    const R = 6378137;
-    function offsetPt(bLat, bLon, bearDeg, distM){
-        const rad = bearDeg * Math.PI/180, lat1 = bLat*Math.PI/180, lon1 = bLon*Math.PI/180;
-        const lat2 = Math.asin(Math.sin(lat1)*Math.cos(distM/R) + Math.cos(lat1)*Math.sin(distM/R)*Math.cos(rad));
-        const lon2 = lon1 + Math.atan2(Math.sin(rad)*Math.sin(distM/R)*Math.cos(lat1), Math.cos(distM/R)-Math.sin(lat1)*Math.sin(lat2));
-        return [lat2*180/Math.PI, lon2*180/Math.PI];
-    }
-    const downwindHdgDeg = (finalHdg + 180) % 360;
-    const baseHdgDeg = (finalHdg + turnDir + 360) % 360;
-    const descentFpm = 2500 / canopyDescentTime * 60;
-    const tDownwind = (1000-600) / descentFpm * 60;
-    const tBase = (600-300) / descentFpm * 60;
-    const tFinal = (300-0) / descentFpm * 60;
-    const DOWNWIND_LEN = groundSpeedForLeg(downwindHdgDeg, 800) * tDownwind;
-    const BASE_LEN = groundSpeedForLeg(baseHdgDeg, 450) * tBase;
-    const FINAL_LEN = groundSpeedForLeg(finalHdg, 150) * tFinal;
-    const target = landingSpot;
-    const finalStart = offsetPt(target[0], target[1], (finalHdg+180)%360, FINAL_LEN);
-    const baseStart = offsetPt(finalStart[0], finalStart[1], (baseHdgDeg+180)%360, BASE_LEN);
-    const downwindStart = offsetPt(baseStart[0], baseStart[1], (downwindHdgDeg+180)%360, DOWNWIND_LEN);
-    const patternColor = 'rgba(255,79,79,0.75)';
-    const labelStyle = 'background:rgba(255,79,79,0.85);color:#fff;font-size:22px;font-family:monospace;font-weight:bold;padding:3px 8px;border-radius:4px;white-space:nowrap';
-    function addArrow(from, to, altLabel){
-        const line = L.polyline([from, to], { color: patternColor, weight: 9, opacity: 0.75 }).addTo(map);
-        patternLines.push(line);
-        const hdg = bearing(from, to);
-        const tipPx = map.latLngToLayerPoint(L.latLng(to));
-        const r = (hdg-90)*Math.PI/180;
-        const left = map.layerPointToLatLng(L.point(tipPx.x+10*Math.cos(r+2.5), tipPx.y+10*Math.sin(r+2.5)));
-        const right = map.layerPointToLatLng(L.point(tipPx.x+10*Math.cos(r-2.5), tipPx.y+10*Math.sin(r-2.5)));
-        const arrow = L.polygon([to, left, right], { color: patternColor, fillColor: patternColor, fillOpacity: 0.75, weight: 0 }).addTo(map);
-        patternLines.push(arrow);
-        const lbl = L.marker(from, { icon: L.divIcon({ html: `<div style="${labelStyle}">${altLabel}</div>`, className: '', iconAnchor: [0,10] }) }).addTo(map);
-        patternLines.push(lbl);
-    }
-    addArrow(downwindStart, baseStart, "1000ft");
-    addArrow(baseStart, finalStart, "600ft");
-    addArrow(finalStart, target, "300ft");
-    if (landingMarker) landingMarker.remove();
-    const spotIcon = L.divIcon({ html: '<div style="width:14px;height:14px;background:rgba(255,79,79,0.9);border:2px solid #fff;border-radius:50%"></div>', className: '', iconAnchor: [7,7] });
-    landingMarker = L.marker(target, { icon: spotIcon, zIndexOffset: 800 }).addTo(map);
-    patternLines.push(landingMarker);
-}
+        def weighted_avg_wind(model_speeds, model_dirs):
+            """Compute weighted average wind across models.
+            Weight each model by inverse of its mean angular distance to others."""
+            n = len(model_speeds)
+            if n == 0: return 0, 0
+            if n == 1: return model_speeds[0], model_dirs[0]
+            # Compute disagreement of each model vs others
+            disagreements = []
+            for i in range(n):
+                total_diff = sum(angle_diff(model_dirs[i], model_dirs[j])
+                                 for j in range(n) if j != i)
+                disagreements.append(total_diff + 0.1)  # avoid div/0
+            # Weight = inverse of disagreement
+            inv = [1.0/d for d in disagreements]
+            total_inv = sum(inv)
+            weights = [w/total_inv for w in inv]
+            # Weighted speed
+            avg_spd = sum(weights[i]*model_speeds[i] for i in range(n))
+            # Weighted direction (circular)
+            sin_sum = sum(weights[i]*math.sin(math.radians(model_dirs[i])) for i in range(n))
+            cos_sum = sum(weights[i]*math.cos(math.radians(model_dirs[i])) for i in range(n))
+            avg_dir = math.degrees(math.atan2(sin_sum, cos_sum)) % 360
+            return avg_spd, avg_dir
 
-function updatePattern(){
-    document.getElementById("customHeadingRow").style.display = document.getElementById("patternHeading").value === "custom" ? "block" : "none";
-    if (landingSpot) drawPattern();
-}
+        # Build ensemble pressure level base
+        ensemble_base = []
+        ensemble_spreads = {}  # alt -> direction spread across models
+        for lvl in LEVELS:
+            m_spds, m_dirs = [], []
+            alt_ft = None
+            for mh in models_h.values():
+                spd_arr = mh.get(f"windspeed_{lvl}hPa", [])
+                dir_arr = mh.get(f"winddirection_{lvl}hPa", [])
+                if hour >= len(spd_arr) or hour >= len(dir_arr):
+                    continue  # this model doesn't have data for this hour
+                spd = spd_arr[hour]
+                dirn = dir_arr[hour]
+                if spd is None or dirn is None: continue
+                m_spds.append(spd); m_dirs.append(dirn)
+                if alt_ft is None:
+                    v = mh.get(f"geopotential_height_{lvl}hPa", [None]*200)[hour]
+                    alt_ft = v*3.28084 if v is not None else float(STD_H.get(lvl, 0))
+            if not m_spds or alt_ft is None: continue
+            avg_spd, avg_dir = weighted_avg_wind(m_spds, m_dirs)
+            ensemble_base.append((alt_ft, avg_spd, avg_dir))
+            # Spread = max pairwise angular difference
+            if len(m_dirs) > 1:
+                spread = max(angle_diff(m_dirs[i], m_dirs[j])
+                             for i in range(len(m_dirs))
+                             for j in range(i+1, len(m_dirs)))
+            else:
+                spread = 0
+            ensemble_spreads[int(alt_ft)] = spread
 
-function clearAnimation(){
-    animGeneration++;
-    if (planeAnimId) { cancelAnimationFrame(planeAnimId); planeAnimId = null; }
-    if (planeMarker) { planeMarker.remove(); planeMarker = null; }
-    jumperTimers.forEach(t => clearTimeout(t)); jumperTimers = [];
-    jumperMarkers.forEach(m => m.remove()); jumperMarkers = [];
-}
+        # Filter below-ground
+        ensemble_base = [(a,s,d) for a,s,d in ensemble_base if a > min_alt_ft]
+        if not ensemble_base:
+            ensemble_base = [(a,s,d) for a,s,d in ensemble_base if a > 0]
 
-function toggleDrawMode(){
-    drawMode = !drawMode;
-    const btn = document.getElementById("drawBtn");
-    if (drawMode){
-        btn.classList.add("active"); btn.textContent = "✕ Cancel Draw";
-        map.getContainer().style.cursor = "crosshair";
-        clearAnimation(); jrStart = null; jrEnd = null;
-        if (window.innerWidth < 600 && panelOpen) togglePanel();
-    } else {
-        btn.classList.remove("active"); btn.textContent = "✏️ Draw Jump Run";
-        map.getContainer().style.cursor = "";
-    }
-}
+        # SFC: ensemble average of 10m+80m across models
+        sfc_spds, sfc_dirs = [], []
+        for mh in models_h.values():
+            s10_arr = mh.get("windspeed_10m",[])
+            d10_arr = mh.get("winddirection_10m",[])
+            if hour >= len(s10_arr) or hour >= len(d10_arr):
+                continue
+            s10 = s10_arr[hour]
+            d10 = d10_arr[hour]
+            s80 = (mh.get("windspeed_80m",[]) + [s10]*200)[hour] or s10
+            d80 = (mh.get("winddirection_80m",[]) + [d10]*200)[hour] or d10
+            if s10 is None or d10 is None: continue
+            avg_spd_sfc = (s10 + s80) / 2
+            r10 = math.radians(d10); r80 = math.radians(d80 or d10)
+            sin_s = (math.sin(r10)*s10 + math.sin(r80)*s80)/(s10+s80+0.001)
+            cos_s = (math.cos(r10)*s10 + math.cos(r80)*s80)/(s10+s80+0.001)
+            sfc_spds.append(avg_spd_sfc)
+            sfc_dirs.append(math.degrees(math.atan2(sin_s, cos_s)) % 360)
+        surf_spd, surf_dir = weighted_avg_wind(sfc_spds, sfc_dirs)
 
-let dragLine = null, isDragging = false;
+        result = {}
+        # Use 2m temperature for surface display — much more accurate than pressure level temp
+        temp2m = None
+        for mh in models_h.values():
+            t_arr = mh.get("temperature_2m", [])
+            t = t_arr[hour] if hour < len(t_arr) else None
+            if t is not None:
+                temp2m = t
+                break
+        result[0] = {
+            "speed":     round(surf_spd, 1),
+            "direction": round(surf_dir % 360, 0),
+            "arrow":     wind_arrow(surf_dir),
+            "color":     color(surf_spd),
+            "temp_f":    tc_to_f(temp2m) if temp2m is not None else (tc_to_f(pressure_levels[0][3]) if pressure_levels else None),
+        }
 
-function touchToLatLng(touch){
-    const rect = map.getContainer().getBoundingClientRect();
-    return map.containerPointToLatLng(L.point(touch.clientX-rect.left, touch.clientY-rect.top));
-}
+        # Compute confidence scores for canopy (0-3k) and freefall (4k-14k) layers
+        def layer_confidence(low_ft, high_ft):
+            """Return average spread in degrees across altitude layer.
+            Frontend converts: 0-20° = High, 21-45° = Medium, 46°+ = Low"""
+            spreads = []
+            for alt_key, spread in ensemble_spreads.items():
+                if low_ft <= alt_key <= high_ft:
+                    spreads.append(spread)
+            if not spreads: return 0
+            return round(sum(spreads) / len(spreads), 1)
 
-function startDraw(ll){
-    isDragging = true; jrStart = [ll.lat, ll.lng];
-    if (jumpRunLine) { jumpRunLine.forEach(l => l.remove()); jumpRunLine = null; }
-    if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
-    if (dragLine) { dragLine.remove(); dragLine = null; }
-    document.getElementById("jumpRunInfo").style.display = "none";
-    map.dragging.disable(); map.touchZoom.disable();
-}
+        n_models = len(models_h)
+        canopy_spread   = layer_confidence(0,    3000)
+        freefall_spread = layer_confidence(4000, 14000)
+        # If fewer than 2 models, mark as N/A (spread=None)
+        canopy_confidence   = canopy_spread   if n_models >= 2 else None
+        freefall_confidence = freefall_spread if n_models >= 2 else None
+        print(f"Ensemble spread: canopy={canopy_confidence}° ff={freefall_confidence}° ({n_models} models)")
 
-function moveDraw(ll){
-    if (!isDragging || !jrStart) return;
-    if (dragLine) dragLine.remove();
-    dragLine = L.polyline([jrStart, [ll.lat, ll.lng]], { color: '#fff', weight: 3, opacity: 0.6, dashArray: '8,5' }).addTo(map);
-}
-
-function endDraw(ll){
-    if (!isDragging || !jrStart) return;
-    isDragging = false; map.dragging.enable(); map.touchZoom.enable();
-    if (dragLine) { dragLine.remove(); dragLine = null; }
-    const endPt = [ll.lat, ll.lng];
-    const startPx = map.latLngToContainerPoint(L.latLng(jrStart));
-    const endPx = map.latLngToContainerPoint(L.latLng(endPt));
-    const dist = Math.sqrt((startPx.x-endPx.x)**2+(startPx.y-endPx.y)**2);
-    if (dist < 15) { jrStart = null; return; }
-    jrEnd = endPt; drawJumpRun(); toggleDrawMode();
-}
-
-function onMapMouseDown(e){ if (!drawMode) return; startDraw(e.latlng); }
-function onMapMouseMove(e){ if (!drawMode) return; moveDraw(e.latlng); }
-function onMapMouseUp(e){ if (!drawMode) return; endDraw(e.latlng); }
-function onMapClick(e){ if (!drawMode || isDragging) return; }
-function onTouchStart(e){ if (!drawMode) return; e.preventDefault(); startDraw(touchToLatLng(e.touches[0])); }
-function onTouchMove(e){ if (!drawMode || !isDragging) return; e.preventDefault(); moveDraw(touchToLatLng(e.touches[0])); }
-function onTouchEnd(e){ if (!drawMode || !isDragging) return; e.preventDefault(); endDraw(touchToLatLng(e.changedTouches[0])); }
-
-function fitToCanopy(glideR, polyPoints){
-    const er = 6378137, pad = 1.18;
-    if (polyPoints && polyPoints.length > 1) {
-        let minLat=90, maxLat=-90, minLon=180, maxLon=-180;
-        const dLat = (glideR/er)*(180/Math.PI), dLon = dLat/Math.cos(lat*Math.PI/180);
-        minLat=Math.min(minLat,lat-dLat); maxLat=Math.max(maxLat,lat+dLat);
-        minLon=Math.min(minLon,lon-dLon); maxLon=Math.max(maxLon,lon+dLon);
-        for (const [pLat,pLon] of polyPoints){ minLat=Math.min(minLat,pLat); maxLat=Math.max(maxLat,pLat); minLon=Math.min(minLon,pLon); maxLon=Math.max(maxLon,pLon); }
-        const latPad=(maxLat-minLat)*(pad-1), lonPad=(maxLon-minLon)*(pad-1);
-        map.fitBounds([[minLat-latPad,minLon-lonPad],[maxLat+latPad,maxLon+lonPad]], { animate: true });
-    } else {
-        const dLat=(glideR*pad/er)*(180/Math.PI), dLon=dLat/Math.cos(lat*Math.PI/180);
-        map.fitBounds([[lat-dLat,lon-dLon],[lat+dLat,lon+dLon]], { animate: true });
-    }
-}
-
-function lerpColor(a, b, t){
-    const ah=parseInt(a.slice(1),16), bh=parseInt(b.slice(1),16);
-    const ar=(ah>>16)&0xff, ag=(ah>>8)&0xff, ab=ah&0xff;
-    const br=(bh>>16)&0xff, bg=(bh>>8)&0xff, bb=bh&0xff;
-    const rr=Math.round(ar+(br-ar)*t), rg=Math.round(ag+(bg-ag)*t), rb=Math.round(ab+(bb-ab)*t);
-    return `#${((1<<24)|(rr<<16)|(rg<<8)|rb).toString(16).slice(1)}`;
-}
-
-function agreementLabel(spreadDeg){
-    if (spreadDeg===null||spreadDeg===undefined) return { text: 'N/A', color: 'var(--muted)' };
-    if (spreadDeg<=20) return { text: 'High', color: 'var(--green)' };
-    if (spreadDeg<=45) return { text: 'Medium', color: 'var(--orange)' };
-    return { text: 'Low', color: 'var(--red)' };
-}
-
-function colorClass(s){ if (s<10) return 'dot-green'; if (s<25) return 'dot-orange'; return 'dot-red'; }
-
-async function load(){
-    document.getElementById("loader").classList.remove("hidden");
-    const hour = document.getElementById("hour").value;
-    try {
-        const r = await fetch(`/data?lat=${lat}&lon=${lon}&hour=${hour}`);
-        const d = await r.json();
-        if (d.error) {
-            document.getElementById("loader").classList.add("hidden");
-            // Show a modal popup for rate limit errors
-            if (d.error.includes("limit reached") || d.error.includes("midnight")) {
-                const existing = document.getElementById("limitModal");
-                if (existing) existing.remove();
-                const modal = document.createElement("div");
-                modal.id = "limitModal";
-                modal.style.cssText = "position:fixed;inset:0;background:rgba(7,11,16,0.92);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px)";
-                modal.innerHTML = `<div style="background:var(--panel-bg);border:1px solid var(--border);border-radius:16px;max-width:400px;width:100%;padding:24px;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,0.6)">
-                    <div style="font-size:2.5rem;margin-bottom:12px">🌧️</div>
-                    <div style="font-weight:700;font-size:1.1rem;color:var(--accent);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px">Daily Limit Reached</div>
-                    <div style="color:var(--muted);font-size:0.9rem;line-height:1.6;margin-bottom:20px">${d.error}</div>
-                    <button onclick="document.getElementById('limitModal').remove()" style="background:var(--accent);color:var(--bg);border:none;border-radius:8px;padding:10px 24px;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;cursor:pointer">Got it</button>
-                </div>`;
-                document.body.appendChild(modal);
-            } else {
-                document.getElementById("utcLabel").innerText = "⚠️ " + d.error;
-                document.getElementById("utcLabel").style.color = "var(--red)";
+        for alt in range(1000, 15000, 1000):
+            speed, direction = interpolate(ensemble_base, alt)
+            # Temperature from first available model
+            temp_c = None
+            for mh in models_h.values():
+                for i in range(len(pressure_levels) - 1):
+                    a0, _, _, t0 = pressure_levels[i]
+                    a1, _, _, t1 = pressure_levels[i + 1]
+                    if a0 <= alt <= a1 and t0 is not None and t1 is not None:
+                        temp_c = t0 + (t1 - t0) * (alt - a0) / (a1 - a0)
+                        break
+                if temp_c is not None: break
+            if temp_c is None and pressure_levels:
+                temp_c = pressure_levels[0][3] if alt < pressure_levels[0][0] else pressure_levels[-1][3]
+            result[alt] = {
+                "speed":     round(speed, 1),
+                "direction": round(direction % 360, 0),
+                "arrow":     wind_arrow(direction),
+                "color":     color(speed),
+                "temp_f":    tc_to_f(temp_c),
             }
-            if (marker) marker.remove();
-            marker = L.marker([lat, lon]).addTo(map);
-            if (canopyCircle) canopyCircle.remove();
-            canopyCircle = L.circle([lat,lon],{radius:canopyAirspeedKt*0.514444*canopyDescentTime,color:'#39ff89',weight:2,opacity:0.4,fill:false,dashArray:'6,5'}).addTo(map);
-            if (firstLoad) { map.setView([lat,lon],12); firstLoad=false; }
-            return;
+        # Build per-altitude spread map keyed by display altitude (1000ft increments)
+        per_alt_spread = {}
+        for alt in range(0, 15000, 1000):
+            matching = [(k, v) for k, v in ensemble_spreads.items() if abs(k - alt) < 1500]
+            if matching:
+                closest = min(matching, key=lambda x: abs(x[0] - alt))
+                per_alt_spread[alt] = round(closest[1], 1)
+        return result, canopy_confidence, freefall_confidence, per_alt_spread
+
+
+    except Exception as e:
+        import traceback
+        print(f"format_winds ERROR: {e}")
+        traceback.print_exc()
+        return {}
+
+
+# =====================================================
+# 🧠 VECTOR-AVERAGED LAYER WIND
+# =====================================================
+
+def avg_wind_display(winds, low, high):
+    """Simple arithmetic average of speed and direction for displayed altitudes."""
+    speeds = []
+    sin_sum = 0.0
+    cos_sum = 0.0
+    for alt in sorted(winds.keys()):
+        if low <= alt < high:
+            w = winds[alt]
+            spd = w["speed"]
+            speeds.append(spd)
+            r = math.radians(w["direction"])
+            sin_sum += math.sin(r)
+            cos_sum += math.cos(r)
+    if not speeds:
+        return 0, 0
+    avg_speed = sum(speeds) / len(speeds)
+    avg_dir = math.degrees(math.atan2(sin_sum, cos_sum)) % 360
+    return avg_speed, avg_dir
+
+
+# =====================================================
+# 🚀 PHYSICS
+# =====================================================
+
+def canopy_data(wind_speed_kts, wind_dir):
+    descent_time = 158  # Sabre3 150 @ 1.5WL: open 3000ft, land 500ft = 2500ft @ 950ft/min
+    canopy_kts = 27  # Sabre3 150 @ 1.5WL trim airspeed
+    canopy_ms = canopy_kts * 0.514444
+    glide_radius = canopy_ms * descent_time
+    wind_ms = wind_speed_kts * 0.514444
+    wind_drift = wind_ms * descent_time
+    return glide_radius, wind_drift, wind_dir
+
+
+def freefall_distance(wind_speed_kts, wind_dir):
+    seconds = 60
+    wind_ms = wind_speed_kts * 0.514444
+    return wind_ms * seconds
+
+
+# =====================================================
+# API
+# =====================================================
+
+@app.route("/debug")
+def debug():
+    lat = request.args.get("lat", 43.371169, type=float)
+    lon = request.args.get("lon", -70.925974, type=float)
+
+    # ── Pressure level fields ──
+    pressure_fields = [
+        "windspeed_10m","winddirection_10m",
+        "windspeed_1000hPa","winddirection_1000hPa",
+        "windspeed_975hPa","winddirection_975hPa",
+        "windspeed_950hPa","winddirection_950hPa",
+        "windspeed_925hPa","winddirection_925hPa",
+        "windspeed_850hPa","winddirection_850hPa",
+        "windspeed_700hPa","winddirection_700hPa",
+        "windspeed_600hPa","winddirection_600hPa",
+        "windspeed_500hPa","winddirection_500hPa",
+        "geopotential_height_1000hPa","geopotential_height_975hPa",
+        "geopotential_height_950hPa","geopotential_height_925hPa",
+        "geopotential_height_850hPa","geopotential_height_700hPa",
+        "geopotential_height_600hPa","geopotential_height_500hPa",
+    ]
+    # ── Altitude-based fields (metres AGL) ──
+    # Open-Meteo altitude levels: 10,80,120,180m and then pressure-derived heights
+    # The "wind_speed_Xm" variables are at fixed heights above ground
+    alt_fields = [
+        "windspeed_10m","winddirection_10m",
+        "windspeed_80m","winddirection_80m",
+        "windspeed_120m","winddirection_120m",
+        "windspeed_180m","winddirection_180m",
+    ]
+
+    base_url = "https://api.open-meteo.com/v1/forecast"
+    STD = {1000:364,975:820,950:1555,925:2500,850:4780,700:9843,600:14108,500:18289}
+
+    def fetch_pressure(model):
+        fields = ",".join(pressure_fields)
+        url = (f"{base_url}?latitude={lat}&longitude={lon}"
+               f"&hourly={fields}"
+               f"&forecast_days=1&timezone=auto&wind_speed_unit=kn"
+               + (f"&models={model}" if model else ""))
+        try:
+            r = requests.get(url, timeout=15, headers={"User-Agent": "MangoWindHub/1.0"})
+            r.raise_for_status()
+            h = r.json()["hourly"]
+            def gh(lvl):
+                v = h.get(f"geopotential_height_{lvl}hPa",[None]*5)[0]
+                return v*3.28084 if v is not None else float(STD.get(lvl,0))
+            return [
+                ("10m",     33,       h["windspeed_10m"][0],     h["winddirection_10m"][0]),
+                ("1000hPa", gh(1000), h["windspeed_1000hPa"][0], h["winddirection_1000hPa"][0]),
+                ("975hPa",  gh(975),  h["windspeed_975hPa"][0],  h["winddirection_975hPa"][0]),
+                ("950hPa",  gh(950),  h["windspeed_950hPa"][0],  h["winddirection_950hPa"][0]),
+                ("925hPa",  gh(925),  h["windspeed_925hPa"][0],  h["winddirection_925hPa"][0]),
+                ("850hPa",  gh(850),  h["windspeed_850hPa"][0],  h["winddirection_850hPa"][0]),
+                ("700hPa",  gh(700),  h["windspeed_700hPa"][0],  h["winddirection_700hPa"][0]),
+                ("600hPa",  gh(600),  h["windspeed_600hPa"][0],  h["winddirection_600hPa"][0]),
+                ("500hPa",  gh(500),  h["windspeed_500hPa"][0],  h["winddirection_500hPa"][0]),
+            ]
+        except Exception as e:
+            return [("Error", 0, None, str(e))]
+
+    def fetch_altitude():
+        # Altitude-based: 10m, 80m, 120m, 180m above ground
+        # Also fetch pressure levels for comparison — these give heights in metres AGL
+        fields = ",".join(alt_fields)
+        url = (f"{base_url}?latitude={lat}&longitude={lon}"
+               f"&hourly={fields}"
+               f"&forecast_days=1&timezone=auto&wind_speed_unit=kn")
+        try:
+            r = requests.get(url, timeout=15, headers={"User-Agent": "MangoWindHub/1.0"})
+            r.raise_for_status()
+            h = r.json()["hourly"]
+            return [
+                ("10m AGL",   33,   h["windspeed_10m"][0],  h["winddirection_10m"][0]),
+                ("80m AGL",   262,  h["windspeed_80m"][0],  h["winddirection_80m"][0]),
+                ("120m AGL",  394,  h["windspeed_120m"][0], h["winddirection_120m"][0]),
+                ("180m AGL",  591,  h["windspeed_180m"][0], h["winddirection_180m"][0]),
+            ]
+        except Exception as e:
+            return [("Error", 0, None, str(e))]
+
+    pressure_models = [("GFS", "gfs_seamless"), ("GFS+HRRR", "hrrr_conus"), ("RAP/GFS013", "ncep_gfs013"), ("ECMWF", "ecmwf_ifs025"), ("ICON", "icon_seamless")]
+    pressure_results = {name: fetch_pressure(m) for name, m in pressure_models}
+    alt_results = fetch_altitude()
+
+    def make_rows(data):
+        out = ""
+        for name, alt_ft, spd, dirn in data:
+            grey = "color:#555" if isinstance(alt_ft, (int,float)) and alt_ft > 14500 else ""
+            spd_str = f"{spd:.1f} kt" if isinstance(spd, float) else (f"{spd} kt" if spd is not None else "None")
+            dir_str = f"{dirn:.0f}°"  if isinstance(dirn, float) else (f"{dirn}°" if dirn is not None else "None")
+            out += f'<tr style="{grey}"><td>{name}</td><td>{alt_ft:,.0f} ft</td><td>{spd_str}</td><td>{dir_str}</td></tr>'
+        return out
+
+    cols = ""
+    for name, _ in pressure_models:
+        cols += f'''<td style="vertical-align:top;padding-right:28px">
+            <h3>{name}</h3>
+            <table>
+                <tr><th>Level</th><th>Alt MSL</th><th>Speed</th><th>Dir</th></tr>
+                {make_rows(pressure_results[name])}
+            </table></td>'''
+
+    alt_col = f'''<td style="vertical-align:top;padding-right:28px">
+        <h3 style="color:#ffaa00">ALT-BASED</h3>
+        <table>
+            <tr><th>Level</th><th>Alt AGL</th><th>Speed</th><th>Dir</th></tr>
+            {make_rows(alt_results)}
+        </table></td>'''
+
+    return f"""<!DOCTYPE html><html><head><title>Model Comparison</title>
+    <style>
+        body{{font-family:monospace;background:#0d1520;color:#c8daea;padding:20px}}
+        h2{{color:#00d4ff}} h3{{color:#39ff89;margin-bottom:6px}}
+        table{{border-collapse:collapse}}
+        th{{color:#00d4ff;text-align:left;padding:5px 10px;border-bottom:1px solid #1e3045}}
+        td{{padding:5px 10px;border-bottom:1px solid #1e3045;white-space:nowrap}}
+        .note{{color:#5a7a96;font-size:0.85rem;margin-top:8px}}
+    </style></head><body>
+    <h2>Wind Model Comparison — Hour 0</h2>
+    <p class="note">lat={lat}, lon={lon} | SNE elev ≈ 315ft | grey = above 14,500ft MSL</p>
+    <table><tr>{cols}{alt_col}</tr></table>
+    </body></html>"""
+
+
+@app.route("/stats")
+def stats():
+    import pytz
+    from datetime import timedelta as td
+    est = pytz.timezone("America/New_York")
+    today_est = datetime.now(est).date()
+    days_since_sunday = (today_est.weekday() + 1) % 7
+    week_start = today_est - td(days=days_since_sunday)
+    this_week = [(week_start + td(days=i)).strftime("%Y-%m-%d") for i in range(days_since_sunday + 1)]
+
+    dz_totals = {}
+    dz_weekly  = {}
+    for dz, days in _visit_log.items():
+        dz_totals[dz] = sum(days.values())
+        dz_weekly[dz]  = sum(days.get(d, 0) for d in this_week)
+
+    total_week = sum(dz_weekly.values())
+    total_all  = sum(dz_totals.values())
+
+    # API usage today and by hour
+    today_str = today_est.strftime("%Y-%m-%d")
+    today_api = _api_log.get(today_str, {})
+    total_api_today = sum(today_api.values())
+    api_limit = 10000
+    api_pct = round(total_api_today / api_limit * 100, 1)
+    api_bar_w = min(int(total_api_today / api_limit * 300), 300)
+    api_color = "#39ff89" if api_pct < 60 else "#ffaa00" if api_pct < 85 else "#ff4f4f"
+    import pytz as _pytz2
+    from datetime import datetime as _dt2
+    api_hourly_rows = ""
+    for h in range(24):
+        cnt = today_api.get(str(h), 0)
+        if cnt == 0: continue
+        bar = int(cnt / max(today_api.values(), default=1) * 150)
+        # Hours already stored in EST
+        ampm = "am" if h < 12 else "pm"
+        h12 = h % 12 or 12
+        est_lbl = f"{h12}{ampm}"
+        api_hourly_rows += f"<tr><td style='padding:2px 8px;color:#5a7a96'>{est_lbl}</td><td><div style='background:#00d4ff;height:10px;width:{bar}px;border-radius:2px;display:inline-block'></div></td><td style='padding:2px 8px;color:#c8daea'>{cnt}</td></tr>"
+
+    dz_rows = ""
+    for dz in sorted(dz_totals, key=lambda x: dz_totals[x], reverse=True):
+        week = dz_weekly.get(dz, 0)
+        total = dz_totals.get(dz, 0)
+        bar_w = int((week / max(dz_weekly.values(), default=1)) * 120)
+        dz_rows += f"""<tr>
+            <td style='padding:6px 12px;white-space:nowrap'>{dz}</td>
+            <td style='padding:6px 12px'>
+                <div style='background:#00d4ff;height:10px;width:{bar_w}px;border-radius:2px;display:inline-block'></div>
+            </td>
+            <td style='padding:6px 12px;color:#ffaa00;text-align:center'>{week}</td>
+            <td style='padding:6px 12px;color:#00d4ff;text-align:center'>{total}</td>
+        </tr>"""
+
+    return f"""<!DOCTYPE html><html><head><title>Mango Wind Hub — Stats</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <style>
+        body{{font-family:'Barlow Condensed',sans-serif;background:#070b10;color:#c8daea;padding:24px;max-width:600px;margin:0 auto}}
+        h2{{color:#00d4ff;font-size:1.6rem;letter-spacing:0.08em;text-transform:uppercase}}
+        h3{{color:#ffaa00;font-size:1rem;letter-spacing:0.1em;text-transform:uppercase;margin:20px 0 8px}}
+        table{{border-collapse:collapse;width:100%}}
+        th{{color:#5a7a96;text-align:left;padding:5px 12px;border-bottom:1px solid #1e3045;font-size:0.75rem;letter-spacing:0.1em;text-transform:uppercase}}
+        td{{border-bottom:1px solid #0d1520;font-size:0.9rem}}
+        .stat{{display:inline-block;background:#0d1520;border:1px solid #1e3045;border-radius:8px;padding:12px 20px;margin:6px 6px 6px 0}}
+        .stat .n{{font-size:2rem;color:#00d4ff;font-weight:bold;line-height:1}}
+        .stat .l{{font-size:0.7rem;color:#5a7a96;text-transform:uppercase;letter-spacing:0.1em;margin-top:2px}}
+        p{{color:#5a7a96;font-size:0.8rem;margin-top:4px}}
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;700&display=swap" rel="stylesheet">
+    </head><body>
+    <h2>Mango Wind Hub</h2>
+    <p>Community usage stats — updated in real time</p>
+
+    <div style="margin:16px 0">
+        <div class="stat"><div class="n">{total_week}</div><div class="l">This Week</div></div>
+        <div class="stat"><div class="n">{total_all}</div><div class="l">All Time</div></div>
+        <div class="stat"><div class="n">{len(dz_totals)}</div><div class="l">Active DZs</div></div>
+    </div>
+
+    <h3>Visits by Dropzone — Last 7 Days</h3>
+    <table>
+        <tr><th>Dropzone</th><th></th><th>This Week</th><th>All Time</th></tr>
+        {dz_rows}
+    </table>
+    <p style="margin-top:16px">A visit = one data load at the current forecast hour.</p>
+    </body></html>"""
+
+
+@app.route("/admin")
+def admin():
+    token = request.args.get("token", "")
+    expected = os.environ.get("CACHE_TOKEN", "mango")
+    if token != expected:
+        return "<h2 style='font-family:monospace;color:red'>Unauthorized</h2>", 403
+
+    from datetime import date, timedelta as td
+    today = date.today()
+    # Build last 7 days and last 30 days
+    import pytz
+    est = pytz.timezone("America/New_York")
+    today_est = datetime.now(est).date()
+    today = today_est
+    days_since_sunday = (today_est.weekday() + 1) % 7
+    week_start = today_est - td(days=days_since_sunday)
+    this_week = [(week_start + td(days=i)).strftime("%Y-%m-%d") for i in range(days_since_sunday + 1)]
+    last30 = [(today - td(days=i)).strftime("%Y-%m-%d") for i in range(29, -1, -1)]
+
+    # Totals per DZ
+    dz_totals = {}
+    dz_weekly  = {}
+    for dz, days in _visit_log.items():
+        dz_totals[dz] = sum(days.values())
+        dz_weekly[dz]  = sum(days.get(d, 0) for d in this_week)
+
+    # Daily totals across all DZs (last 30 days)
+    daily_totals = {d: sum(dzd.get(d, 0) for dzd in _visit_log.values()) for d in last30}
+
+    # API usage for admin
+    today_str_admin = today_est.strftime("%Y-%m-%d")
+    today_api = _api_log.get(today_str_admin, {})
+    total_api_today = sum(today_api.values())
+    api_limit = 10000
+    api_pct = round(total_api_today / api_limit * 100, 1)
+    api_bar_w = min(int(total_api_today / api_limit * 300), 300)
+    api_color = "#39ff89" if api_pct < 60 else "#ffaa00" if api_pct < 85 else "#ff4f4f"
+    import pytz as _pytz2
+    from datetime import datetime as _dt2
+    api_hourly_rows = ""
+    for h in range(24):
+        cnt = today_api.get(str(h), 0)
+        if cnt == 0: continue
+        bar = int(cnt / max(today_api.values(), default=1) * 150)
+        # Hours already stored in EST
+        ampm = "am" if h < 12 else "pm"
+        h12 = h % 12 or 12
+        est_lbl = f"{h12}{ampm}"
+        api_hourly_rows += f"<tr><td style='padding:2px 8px;color:#5a7a96'>{est_lbl}</td><td><div style='background:#00d4ff;height:10px;width:{bar}px;border-radius:2px;display:inline-block'></div></td><td style='padding:2px 8px;color:#c8daea'>{cnt}</td></tr>"
+
+    # Build DZ rows
+    dz_rows = ""
+    for dz in sorted(dz_totals, key=lambda x: dz_totals[x], reverse=True):
+        week_counts = "".join(
+            f"<td style='text-align:center;padding:4px 8px'>{_visit_log.get(dz,{}).get(d,0) or ''}</td>"
+            for d in this_week
+        )
+        dz_rows += f"""<tr>
+            <td style='padding:4px 12px;white-space:nowrap'>{dz}</td>
+            {week_counts}
+            <td style='text-align:center;padding:4px 8px;color:#ffaa00'>{dz_weekly.get(dz,0)}</td>
+            <td style='text-align:center;padding:4px 8px;color:#00d4ff'>{dz_totals.get(dz,0)}</td>
+        </tr>"""
+
+    day_headers = "".join(f"<th style='padding:4px 8px'>{d[5:]}</th>" for d in this_week)
+
+    # Daily chart (last 30 days sparkline as text bar)
+    max_day = max(daily_totals.values()) or 1
+    chart_rows = ""
+    for d in last30:
+        cnt = daily_totals[d]
+        bar_w = int((cnt / max_day) * 200)
+        chart_rows += f"""<tr>
+            <td style='padding:2px 8px;color:#5a7a96;font-size:0.8rem'>{d[5:]}</td>
+            <td><div style='background:#00d4ff;height:12px;width:{bar_w}px;border-radius:2px'></div></td>
+            <td style='padding:2px 8px;color:#c8daea;font-size:0.8rem'>{cnt}</td>
+        </tr>"""
+
+    total_all = sum(dz_totals.values())
+    total_week = sum(dz_weekly.values())
+
+    return f"""<!DOCTYPE html><html><head><title>Mango Wind Hub — Admin</title>
+    <style>
+        body{{font-family:monospace;background:#070b10;color:#c8daea;padding:24px}}
+        h2{{color:#00d4ff;margin-bottom:4px}} h3{{color:#ffaa00;margin:20px 0 8px}}
+        table{{border-collapse:collapse}} th{{color:#00d4ff;text-align:left;padding:4px 8px;border-bottom:1px solid #1e3045}}
+        td{{border-bottom:1px solid #0d1520}} .stat{{display:inline-block;background:#0d1520;border:1px solid #1e3045;border-radius:8px;padding:12px 20px;margin:6px}}
+        .stat .n{{font-size:2rem;color:#00d4ff;font-weight:bold}} .stat .l{{font-size:0.75rem;color:#5a7a96;text-transform:uppercase}}
+    </style></head><body>
+    <h2>Mango Wind Hub — Admin</h2>
+    <p style="color:#5a7a96;font-size:0.8rem">Visit = page load at hour=0 (unique data fetches, not refreshes)</p>
+
+    <div style="margin:16px 0">
+        <div class="stat"><div class="n">{total_week}</div><div class="l">This Week</div></div>
+        <div class="stat"><div class="n">{total_all}</div><div class="l">All Time</div></div>
+        <div class="stat"><div class="n">{len(dz_totals)}</div><div class="l">Active DZs</div></div>
+    </div>
+
+    <h3>Open-Meteo API Usage Today</h3>
+    <p style="color:#5a7a96;font-size:0.8rem">Limit: {api_limit} calls/day &nbsp;|&nbsp; Used: {total_api_today} ({api_pct}%)</p>
+    <div style="background:#1e3045;border-radius:4px;height:16px;width:300px;margin:8px 0">
+        <div style="background:{api_color};height:16px;width:{api_bar_w}px;border-radius:4px;transition:width 0.3s"></div>
+    </div>
+    <table style="margin-top:8px">{api_hourly_rows}</table>
+
+    <h3>Visits by Dropzone (last 7 days)</h3>
+    <table>
+        <tr><th>Dropzone</th>{day_headers}<th style='color:#ffaa00'>7-Day</th><th style='color:#00d4ff'>All Time</th></tr>
+        {dz_rows}
+    </table>
+
+    <h3>Daily Visits (last 30 days)</h3>
+    <table>{chart_rows}</table>
+
+    </body></html>"""
+
+
+@app.route("/plane")
+def plane():
+    tail = request.args.get("tail", "").upper().strip()
+    if not tail:
+        return jsonify({"error": "tail number required"}), 400
+    try:
+        url = f"https://adsb-proxy.vercel.app/api/plane?tail={tail}"
+        r = requests.get(url, timeout=8,
+                        headers={"User-Agent": "MangoWindHub/1.0 skydiving-plane-tracker"})
+        if not r.ok:
+            return jsonify({"error": f"ADS-B error {r.status_code}"}), 502
+        # Vercel proxy returns normalized format — pass through directly
+        return jsonify(r.json())
+    except Exception as e:
+        print(f"Plane tracker error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/plane/trace")
+def plane_trace():
+    """Fetch recent flight trace history for an aircraft by ICAO hex."""
+    icao = request.args.get("icao", "").lower().strip()
+    if not icao:
+        return jsonify({"error": "icao required"}), 400
+    try:
+        # ADS-B Exchange trace API returns recent track history
+        url = f"https://adsb-proxy.vercel.app/api/plane?icao={icao}&trace=1"
+        r = requests.get(url, timeout=12,
+                        headers={"User-Agent": "MangoWindHub/1.0 skydiving-plane-tracker"})
+        if not r.ok:
+            return jsonify({"error": f"Trace error {r.status_code}"}), 502
+        # Vercel proxy returns normalized format — pass through directly
+        return jsonify(r.json())
+    except Exception as e:
+        print(f"Plane trace error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/tails", methods=["GET", "POST"])
+def tails():
+    if request.method == "GET":
+        dz_name = request.args.get("dz", "")
+        return jsonify(_tails_log.get(dz_name, []))
+
+    # POST — record a tail number for a DZ
+    data = request.json
+    dz_name = data.get("dz", "").strip()
+    tail = data.get("tail", "").strip().upper()
+    if not dz_name or not tail:
+        return jsonify({"error": "dz and tail required"}), 400
+
+    tails = _tails_log.get(dz_name, [])
+    # Move to front if already exists, otherwise prepend
+    if tail in tails:
+        tails.remove(tail)
+    tails.insert(0, tail)
+    # Keep max 10 per DZ
+    _tails_log[dz_name] = tails[:10]
+    save_tails()
+    return jsonify({"status": "saved", "tails": _tails_log[dz_name]})
+
+
+@app.route("/jumprun", methods=["GET", "POST"])
+def jumprun():
+    if request.method == "GET":
+        dz_name = request.args.get("dz", "")
+        if dz_name and dz_name in _jumprun_log:
+            entry = _jumprun_log[dz_name]
+            # Reset if from a previous calendar day (local time)
+            try:
+                ts = datetime.fromisoformat(entry.get("timestamp", ""))
+                entry_date = ts.astimezone().date()
+                today = datetime.now().astimezone().date()
+                if entry_date < today:
+                    return jsonify({})
+            except Exception:
+                pass
+            return jsonify(entry)
+        return jsonify({})
+
+    # POST — save a jump run, averaging with recent submissions
+    data = request.json
+    dz_name = data.get("dz", "").strip()
+    if not dz_name:
+        return jsonify({"error": "dz required"}), 400
+
+    new_start   = data.get("start")   # [lat, lon]
+    new_end     = data.get("end")     # [lat, lon]
+    new_alt     = data.get("alt")
+    new_heading = data.get("heading")
+    new_tail    = data.get("tail", "")
+
+    if not new_start or not new_end:
+        return jsonify({"error": "start and end required"}), 400
+
+    now_utc = datetime.now(timezone.utc)
+    existing = _jumprun_log.get(dz_name, {})
+
+    # Check if existing entry is from today and heading is within 30° (same jump run direction)
+    def heading_diff(a, b):
+        d = abs((a - b + 180) % 360 - 180)
+        return d
+
+    use_avg = False
+    if existing and existing.get("timestamp") and existing.get("heading") is not None and new_heading is not None:
+        try:
+            existing_ts = datetime.fromisoformat(existing["timestamp"])
+            age_hours = (now_utc - existing_ts).total_seconds() / 3600
+            same_direction = heading_diff(existing["heading"], new_heading) < 30
+            if age_hours < 6 and same_direction:
+                use_avg = True
+        except Exception:
+            pass
+
+    if use_avg:
+        # Average with existing — weighted toward new (most recent is most relevant)
+        n = min(existing.get("submission_count", 1), 5)  # cap influence of old data at 5
+        w_old, w_new = n, 1
+        w_total = w_old + w_new
+        def avg_coord(old, new):
+            return [(old[0]*w_old + new[0]*w_new) / w_total,
+                    (old[1]*w_old + new[1]*w_new) / w_total]
+        avg_start = avg_coord(existing["start"], new_start)
+        avg_end   = avg_coord(existing["end"],   new_end)
+        avg_alt   = ((existing.get("alt") or 0)*w_old + (new_alt or 0)*w_new) / w_total if existing.get("alt") and new_alt else new_alt
+        # Circular average for heading
+        import math as _math
+        h_old_r = _math.radians(existing["heading"])
+        h_new_r = _math.radians(new_heading)
+        avg_sin = (_math.sin(h_old_r)*w_old + _math.sin(h_new_r)*w_new) / w_total
+        avg_cos = (_math.cos(h_old_r)*w_old + _math.cos(h_new_r)*w_new) / w_total
+        avg_hdg = round(_math.degrees(_math.atan2(avg_sin, avg_cos)) % 360)
+        _jumprun_log[dz_name] = {
+            "start":            avg_start,
+            "end":              avg_end,
+            "alt":              round(avg_alt) if avg_alt else None,
+            "heading":          avg_hdg,
+            "timestamp":        now_utc.isoformat(),
+            "tail":             new_tail or existing.get("tail", ""),
+            "submission_count": n + 1,
         }
-        document.getElementById("utcLabel").style.color = "";
-        if (marker) marker.remove();
-        if (canopyCircle) canopyCircle.remove();
-        if (canopyCircleShifted) canopyCircleShifted.remove();
-        if (highLine) highLine.remove();
-        marker = L.marker([lat, lon]).addTo(map);
-        const glideR = d.canopy.glide_radius;
-        const windSpd = d.canopy.speed * 0.514444;
-        const windDir = d.canopy.wind_dir;
-        const descentTime = canopyDescentTime;
-        const canopyAirspeed = canopyAirspeedKt * 0.514444;
-        canopyCircle = L.circle([lat,lon],{radius:glideR,color:'#39ff89',weight:2,opacity:0.4,fill:false,dashArray:'6,5'}).addTo(map);
-        const cosLatC = Math.cos(lat*Math.PI/180);
-        const wFromRad = windDir*Math.PI/180;
-        const wVx = windSpd*Math.sin(wFromRad), wVy = windSpd*Math.cos(wFromRad);
-        const polyPoints = [];
-        for (let i=0; i<72; i++){
-            const theta=(i/72)*2*Math.PI, ux=Math.sin(theta), uy=Math.cos(theta);
-            const groundSpd = canopyAirspeed + (wVx*ux + wVy*uy);
-            const reach = Math.max(groundSpd*descentTime, glideR*0.1);
-            polyPoints.push([lat+(uy*reach)/111000, lon+(ux*reach)/(111000*cosLatC)]);
+        print(f"Jump run averaged for {dz_name} (n={n+1}): hdg={avg_hdg}°")
+    else:
+        # New jump run (different direction or too old) — replace
+        _jumprun_log[dz_name] = {
+            "start":            new_start,
+            "end":              new_end,
+            "alt":              new_alt,
+            "heading":          new_heading,
+            "timestamp":        now_utc.isoformat(),
+            "tail":             new_tail,
+            "submission_count": 1,
         }
-        polyPoints.push(polyPoints[0]);
-        canopyCircleShifted = L.polygon(polyPoints,{color:'#39ff89',weight:3,opacity:0.85,fill:true,fillColor:'#39ff89',fillOpacity:0.08}).addTo(map);
-        if (firstLoad){ fitToCanopy(glideR, polyPoints); firstLoad=false; }
-        lastFreefall = { distance: d.freefall.distance, direction: d.freefall.direction };
-        lastWind14k = d.wind_14k;
-        lastCanopyWind = { speed: d.canopy.speed, direction: d.canopy.direction };
-        window._lastWinds = d.winds;
-        window._lastClouds = d.clouds || null;
-        if (document.getElementById("cloudPopup").style.display !== "none") renderCloudPopup();
-        updateWindSummary(d);
-        if (landingSpot) drawPattern();
-        if (jrStart && jrEnd) drawFreefallParallel();
-        if (d.time_label) document.getElementById("utcLabel").innerText = d.time_label;
-        updateHandleSummary(d.canopy.speed, d.canopy.direction, document.getElementById("timeLabel").innerText);
-        function arrow(dir, color='var(--text)'){
-            const blowTo=(dir+180)%360;
-            return `<svg width="18" height="18" viewBox="0 0 16 16" style="display:inline-block;vertical-align:middle;transform:rotate(${blowTo}deg)"><polygon points="8,1 11,13 8,11 5,13" fill="${color}"/></svg>`;
-        }
-        const windFromRad=windDir*Math.PI/180, upwindUx=Math.sin(windFromRad), upwindUy=Math.cos(windFromRad);
-        let maxUpwind=0;
-        for (let i=0; i<polyPoints.length-1; i++){
-            const dLat=(polyPoints[i][0]-lat)*111000, dLon=(polyPoints[i][1]-lon)*111000*cosLatC;
-            const proj=dLat*upwindUy+dLon*upwindUx;
-            if (proj>maxUpwind) maxUpwind=proj;
-        }
-        const downwindUx=-upwindUx, downwindUy=-upwindUy;
-        let maxDownwind=0;
-        for (let i=0; i<polyPoints.length-1; i++){
-            const dLat=(polyPoints[i][0]-lat)*111000, dLon=(polyPoints[i][1]-lon)*111000*cosLatC;
-            const proj=dLat*downwindUy+dLon*downwindUx;
-            if (proj>maxDownwind) maxDownwind=proj;
-        }
-        document.getElementById("canopyBlock").innerHTML =
-            `<div class="sc-label">Canopy &nbsp;•&nbsp; SFC – 3 000 ft</div>
-            <div class="sc-data">
-                <div><span>SPD</span>${d.canopy.speed.toFixed(1)} kt</div>
-                <div><span>DIR</span>${d.canopy.direction.toFixed(0)}°</div>
-                <div>${arrow(d.canopy.direction, 'var(--canopy)')}</div>
-            </div>
-            <div class="sc-data" style="margin-top:4px">
-                <div><span>UPWIND</span>${(maxUpwind/1609.344).toFixed(2)} mi</div>
-                <div><span>DWNWIND</span>${(maxDownwind/1609.344).toFixed(2)} mi</div>
-            </div>`;
-        const ffFromDir=(d.freefall.direction+180)%360;
-        document.getElementById("freefallBlock").innerHTML =
-            `<div class="sc-label">Freefall &nbsp;•&nbsp; 4 000 – 14 000 ft</div>
-            <div class="sc-data">
-                <div><span>SPD</span>${d.freefall.speed.toFixed(1)} kt</div>
-                <div><span>DIR</span>${ffFromDir.toFixed(0)}°</div>
-                <div><span>DRIFT</span>${(d.freefall.distance/1609.344).toFixed(2)} mi</div>
-                <div>${arrow(ffFromDir,'var(--freefall)')}</div>
-            </div>`;
-        const MODEL_LABELS={"gfs_seamless":"GFS","icon_seamless":"ICON","hrrr_conus":"HRRR","nam_conus":"NAM","ecmwf_ifs025":"ECMWF"};
-        const ml=d.models_loaded||{};
-        const loadedModels=Object.keys(ml).filter(m=>ml[m]);
-        let modelDots=Object.entries(MODEL_LABELS).map(([key,label])=>{
-            const loaded=ml[key];
-            const dot=loaded?`<span style="color:var(--green);font-size:0.9rem">●</span>`:`<span style="color:var(--red);font-size:0.9rem">●</span>`;
-            return `<div style="display:flex;align-items:center;gap:5px;font-family:'Share Tech Mono',monospace;font-size:0.75rem">${dot}<span style="color:${loaded?'var(--text)':'var(--muted)'}">${label}</span></div>`;
-        }).join('');
-        let agreeLabel={text:'N/A',color:'var(--muted)'};
-        const ccSpread=d.canopy_confidence, fcSpread=d.freefall_confidence;
-        if (loadedModels.length>=2 && ccSpread!==null && fcSpread!==null)
-            agreeLabel=agreementLabel((ccSpread+fcSpread)/2);
-        document.getElementById("modelCard").innerHTML=
-            `<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">${modelDots}</div>
-            <div style="margin-top:6px;font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--muted)">
-                Model Agreement: <span style="color:${agreeLabel.color};font-weight:bold">${agreeLabel.text}</span>
-            </div>`;
-        let html='';
-        const alts=Object.keys(d.winds).map(Number).sort((a,b)=>a-b);
-        html+=`<div class="alt-section-title lower">Surface & Low</div>`;
-        const hdr = (txt, align='right') => `<span style="font-size:0.62rem;color:var(--muted);text-align:${align};display:block">${txt}</span>`;
-        html+=`<div class="wind-card" style="border-bottom:1px solid var(--border);padding:2px 10px;margin-bottom:2px">
-            ${hdr('ALT','left')}
-            ${hdr('DIR','left')}
-            ${hdr('AGREE','center')}
-            ${hdr('SPD','right')}
-            ${hdr('HDG','right')}
-            ${hdr('TMP','right')}
-        </div>`;
-        let lastGroup='low';
-        for (const a of alts){
-            const w=d.winds[a], group=a<4000?'low':'high';
-            if (group==='high'&&lastGroup==='low'){ html+=`<div class="alt-section-title upper">Upper Winds</div>`; lastGroup='high'; }
-            const blowTo=(w.direction+180)%360, cls=colorClass(w.speed);
-            const clsColor=cls==='dot-green'?'var(--green)':cls==='dot-orange'?'var(--orange)':'var(--red)';
-            const svgArrow=`<svg width="16" height="16" viewBox="0 0 16 16" style="display:inline-block;vertical-align:middle;transform:rotate(${blowTo}deg)"><polygon points="8,1 11,13 8,11 5,13" fill="${clsColor}"/></svg>`;
-            const altLabel=a===0?'SFC':`${a.toLocaleString()} ft`;
-            const tf=w.temp_f; let tempStr='', tempColor='var(--muted)';
-            if (tf!==null&&tf!==undefined){
-                tempStr=`${tf}°F`;
-                if (tf>=86) tempColor='#ff4f4f';
-                else if (tf>=80) tempColor=lerpColor('#ff8c00','#ff4f4f',(tf-80)/6);
-                else if (tf>=60) tempColor='#39ff89';
-                else if (tf>=45) tempColor=lerpColor('#ffe033','#39ff89',(tf-45)/15);
-                else if (tf>=35) tempColor=lerpColor('#4488ff','#ffe033',(tf-35)/10);
-                else tempColor='#1a3a8a';
+        print(f"Jump run saved for {dz_name}: hdg={new_heading}°")
+
+    save_jumprun()
+    return jsonify({"status": "saved", "submissions": _jumprun_log[dz_name]["submission_count"]})
+
+
+@app.route("/clearcache")
+def clearcache():
+    token = request.args.get("token", "")
+    expected = os.environ.get("CACHE_TOKEN", "mango")
+    if token != expected:
+        return jsonify({"error": "unauthorized"}), 403
+    _forecast_cache.clear()
+    return jsonify({"status": "cache cleared"})
+
+
+def fetch_cloud_data(lat, lon):
+    """Fetch cloud/precip data from GFS only — separate cached call, 1.0 API cost."""
+    cloud_key = ("cloud", round(lat,3), round(lon,3))
+    now = datetime.now(timezone.utc)
+    cached = _forecast_cache.get(cloud_key)
+    if cached and cached["expires"] > now:
+        return cached["data"]
+    try:
+        api_key = os.environ.get("OPENMETEO_API_KEY")
+        base = "https://customer-api.open-meteo.com/v1/gfs" if api_key else "https://api.open-meteo.com/v1/gfs"
+        fields = "cloudcover_low,cloudcover_mid,cloudcover_high,cloudcover,precipitation_probability,visibility,dewpoint_2m,temperature_2m"
+        url = (f"{base}?latitude={lat}&longitude={lon}&hourly={fields}"
+               f"&forecast_days=3&timezone=auto&models=gfs_seamless")
+        if api_key:
+            url += f"&apikey={api_key}"
+        r = requests.get(url, timeout=10, headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
+        if r.ok:
+            data = r.json()
+            _forecast_cache[cloud_key] = {"data": data, "expires": now + CACHE_TTL}
+            record_api_call(1)
+            return data
+    except Exception as e:
+        print(f"Cloud fetch error: {e}")
+    return None
+
+
+def build_cloud_forecast(raw, current_hour):
+    """Extract cloud cover, precip, visibility for next 8 hours in 2-hour blocks."""
+    try:
+        if not raw or raw.get("source") != "openmeteo_ensemble":
+            return None
+        # Use GFS for cloud data — best calibrated for US locations
+        models = raw.get("models", {})
+        if not models:
+            return None
+        # Prefer GFS, fall back to first available
+        gfs_data = models.get("gfs_seamless") or models.get("gfs")
+        model_data = gfs_data or list(models.values())[0]
+        mh = model_data.get("hourly", {})
+        # Cloud fields may have been fetched separately — check if present
+        if not mh.get("cloudcover"):
+            return None
+
+        def safe_get(field, idx, default=None):
+            arr = mh.get(field, [])
+            return arr[idx] if idx < len(arr) else default
+
+        blocks = []
+        for offset in range(0, 9, 2):  # 0, 2, 4, 6, 8 hours from now
+            h = current_hour + offset
+            cl  = safe_get("cloudcover_low",  h, 0)
+            cm  = safe_get("cloudcover_mid",  h, 0)
+            ch  = safe_get("cloudcover_high", h, 0)
+            cc  = safe_get("cloudcover",      h, 0)
+            pp  = safe_get("precipitation_probability", h, 0)
+            vis = safe_get("visibility",      h)
+            temp= safe_get("temperature_2m",  h)
+            dew = safe_get("dewpoint_2m",     h)
+
+            # Estimate cloud base from surface temp/dewpoint spread
+            # LCL approximation: base (ft) ≈ (T - Td) * 400
+            cloud_base_ft = None
+            if temp is not None and dew is not None and cc and cc > 20:
+                spread = temp - dew
+                cloud_base_ft = max(0, round(spread * 400 / 100) * 100)
+
+            # Sky condition label
+            if cc is None: cc = 0
+            if cc < 13:   sky = "Clear"
+            elif cc < 38: sky = "Few"
+            elif cc < 63: sky = "Partly Cloudy"
+            elif cc < 88: sky = "Mostly Cloudy"
+            else:          sky = "Cloudy"
+
+            blocks.append({
+                "offset_h":  offset,
+                "sky":       sky,
+                "cover":     round(cc) if cc else 0,
+                "low":       round(cl) if cl else 0,
+                "mid":       round(cm) if cm else 0,
+                "high":      round(ch) if ch else 0,
+                "precip":    round(pp) if pp else 0,
+                "vis_mi":    round(vis / 1609.34, 1) if vis else None,
+                "base_ft":   cloud_base_ft,
+            })
+        return blocks
+    except Exception as e:
+        print(f"Cloud forecast error: {e}")
+        return None
+
+
+@app.route("/data")
+def data():
+    lat = request.args.get("lat", type=float)
+    lon = request.args.get("lon", type=float)
+    hour_offset = request.args.get("hour", 0, type=int)
+
+    if lat is None or lon is None:
+        return jsonify({"error": "lat and lon are required"}), 400
+
+    # Find the current UTC hour index — Open-Meteo arrays start at midnight UTC
+    # hour=0 from frontend means "current time", not array index 0
+    now_utc = datetime.now(timezone.utc)
+    current_hour_index = now_utc.hour
+    hour = current_hour_index + hour_offset
+
+    # Get ICAO for this DZ if available
+    icao = None
+    for dz_vals in DROPZONES.values():
+        if len(dz_vals) > 2 and abs(dz_vals[0]-lat) < 0.01 and abs(dz_vals[1]-lon) < 0.01:
+            icao = dz_vals[2]
+            break
+
+    # Record visit — find DZ name from coords
+    dz_name = "Unknown"
+    for name, coords in DROPZONES.items():
+        if abs(coords[0]-lat) < 0.01 and abs(coords[1]-lon) < 0.01:
+            dz_name = name
+            break
+    if hour_offset == 0:  # only count current-hour loads, not forecast scrolling
+        record_visit(dz_name)
+
+    raw = fetch_forecast(lat, lon, hour_offset)
+    fw_result = format_winds(raw, hour, lat, lon)
+    if isinstance(fw_result, tuple) and len(fw_result) == 4:
+        winds, canopy_confidence, freefall_confidence, winds_spread_out = fw_result
+    elif isinstance(fw_result, tuple):
+        winds, canopy_confidence, freefall_confidence = fw_result
+        winds_spread_out = {}
+    else:
+        winds = fw_result
+        canopy_confidence = freefall_confidence = None
+        winds_spread_out = {}
+
+    # Override SFC with live METAR for current conditions
+    # If METAR returns calm (0kt) fall back to Open-Meteo lowest level
+    if hour_offset == 0 and icao and winds:
+        metar = fetch_metar(icao)
+        if metar:
+            winds[0] = {
+                "speed":     round(metar["wspd"], 1),
+                "direction": round(metar["wdir"] % 360, 0),
+                "arrow":     wind_arrow(metar["wdir"]),
+                "color":     color(metar["wspd"]),
+                "temp_f":    round(metar["temp"] * 9/5 + 32) if metar["temp"] is not None else winds[0].get("temp_f"),
             }
-            // Per-altitude model agreement
-            let agreeHtml = '';
-            if (d.winds_spread) {
-                // Try exact match first, then nearest key within 1000ft
-                let spread = d.winds_spread[a];
-                if (spread === undefined) {
-                    const keys = Object.keys(d.winds_spread).map(Number);
-                    const nearest = keys.reduce((best, k) => Math.abs(k-a) < Math.abs(best-a) ? k : best, keys[0]);
-                    if (Math.abs(nearest - a) <= 1000) spread = d.winds_spread[nearest];
-                }
-                if (spread !== undefined) {
-                    if (spread <= 20)      agreeHtml = `<span class="agree" style="color:#39ff89;text-align:center;display:block">High</span>`;
-                    else if (spread <= 45) agreeHtml = `<span class="agree" style="color:#ffaa00;text-align:center;display:block">Med</span>`;
-                    else                   agreeHtml = `<span class="agree" style="color:#ff4f4f;text-align:center;display:block">Low</span>`;
-                }
-            }
-            html+=`<div class="wind-card ${group==='high'?'upper':''}"><span class="alt">${altLabel}</span><span class="arrow">${svgArrow}</span>${agreeHtml}<span class="speed ${cls}">${w.speed.toFixed(1)} kt</span><span class="dir">${w.direction.toFixed(0)}°</span><span class="temp" style="color:${tempColor};font-weight:bold">${tempStr}</span></div>`;
-        }
-        document.getElementById("cards").innerHTML=html;
-    } catch(e) {
-        console.error("Load error:", e);
-        if (marker) marker.remove();
-        marker=L.marker([lat,lon]).addTo(map);
-        if (canopyCircle) canopyCircle.remove();
-        canopyCircle=L.circle([lat,lon],{radius:canopyAirspeedKt*0.514444*canopyDescentTime,color:'#39ff89',weight:2,opacity:0.4,fill:false,dashArray:'6,5'}).addTo(map);
-        if (firstLoad){ map.setView([lat,lon],12); firstLoad=false; }
-        document.getElementById("utcLabel").innerText="⚠️ Could not load winds — check connection";
-        document.getElementById("utcLabel").style.color="var(--red)";
-    } finally {
-        document.getElementById("loader").classList.add("hidden");
-    }
-}
+            print(f"SFC: using METAR {icao} {metar['wspd']}kt/{metar['wdir']}° temp={metar.get('temp')}°C")
+        else:
+            print(f"SFC: METAR unavailable, using Open-Meteo surface")
+
+    if not winds:
+        print(f"ERROR: winds empty for lat={lat} lon={lon} hour={hour}")
+        # Check if rate limited
+        error_msg = "Could not fetch forecast. Try again in 60 seconds."
+        # Check Render logs for 429 hint — if api_log today is near limit show specific message
+        today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today_calls = sum(_api_log.get(today_str, {}).values())
+        if today_calls >= 9000:
+            error_msg = "Daily weather data limit reached. Service will resume at midnight UTC. Sorry for the inconvenience!"
+        resp = jsonify({"error": error_msg})
+        resp.headers["Cache-Control"] = "no-store"
+        return resp, 503
+
+    canopy_speed, canopy_dir = avg_wind_display(winds, 0, 3001)
+    free_speed, free_dir = avg_wind_display(winds, 4000, 14001)
+
+    time_label = ""
+    try:
+        source = raw.get("source", "openmeteo") if raw else "openmeteo"
+        if source == "schulze":
+            vt = raw["data"].get("validtime", "")
+            if vt:
+                time_label = f"Valid at {vt}:00Z (local)"
+        elif source in ("openmeteo", "openmeteo_ensemble"):
+            # Get times from first available model
+            h_data = raw.get("data") or (list(raw.get("models",{}).values())[0] if raw.get("models") else None)
+            if h_data:
+                times = h_data.get("hourly", {}).get("time", [])
+                if hour < len(times):
+                    # Convert UTC time to Eastern time for display
+                    import pytz
+                    est = pytz.timezone("America/New_York")
+                    utc_time = datetime.strptime(times[hour], "%Y-%m-%dT%H:%M")
+                    utc_time = utc_time.replace(tzinfo=timezone.utc)
+                    est_time = utc_time.astimezone(est)
+                    tz_abbr = est_time.strftime("%Z")  # EST or EDT
+                    time_label = est_time.strftime(f"%Y-%m-%d %H:%M ({tz_abbr})")
+    except Exception:
+        pass
+
+    # Build model status for frontend display
+    all_possible_models = ["gfs_seamless", "icon_seamless", "hrrr_conus", "nam_conus", "ecmwf_ifs025"]
+    models_loaded = {}
+    if raw and raw.get("source") == "openmeteo_ensemble":
+        loaded = set(raw.get("models", {}).keys())
+        for m in all_possible_models:
+            models_loaded[m] = m in loaded
+    elif raw:
+        for m in all_possible_models:
+            models_loaded[m] = (m == "gfs_seamless")
+
+    response = jsonify({
+        "winds": winds,
+        "canopy_confidence":   canopy_confidence,
+        "freefall_confidence": freefall_confidence,
+        "models_loaded": models_loaded,
+        "canopy": {
+            "speed": canopy_speed,
+            "direction": canopy_dir,
+            "glide_radius": canopy_data(canopy_speed, canopy_dir)[0],
+            "wind_drift": canopy_data(canopy_speed, canopy_dir)[1],
+            "wind_dir": canopy_dir,
+        },
+        "freefall": {
+            "speed": free_speed,
+            "direction": (free_dir + 180) % 360,
+            "distance": freefall_distance(free_speed, free_dir),
+        },
+        "wind_14k": {
+            "speed": winds.get(14000, {}).get("speed", 0),
+            "direction": winds.get(14000, {}).get("direction", 0),
+        },
+        "time_label": time_label,
+        "winds_spread": winds_spread_out,
+        "clouds": build_cloud_forecast(
+            {"source":"openmeteo_ensemble","models":{"gfs_seamless": fetch_cloud_data(lat, lon) or {}}},
+            current_hour_index
+        ),
+    })
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    return response
+
+
+# =====================================================
+# FRONTEND
+# =====================================================
+
+
+
+@app.route("/")
+def index():
+    # Pass only lat/lon to frontend (strip ICAO)
+    dz_frontend = {k: (v[0], v[1]) for k, v in DROPZONES.items()}
+    resp = make_response(render_template("index.html", dz=dz_frontend))
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
-let panelOpen=false;
-function togglePanel(){ panelOpen=!panelOpen; document.getElementById("panel").classList.toggle("open",panelOpen); setTimeout(()=>map.invalidateSize(),350); }
-function updateHandleSummary(canopySpd,canopyDir,timeStr){ const el=document.getElementById("handleSummary"); if(el) el.textContent=`${timeStr}  •  ${canopySpd.toFixed(0)}kt ${canopyDir.toFixed(0)}°`; }
-function dirArrowSvg(deg, color){
-    const blowTo = (deg + 180) % 360;
-    return `<svg width="28" height="28" viewBox="0 0 16 16" style="display:block;margin:0 auto;transform:rotate(${blowTo}deg)"><polygon points="8,1 11,13 8,11 5,13" fill="${color}"/></svg>`;
-}
 
-function updateWindSummary(d){
-    const ws = document.getElementById("windSummary");
-    if (!ws) return;
-    const ffDist = (d.freefall.distance / 1609.344).toFixed(2);
-    // freefall.direction is already drift-to, so pass the FROM direction so dirArrowSvg flips it correctly
-    document.getElementById("wsBalloonArrow").innerHTML = dirArrowSvg((d.freefall.direction + 180) % 360, "var(--freefall)");
-    document.getElementById("wsBalloonVal").textContent = ffDist + " mi";
-    document.getElementById("wsCanopyArrow").innerHTML = dirArrowSvg(d.canopy.direction, "var(--canopy)");
-    document.getElementById("wsCanopyVal").textContent = d.canopy.speed.toFixed(1) + " kt";
-    const sfc = d.winds && d.winds[0];
-    if (sfc) {
-        document.getElementById("wsSurfaceArrow").innerHTML = dirArrowSvg(sfc.direction, "var(--accent)");
-        document.getElementById("wsSurfaceVal").textContent = sfc.speed.toFixed(1) + " kt";
-    }
-}
-
-// ── WIND SUMMARY DRAG ──
-(function(){
-    const box = document.getElementById("windSummary");
-    if (!box) return;
-    let dragging=false, startX=0, startY=0, origX=0, origY=0;
-    function getPos(e){ return e.touches ? e.touches[0] : e; }
-    function onStart(e){
-        if (e.target.tagName==="BUTTON") return;
-        dragging=true;
-        const p=getPos(e); startX=p.clientX; startY=p.clientY;
-        const rect=box.getBoundingClientRect(); origX=rect.left; origY=rect.top;
-        box.style.cursor="grabbing"; box.style.transition="none";
-        box.style.left=origX+"px"; box.style.top=origY+"px";
-        box.style.bottom="auto"; box.style.transform="none";
-        e.preventDefault();
-    }
-    function onMove(e){
-        if (!dragging) return;
-        const p=getPos(e);
-        box.style.left=(origX+p.clientX-startX)+"px";
-        box.style.top=(origY+p.clientY-startY)+"px";
-        e.preventDefault();
-    }
-    function onEnd(){ dragging=false; box.style.cursor="grab"; }
-    box.addEventListener("mousedown", onStart);
-    box.addEventListener("touchstart", onStart, {passive:false});
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("touchmove", onMove, {passive:false});
-    window.addEventListener("mouseup", onEnd);
-    window.addEventListener("touchend", onEnd);
-})();
-
-function toggleCards(){ const wrap=document.getElementById("cards-wrap"),btn=document.getElementById("toggleCardsBtn"),hidden=wrap.style.display==="none"; wrap.style.display=hidden?"":"none"; btn.textContent=hidden?"Hide":"Show"; }
-function closeWelcome(){
-    document.getElementById("welcomeModal").style.display="none";
-    document.getElementById("windSummary").style.display="block";
-}
-function openWelcome(){ document.getElementById("welcomeModal").style.display="flex"; }
-
-function getCanopyParams(){
-    const size=parseFloat(document.getElementById("advSize").value)||150;
-    const weight=parseFloat(document.getElementById("advWeight").value)||225;
-    const type=document.getElementById("advType").value;
-    const openAlt=parseFloat(document.getElementById("advOpenAlt").value)||3000;
-    const glide=parseFloat(document.getElementById("advGlide").value)||null;
-    const wl=weight/size;
-    let airspeedKt, descentFpm;
-    if (type==="student"){ airspeedKt=wl<0.8?18:wl<1.0?20:22; descentFpm=800+wl*100; }
-    else if (type==="sport"){ airspeedKt=wl<1.0?22:wl<1.3?24:wl<1.6?27:wl<1.9?30:32; descentFpm=850+wl*150; }
-    else { airspeedKt=wl<1.5?30:wl<1.8?34:wl<2.1?38:42; descentFpm=900+wl*200; }
-    if (glide){ const fps=descentFpm/60; airspeedKt=(glide*fps)/1.68781; }
-    const descentTime=(openAlt-500)/(descentFpm/60);
-    const glideRatio=(airspeedKt*1.68781)/(descentFpm/60);
-    return { wl, airspeedKt, descentFpm, descentTime, glideRatio, openAlt };
-}
-function updateAdvPreview(){
-    const p=getCanopyParams();
-    document.getElementById("advPreview").innerHTML=`WL: ${p.wl.toFixed(2)} lbs/sqft<br>Airspeed: ${p.airspeedKt.toFixed(1)} kt<br>Descent: ${p.descentFpm.toFixed(0)} ft/min<br>Flight time: ${p.descentTime.toFixed(0)} sec<br>Glide ratio: ${p.glideRatio.toFixed(2)}:1`;
-}
-function toggleAdvBonus(lbl){ const el=document.getElementById("advBonus"),open=el.style.display==="none"||el.style.display===""; el.style.display=open?"flex":"none"; if(open){el.style.flexDirection="column";el.style.gap="10px";} lbl.textContent=(open?"▼":"▶")+" I know more (optional)"; }
-function openAdvancedModal(){ updateAdvPreview(); const am=document.getElementById("advancedModal"); am.style.display="flex"; am.style.alignItems="center"; am.style.justifyContent="center"; }
-function closeAdvancedModal(){ document.getElementById("advancedModal").style.display="none"; }
-function applyAdvancedSettings(){ const p=getCanopyParams(); canopyAirspeedKt=p.airspeedKt; canopyDescentTime=p.descentTime; closeAdvancedModal(); load(); }
-["advSize","advWeight","advType","advOpenAlt","advGlide"].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener("input",updateAdvPreview); });
-async function clearAndReload(){ try{ await fetch('/clearcache?token=mango'); }catch(e){} load(); }
-function openDefineModal(){ document.getElementById("defineModal").style.display="flex"; document.getElementById("dfDir").focus(); }
-function closeDefineModal(){ document.getElementById("defineModal").style.display="none"; document.getElementById("dfError").style.display="none"; }
-function miToMeters(mi){ return mi*1609.344; }
-function offsetLatLon(baseLat,baseLon,bearingDeg,distanceMi){
-    const R=6378137, d=miToMeters(distanceMi), rad=bearingDeg*Math.PI/180;
-    const lat1=baseLat*Math.PI/180, lon1=baseLon*Math.PI/180;
-    const lat2=Math.asin(Math.sin(lat1)*Math.cos(d/R)+Math.cos(lat1)*Math.sin(d/R)*Math.cos(rad));
-    const lon2=lon1+Math.atan2(Math.sin(rad)*Math.sin(d/R)*Math.cos(lat1),Math.cos(d/R)-Math.sin(lat1)*Math.sin(lat2));
-    return [lat2*180/Math.PI, lon2*180/Math.PI];
-}
-function submitDefineJumpRun(){
-    const errEl=document.getElementById("dfError"); errEl.style.display="none";
-    const dir=parseFloat(document.getElementById("dfDir").value);
-    const dist=parseFloat(document.getElementById("dfDist").value)||0;
-    const distDir=document.getElementById("dfDistDir").value;
-    const offset=parseFloat(document.getElementById("dfOffset").value)||0;
-    const offDir=document.getElementById("dfOffsetDir").value;
-    const length=parseFloat(document.getElementById("dfLength").value);
-    if (isNaN(dir)||dir<0||dir>360){ errEl.textContent="Please enter a valid direction (0–360°)."; errEl.style.display="block"; return; }
-    if (isNaN(length)||length<=0){ errEl.textContent="Please enter a valid jump run length."; errEl.style.display="block"; return; }
-    const startBearing=distDir==="prior"?(dir+180)%360:dir;
-    let startPt=offsetLatLon(lat,lon,startBearing,dist);
-    const offBearing={N:0,S:180,E:90,W:270}[offDir];
-    if (offset>0) startPt=offsetLatLon(startPt[0],startPt[1],offBearing,offset);
-    jrStart=startPt; jrEnd=offsetLatLon(startPt[0],startPt[1],dir,length);
-    closeDefineModal(); drawJumpRun();
-    if (window.innerWidth<600&&panelOpen) togglePanel();
-}
-
-function initMap(){
-    map=L.map('map',{zoomSnap:0.25,zoomDelta:0.25,wheelPxPerZoomLevel:120}).setView([lat,lon],9);
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'Tiles © Esri'}).addTo(map);
-    map.on('mousedown',onMapMouseDown);
-    map.on('mousemove',onMapMouseMove);
-    map.on('mouseup',onMapMouseUp);
-    map.on('click',onMapClick);
-    map.on('click',function(e){
-        if (!patternMode) return;
-        landingSpot=[e.latlng.lat,e.latlng.lng];
-        togglePatternMode();
-        document.getElementById("patternControls").style.display="block";
-        drawPattern();
-    });
-    const mapEl=map.getContainer();
-    mapEl.addEventListener('touchstart',onTouchStart,{passive:false});
-    mapEl.addEventListener('touchmove',onTouchMove,{passive:false});
-    mapEl.addEventListener('touchend',onTouchEnd,{passive:false});
-}
-
-(function(){
-    const panel=document.getElementById("panel"), handle=document.getElementById("panel-handle");
-    if (!handle) return;
-    let startY=0, startOpen=false, dragging=false, moved=false;
-    const SNAP=40;
-    function onStart(e){ if(window.innerWidth>=600)return; const touch=e.touches?e.touches[0]:e; startY=touch.clientY; startOpen=panelOpen; dragging=true; moved=false; panel.style.transition="none"; }
-    function onMove(e){ if(!dragging||window.innerWidth>=600)return; e.preventDefault(); const touch=e.touches?e.touches[0]:e; const dy=touch.clientY-startY; if(Math.abs(dy)>5)moved=true; if(startOpen){ panel.style.transform=`translateY(${Math.max(0,dy)}px)`; } else { const maxUp=panel.offsetHeight-parseInt(getComputedStyle(document.documentElement).getPropertyValue("--drawer-h")); panel.style.transform=`translateY(calc(100% - var(--drawer-h) + ${Math.max(-maxUp,Math.min(0,dy))}px))`; } }
-    function onEnd(e){ if(!dragging||window.innerWidth>=600)return; dragging=false; panel.style.transition=""; panel.style.transform=""; if(!moved){togglePanel();return;} const touch=e.changedTouches?e.changedTouches[0]:e; const dy=touch.clientY-startY; if(startOpen&&dy>SNAP){panelOpen=true;togglePanel();} else if(!startOpen&&dy<-SNAP){panelOpen=false;togglePanel();} }
-    handle.addEventListener("touchstart",onStart,{passive:true});
-    handle.addEventListener("touchmove",onMove,{passive:false});
-    handle.addEventListener("touchend",onEnd,{passive:true});
-})();
-
-// ── PLANE TRACKER ──
-let planeTrackInterval = null;
-let trackedPlane = null;
-let trackedPlaneMarker = null;
-let trackedPlaneLabel = null;
-let planeAnimFrame = null;
-let planeAnimStart = null;
-let planeAnimFrom = null;
-let planeAnimTo = null;
-const PLANE_ANIM_DUR = 5000;
-let planeTrail = [];          // recent positions for trail line
-let planeTrailLine = null;    // Leaflet polyline
-let historyTrailLine = null;  // Historical flight path from trace
-
-// Jump run detection history
-let planeHistory = [];          // rolling 5-min buffer of position snapshots
-let lastJumpRunLine = null;
-let lastJumpRunLabel = null;
-let lastJumpRunArrow = null;
-let divingConfirmed = 0;        // consecutive dive polls
-const LEVEL_THRESHOLD = 600;   // fpm — within this = level flight
-const DIVE_THRESHOLD  = -1000; // fpm — below this = diving after drop
-const DIVE_CONFIRM    = 3;     // consecutive dive polls to confirm
-
-async function openTrackModal(){
-    const m = document.getElementById("trackModal");
-    m.style.display = "flex"; m.style.alignItems = "center"; m.style.justifyContent = "center";
-    document.getElementById("planeTail").focus();
-    document.getElementById("trackError").style.display = "none";
-    // Load tail suggestions for this DZ
-    try {
-        const dz = document.getElementById("dz").value;
-        const r = await fetch(`/tails?dz=${encodeURIComponent(dz)}`);
-        const tails = await r.json();
-        // Populate datalist
-        const dl = document.getElementById("tailSuggestions");
-        dl.innerHTML = tails.map(t => `<option value="${t}">`).join('');
-        // Populate quick-tap buttons
-        const btns = document.getElementById("tailSuggestionBtns");
-        if (tails.length > 0){
-            btns.innerHTML = tails.map(t =>
-                `<button onclick="document.getElementById('planeTail').value='${t}'" style="padding:3px 10px;background:var(--card-alt);border:1px solid var(--border);color:var(--accent);border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:0.75rem;cursor:pointer">${t}</button>`
-            ).join('');
-        } else {
-            btns.innerHTML = '';
-        }
-    } catch(e){ console.warn("Could not load tail suggestions:", e); }
-}
-function closeTrackModal(){ document.getElementById("trackModal").style.display = "none"; }
-
-function planeTrackIcon(hdg, onGround){
-    const color = onGround ? "#5a7a96" : "#00d4ff";
-    const glow  = onGround ? "rgba(90,122,150,0.5)" : "rgba(0,212,255,0.9)";
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="-30 -30 60 60"
-        style="transform:rotate(${hdg}deg);overflow:visible;filter:drop-shadow(0 0 6px ${glow})">
-      <!-- Fuselage — boxy Caravan style -->
-      <rect x="-4" y="-18" width="8" height="36" rx="3" fill="${color}"/>
-      <!-- Nose cone -->
-      <polygon points="0,-28 -3,-18 3,-18" fill="${color}"/>
-      <!-- Wide high wings -->
-      <polygon points="-28,-2 -4,-5 -4,1 -28,3" fill="${color}"/>
-      <polygon points="28,-2 4,-5 4,1 28,3" fill="${color}"/>
-      <!-- Horizontal stabilizers -->
-      <polygon points="-14,17 -3,15 -3,19 -14,19" fill="${color}"/>
-      <polygon points="14,17 3,15 3,19 14,19" fill="${color}"/>
-      <!-- Vertical stab -->
-      <polygon points="0,10 -2,18 2,18" fill="${color}"/>
-      <!-- Engine pod (same color, no dark tip) -->
-      <ellipse cx="0" cy="-24" rx="3.5" ry="4" fill="${color}"/>
-    </svg>`;
-    return L.divIcon({ html: svg, className: "", iconSize: [72,72], iconAnchor: [36,36] });
-}
-
-function isOnScreen(lat, lon){
-    return map.getBounds().contains(L.latLng(lat, lon));
-}
-
-function updateOffscreenArrow(lat, lon){
-    let arrow = document.getElementById("planeOffscreenArrow");
-    if (isOnScreen(lat, lon)){ if (arrow) arrow.style.display = "none"; return; }
-    const mapRect = map.getContainer().getBoundingClientRect();
-    const center = map.latLngToContainerPoint(map.getCenter());
-    const target = map.latLngToContainerPoint(L.latLng(lat, lon));
-    const dx = target.x - center.x, dy = target.y - center.y;
-    const angle = Math.atan2(dy, dx);
-    const margin = 44, W = mapRect.width - margin*2, H = mapRect.height - margin*2;
-    let ex, ey;
-    if (Math.abs(dx)*H > Math.abs(dy)*W){ ex = dx > 0 ? W/2 : -W/2; ey = ex*dy/dx; }
-    else { ey = dy > 0 ? H/2 : -H/2; ex = ey*dx/dy; }
-    const px = mapRect.left + mapRect.width/2 + ex;
-    const py = mapRect.top + mapRect.height/2 + ey;
-    const deg = angle*180/Math.PI + 90;
-    if (!arrow){
-        arrow = document.createElement("div");
-        arrow.id = "planeOffscreenArrow";
-        arrow.style.cssText = "position:fixed;z-index:7999;pointer-events:none;width:36px;height:36px;margin-left:-18px;margin-top:-18px;";
-        document.body.appendChild(arrow);
-    }
-    arrow.style.display = "block";
-    arrow.style.left = px + "px"; arrow.style.top = py + "px";
-    arrow.innerHTML = `<svg width="36" height="36" viewBox="0 0 36 36" style="transform:rotate(${deg}deg)">
-        <polygon points="18,4 26,28 18,23 10,28" fill="#00d4ff" opacity="0.9"/>
-        <circle cx="18" cy="18" r="6" fill="rgba(0,212,255,0.2)" stroke="#00d4ff" stroke-width="1.5"/>
-    </svg>`;
-}
-
-function animatePlane(timestamp){
-    if (!planeAnimStart) planeAnimStart = timestamp;
-    const t = Math.min((timestamp - planeAnimStart) / PLANE_ANIM_DUR, 1);
-    if (!planeAnimFrom || !planeAnimTo) return;
-    const pLat = planeAnimFrom.lat + (planeAnimTo.lat - planeAnimFrom.lat) * t;
-    const pLng = planeAnimFrom.lng + (planeAnimTo.lng - planeAnimFrom.lng) * t;
-    if (trackedPlaneMarker){ trackedPlaneMarker.setLatLng([pLat, pLng]); }
-    else { trackedPlaneMarker = L.marker([pLat, pLng], { icon: planeTrackIcon(trackedPlane.hdg||0, trackedPlane.on_ground), zIndexOffset: 1100 }).addTo(map); }
-    const alt  = trackedPlane.alt  ? Math.round(trackedPlane.alt).toLocaleString() + " ft" : "—";
-    const spd  = trackedPlane.spd  ? Math.round(trackedPlane.spd)  + " kt" : "—";
-    const vert = trackedPlane.vert ? (trackedPlane.vert>0?"↑":"↓") + Math.abs(Math.round(trackedPlane.vert)).toLocaleString() + " fpm" : "";
-    const lHtml = `<div style="background:rgba(7,11,16,0.95);border:1px solid #00d4ff;border-radius:6px;padding:5px 10px;font-family:'Share Tech Mono',monospace;font-size:0.82rem;font-weight:bold;color:#00d4ff;white-space:nowrap;line-height:1.8;min-width:90px">${alt}<br>${spd}${vert ? '<br>'+vert : ''}</div>`;
-    if (trackedPlaneLabel){ trackedPlaneLabel.setLatLng([pLat,pLng]); trackedPlaneLabel.setIcon(L.divIcon({ html: lHtml, className: "", iconAnchor: [-28,0] })); }
-    else { trackedPlaneLabel = L.marker([pLat,pLng], { icon: L.divIcon({ html: lHtml, className: "", iconAnchor: [-28,0] }), zIndexOffset: 1101, interactive: false }).addTo(map); }
-    updateOffscreenArrow(pLat, pLng);
-
-    // Update trail — always append to build full flight path
-    planeTrail.push([pLat, pLng]);
-    if (planeTrailLine){
-        planeTrailLine.setLatLngs(planeTrail);
-    } else {
-        planeTrailLine = L.polyline(planeTrail, {
-            color: '#00d4ff', weight: 4, opacity: 0.6
-        }).addTo(map);
-    }
-
-    if (t < 1) planeAnimFrame = requestAnimationFrame(animatePlane);
-}
-
-function showJumpRunStatus(msg){
-    const el = document.getElementById("jumpRunStatus");
-    if (!msg){ if (el) el.remove(); return; }
-    if (el){ el.textContent = msg; return; }
-    const div = document.createElement("div");
-    div.id = "jumpRunStatus";
-    div.style.cssText = "position:fixed;bottom:140px;left:50%;transform:translateX(-50%);z-index:8001;background:rgba(13,21,32,0.92);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-family:'Share Tech Mono',monospace;font-size:0.72rem;color:var(--muted);white-space:nowrap;pointer-events:none";
-    div.textContent = msg;
-    document.body.appendChild(div);
-    // Auto-dismiss after 6 seconds
-    setTimeout(() => { const e = document.getElementById("jumpRunStatus"); if (e) e.remove(); }, 6000);
-}
-
-function clearTrackedJR(){
-    if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
-    if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
-    if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
-    if (planeTrailLine){ planeTrailLine.remove(); planeTrailLine = null; }
-    if (historyTrailLine){ historyTrailLine.remove(); historyTrailLine = null; }
-    planeTrail = [];
-    showJumpRunStatus(null);
-}
-
-function showLastJumpRun(){
-    if (lastJumpRunLine){ map.fitBounds(lastJumpRunLine.getBounds(), {padding:[60,60], maxZoom:13}); }
-    else { showJumpRunStatus("No jump run detected yet"); }
-}
-
-function detectJumpRun(data){
-    // Add to history buffer (keep last 5 minutes = 60 points at 5s intervals)
-    planeHistory.push({
-        lat: data.lat, lon: data.lon,
-        alt: data.alt, hdg: data.hdg,
-        spd: data.spd, vert: data.vert || 0,
-        ts: Date.now()
-    });
-    if (planeHistory.length > 60) planeHistory.shift();
-
-    const vert = data.vert || 0;
-
-    // Check for dive
-    if (vert < DIVE_THRESHOLD) {
-        divingConfirmed++;
-    } else {
-        divingConfirmed = 0;
-    }
-
-    // Confirmed dive after being level — extract jump run from history
-    if (divingConfirmed === DIVE_CONFIRM) {
-        extractAndDrawJumpRun();
-    }
-}
-
-function extractAndDrawJumpRun(){
-    if (planeHistory.length < 2) return;
-    // Use last 3 miles of track before the dive
-    const THREE_MILES_M = 4828;
-    const pts = [];
-    let totalDist = 0;
-    for (let i = planeHistory.length - 1; i >= 0; i--){
-        const p = planeHistory[i];
-        if (pts.length > 0){
-            totalDist += distMeters([p.lat, p.lon], [pts[0].lat, pts[0].lon]);
-            if (totalDist > THREE_MILES_M) break;
-        }
-        pts.unshift(p);
-    }
-    if (pts.length < 2){ showJumpRunStatus("⚠️ Jump run not detected — not enough track data"); return; }
-    showJumpRunStatus(null);
-    drawJumpRunLine(pts);
-}
-
-function updatePlaneMarker(data){
-    detectJumpRun(data);
-    trackedPlane = data;
-    if (trackedPlaneMarker) trackedPlaneMarker.setIcon(planeTrackIcon(data.hdg||0, data.on_ground));
-    if (data.fr24id) trackedPlane.fr24id = data.fr24id;
-    // Always record real position to trail regardless of tab visibility
-    planeTrail.push([data.lat, data.lon]);
-    if (planeTrailLine){ planeTrailLine.setLatLngs(planeTrail); }
-    else { planeTrailLine = L.polyline(planeTrail, { color: '#00d4ff', weight: 4, opacity: 0.6 }).addTo(map); }
-    planeAnimFrom = trackedPlaneMarker ? trackedPlaneMarker.getLatLng() : { lat: data.lat, lng: data.lon };
-    planeAnimTo   = { lat: data.lat, lng: data.lon };
-    planeAnimStart = null;
-    if (planeAnimFrame) cancelAnimationFrame(planeAnimFrame);
-    planeAnimFrame = requestAnimationFrame(animatePlane);
-    const alt  = data.alt  ? Math.round(data.alt).toLocaleString()  + " ft"  : "—";
-    const spd  = data.spd  ? Math.round(data.spd)  + " kt"  : "—";
-    const vert = data.vert ? (data.vert>0?"↑":"↓") + Math.abs(Math.round(data.vert)).toLocaleString() + " fpm" : "—";
-    const hdg  = data.hdg  ? Math.round(data.hdg) + "°" : "—";
-    const groundStr = data.on_ground ? ` <span style="color:var(--muted)">— On Ground</span>` : "";
-    document.getElementById("planeInfo").style.display = "block";
-    document.getElementById("planeInfo").innerHTML =
-        `<span style="color:var(--accent);font-weight:bold">${data.tail}</span>${groundStr}<br>` +
-        `ALT&nbsp;&nbsp;${alt}<br>SPD&nbsp;&nbsp;${spd}<br>HDG&nbsp;&nbsp;${hdg}<br>VERT&nbsp;${vert}` +
-        `<br><div style="display:flex;gap:4px;margin-top:6px">` +
-        `<button onclick="clearTrackedJR()" style="flex:1;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">Clear</button>` +
-        `<button onclick="freezeTrail()" style="flex:1;padding:4px;background:none;border:1px solid var(--freefall);color:var(--freefall);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">Freeze</button>` +
-        `<button onclick="stopTracking()" style="flex:1;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">&#9646; Stop</button>` +
-        `</div>`;
-}
-
-async function fetchFromSource(url){
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.json();
-}
-
-async function pollPlane(tail){
-    try {
-        const data = await fetchFromSource(`/plane?tail=${encodeURIComponent(tail)}`);
-        if (!data.found){
-            if (!trackedPlane){
-                showJumpRunStatus(`✈️ ${tail} not found — may be on the ground or no transponder`);
-            } else {
-                // Signal lost — dead reckon forward using last known heading/speed
-                if (trackedPlane.spd > 5 && trackedPlane.hdg != null){
-                    const distM = trackedPlane.spd * 0.514444 * 5;
-                    const R = 6378137;
-                    const rad = trackedPlane.hdg * Math.PI / 180;
-                    const lat1 = trackedPlane.lat * Math.PI / 180;
-                    const lon1 = trackedPlane.lon * Math.PI / 180;
-                    const lat2 = Math.asin(Math.sin(lat1)*Math.cos(distM/R) + Math.cos(lat1)*Math.sin(distM/R)*Math.cos(rad));
-                    const lon2 = lon1 + Math.atan2(Math.sin(rad)*Math.sin(distM/R)*Math.cos(lat1), Math.cos(distM/R)-Math.sin(lat1)*Math.sin(lat2));
-                    trackedPlane = {...trackedPlane, lat: lat2*180/Math.PI, lon: lon2*180/Math.PI};
-                    planeAnimFrom = planeAnimTo || {lat: trackedPlane.lat, lng: trackedPlane.lon};
-                    planeAnimTo = {lat: trackedPlane.lat, lng: trackedPlane.lon};
-                    planeAnimStart = null;
-                    if (planeAnimFrame) cancelAnimationFrame(planeAnimFrame);
-                    planeAnimFrame = requestAnimationFrame(animatePlane);
-                }
-            }
-            return;
-        }
-        updatePlaneMarker(data);
-        if (!trackedPlane && data.icao) fetchTraceHistory(data.icao, tail);
-    } catch(e){
-        console.warn("ADS-B fetch failed:", e);
-        if (!trackedPlane) showJumpRunStatus("⚠️ Could not reach tracking service");
-        return;
-    }
-}
-
-async function fetchTraceHistory(icao, tail){
-    try {
-        showJumpRunStatus("🔍 Loading flight history...");
-        // Try adsb.lol trace endpoint
-        const fr24id = (trackedPlane && trackedPlane.fr24id) || "";
-        const r = await fetch(`/plane/trace?icao=${encodeURIComponent(icao)}&fr24id=${encodeURIComponent(fr24id)}`);
-        if (!r.ok) throw new Error(`Trace ${r.status}`);
-        const d = await r.json();
-        // adsb.lol trace format: {trace: [[ts, lat, lon, alt, gs, track, baro_rate], ...]}
-        let rawPts = d.trace || d.points || [];
-        if (!rawPts || rawPts.length === 0){ showJumpRunStatus(null); return; }
-
-        // Normalize to objects
-        const pts = rawPts.map(p => {
-            if (Array.isArray(p)) {
-                return { ts: p[0], lat: p[1], lon: p[2], alt: p[3]||0, spd: p[4]||0, hdg: p[5]||0, vert: p[6]||0 };
-            }
-            return p; // already an object
-        }).filter(p => p.lat != null);
-
-        if (pts.length === 0){ showJumpRunStatus(null); return; }
-        const LEVEL = 500, DIVE = -1000;
-
-        // Find all dive events in history
-        let lastDiveIdx = -1;
-        for (let i = 2; i < pts.length; i++){
-            if ((pts[i].vert||0) < DIVE && (pts[i-1].vert||0) < DIVE){
-                lastDiveIdx = i;
-            }
-        }
-
-        if (lastDiveIdx < 0){
-            planeHistory = pts.slice(-60).map(p => ({...p, ts: p.ts * 1000}));
-            if (historyTrailLine){ historyTrailLine.remove(); historyTrailLine = null; }
-            const histCoords = pts.filter(p => p.lat && p.lon).map(p => [p.lat, p.lon]);
-            if (histCoords.length > 1){ historyTrailLine = L.polyline(histCoords, { color: '#00d4ff', weight: 2, opacity: 0.3 }).addTo(map); }
-            showJumpRunStatus(null);
-            return;
-        }
-
-        // Walk back from dive — take last 3 miles of track
-        const THREE_MI = 4828;
-        const jrPts = [];
-        let tDist = 0;
-        for (let i = lastDiveIdx - 1; i >= 0; i--){
-            const p = pts[i];
-            if (jrPts.length > 0){
-                tDist += distMeters([p.lat, p.lon], [jrPts[0].lat, jrPts[0].lon]);
-                if (tDist > THREE_MI) break;
-            }
-            jrPts.unshift(p);
-        }
-
-        planeHistory = pts.slice(Math.max(0, lastDiveIdx - 60), lastDiveIdx).map(p => ({...p, ts: p.ts * 1000}));
-
-        if (jrPts.length >= 2){
-            drawJumpRunLine(jrPts);
-            showJumpRunStatus(null);
-        } else {
-            showJumpRunStatus(null);
-        }
-            if (historyTrailLine){ if(historyTrailLine)historyTrailLine.remove(); historyTrailLine = null; }
-            const histCoords2 = pts.filter(p => p.lat && p.lon).map(p => [p.lat, p.lon]);
-            if (histCoords2.length > 1){ historyTrailLine = L.polyline(histCoords2, { color: '#00d4ff', weight: 2, opacity: 0.3 }).addTo(map); }
-    } catch(e){
-        console.error("Trace history error:", e);
-        showJumpRunStatus(null);
-    }
-}
-
-function drawJumpRunLine(pts){
-    if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
-    if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
-    if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
-    const coords = pts.map(p => [p.lat, p.lon]);
-    lastJumpRunLine = L.polyline(coords, { color: "#ff4f4f", weight: 4, opacity: 0.9 }).addTo(map);
-    lastJumpRunLabel = L.marker([pts[0].lat, pts[0].lon], {
-        icon: L.divIcon({
-            html: `<div style="display:inline-block;background:rgba(7,11,16,0.95);border:1.5px solid #ff4f4f;border-radius:6px;padding:4px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;font-weight:700;color:#ff4f4f;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.7);white-space:nowrap">Jump Run</div>`,
-            className: "", iconAnchor: [0, 24]
-        }), interactive: false
-    }).addTo(map);
-}
-
-async function startTracking(){
-    const tail = document.getElementById("planeTail").value.trim().toUpperCase();
-    if (!tail){ document.getElementById("trackError").textContent="Enter a tail number"; document.getElementById("trackError").style.display="block"; return; }
-    closeTrackModal();
-    // Save tail for this DZ
-    const dzName = document.getElementById("dz").value;
-    fetch('/tails', { method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ dz: dzName, tail: tail }) }).catch(()=>{});
-    document.getElementById("trackBtn").textContent = "■ Stop Tracking " + tail;
-    document.getElementById("trackBtn").style.color = "var(--red)";
-    document.getElementById("trackBtn").style.borderColor = "var(--red)";
-    document.getElementById("trackBtn").style.background = "rgba(255,79,79,0.1)";
-    document.getElementById("trackBtn").onclick = stopTracking;
-
-    // First poll — calls ADS-B Exchange directly from browser
-    await pollPlane(tail);
-
-    if (planeTrackInterval) clearInterval(planeTrackInterval);
-    planeTrackInterval = setInterval(() => pollPlane(tail), 5000);
-}
-
-function stopTracking(){
-    if (planeTrackInterval){ clearInterval(planeTrackInterval); planeTrackInterval = null; }
-    if (planeAnimFrame){ cancelAnimationFrame(planeAnimFrame); planeAnimFrame = null; }
-    if (trackedPlaneMarker){ trackedPlaneMarker.remove(); trackedPlaneMarker = null; }
-    if (trackedPlaneLabel){ trackedPlaneLabel.remove(); trackedPlaneLabel = null; }
-    if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
-    if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
-    if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
-    if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
-    const arrow = document.getElementById("planeOffscreenArrow");
-    if (arrow) arrow.remove();
-    trackedPlane = null; planeHistory = []; divingConfirmed = 0;
-    planeTrail = [];
-    if (planeTrailLine){ planeTrailLine.remove(); planeTrailLine = null; }
-    if (historyTrailLine){ historyTrailLine.remove(); historyTrailLine = null; }
-    if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
-    if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
-    if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
-    if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
-    if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
-    showJumpRunStatus(null);
-    // Clean up frozen trail state
-    frozenTrailPoints = null; jrMarkPoints = [];
-    jrMarkMarkers.forEach(m => m.remove()); jrMarkMarkers = [];
-    map.getContainer().style.cursor = "";
-    document.getElementById("planeInfo").style.display = "none";
-    const tb = document.getElementById("trackBtn");
-    tb.textContent = "✈️ Track Plane";
-    tb.style.background = "var(--card-bg)";
-    tb.style.color = "#00d4ff";
-    tb.style.borderColor = "#00d4ff";
-    tb.onclick = openTrackModal;
-}
-
-// ── COMMUNITY JUMP RUN ──
-let frozenTrailPoints = null;   // points from frozen trail for click selection
-let jrMarkMode = false;         // waiting for user to click start/end
-let jrMarkPoints = [];          // [start, end] latlng clicks
-let jrMarkMarkers = [];         // temp markers during selection
-let communityJrLine = null;
-let communityJrLabel = null;
-let communityJrArrow = null;
-let frozenTrailLine = null;
-
-function freezeTrail(){
-    if (!trackedPlane || planeTrail.length < 2){
-        showJumpRunStatus("No flight trail to freeze yet");
-        return;
-    }
-
-    // Save trail before stopTracking clears it
-    const savedTrail = [...planeTrail];
-    const savedTrailLine = planeTrailLine;
-
-    // Stop everything cleanly — but intercept trail removal
-    planeTrail = [];          // prevent stopTracking from using stale trail
-    planeTrailLine = null;    // prevent stopTracking from removing the line
-
-    stopTracking();           // full cleanup of plane marker, intervals, JR lines etc
-
-    // Restore frozen trail
-    frozenTrailPoints = savedTrail;
-    planeTrailLine = savedTrailLine;
-    if (planeTrailLine){ planeTrailLine.setStyle({ opacity: 0.9, weight: 5 }); }
-
-    // Show freeze UI
-    document.getElementById("planeInfo").style.display = "block";
-    document.getElementById("planeInfo").innerHTML =
-        `<span style="color:var(--freefall);font-weight:bold">Trail frozen</span>` +
-        `<br><div style="display:flex;gap:4px;margin-top:6px">` +
-        `<button onclick="startJrMarkMode()" style="flex:1;padding:5px;background:none;border:1px solid #ff4f4f;color:#ff4f4f;border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✏️ Mark Jump Run</button>` +
-        `<button onclick="clearFrozenTrail()" style="flex:1;padding:5px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✕ Clear All</button>` +
-        `</div>`;
-
-    showJumpRunStatus("Tap 'Mark Jump Run' then tap start and end on the trail.");
-}
-
-function nearestTrailPoint(clickLatLng){
-    const trail = frozenTrailPoints || planeTrail;
-    if (!trail || trail.length === 0) return clickLatLng;
-    let best = null, bestDist = Infinity;
-    for (const pt of trail){
-        const d = map.distance(clickLatLng, L.latLng(pt[0], pt[1]));
-        if (d < bestDist){ bestDist = d; best = L.latLng(pt[0], pt[1]); }
-    }
-    return best || clickLatLng;
-}
-
-function startJrMarkMode(){
-    jrMarkMode = true;
-    jrMarkPoints = [];
-    jrMarkMarkers.forEach(m => m.remove()); jrMarkMarkers = [];
-    map.getContainer().style.cursor = "crosshair";
-    showJumpRunStatus("Tap the START of the jump run on the trail...");
-
-    map.once('click', function(e){
-        const snapped = nearestTrailPoint(e.latlng);
-        jrMarkPoints.push(snapped);
-        const m = L.circleMarker([snapped.lat, snapped.lng], {
-            radius: 8, color: '#ff4f4f', fillColor: '#ff4f4f', fillOpacity: 0.9, weight: 2
-        }).addTo(map);
-        jrMarkMarkers.push(m);
-        showJumpRunStatus("Now tap the END of the jump run on the trail...");
-
-        map.once('click', function(e2){
-            const snapped2 = nearestTrailPoint(e2.latlng);
-            jrMarkPoints.push(snapped2);
-            const m2 = L.circleMarker([snapped2.lat, snapped2.lng], {
-                radius: 8, color: '#ff4f4f', fillColor: '#ff4f4f', fillOpacity: 0.9, weight: 2
-            }).addTo(map);
-            jrMarkMarkers.push(m2);
-            map.getContainer().style.cursor = "";
-            jrMarkMode = false;
-            drawAndSaveCommunityJR();
-        });
-    });
-}
-
-function drawAndSaveCommunityJR(){
-    if (jrMarkPoints.length < 2) return;
-    const start = jrMarkPoints[0];
-    const end   = jrMarkPoints[1];
-
-    if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
-    if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
-    if (communityJrArrow){ communityJrArrow.remove(); communityJrArrow = null; }
-
-    // Extract trail segment between the two snapped points
-    const trail = frozenTrailPoints || planeTrail;
-    let coords = [[start.lat, start.lng], [end.lat, end.lng]]; // fallback straight line
-    if (trail && trail.length > 1){
-        // Find indices of start and end in trail
-        let si = 0, ei = trail.length - 1, sd = Infinity, ed = Infinity;
-        for (let i = 0; i < trail.length; i++){
-            const ds = map.distance(start, L.latLng(trail[i][0], trail[i][1]));
-            const de = map.distance(end,   L.latLng(trail[i][0], trail[i][1]));
-            if (ds < sd){ sd = ds; si = i; }
-            if (de < ed){ ed = de; ei = i; }
-        }
-        // Ensure start < end
-        if (si > ei){ const tmp = si; si = ei; ei = tmp; }
-        const seg = trail.slice(si, ei + 1);
-        if (seg.length >= 2) coords = seg;
-    }
-
-    communityJrLine = L.polyline(coords, {
-        color: "#ff4f4f", weight: 4, opacity: 0.9
-    }).addTo(map);
-
-    // coords is array of [lat,lon] pairs
-    const hdg = bearing(
-        Array.isArray(coords[0]) ? coords[0] : [coords[0].lat, coords[0].lng],
-        Array.isArray(coords[coords.length-1]) ? coords[coords.length-1] : [coords[coords.length-1].lat, coords[coords.length-1].lng]
-    );
-    const midPt = coords[Math.floor(coords.length/2)];
-    const midLat = Array.isArray(midPt) ? midPt[0] : midPt.lat;
-    const midLng = Array.isArray(midPt) ? midPt[1] : midPt.lng;
-    const startPt2 = coords[0];
-    const startLat = Array.isArray(startPt2) ? startPt2[0] : startPt2.lat;
-    const startLng = Array.isArray(startPt2) ? startPt2[1] : startPt2.lng;
-
-    communityJrLabel = L.marker([startLat, startLng], {
-        icon: L.divIcon({
-            html: `<div style="display:inline-block;background:rgba(7,11,16,0.95);border:1.5px solid #ff4f4f;border-radius:6px;padding:4px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;font-weight:700;color:#ff4f4f;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.7);white-space:nowrap">Jump Run</div>`,
-            className: "", iconAnchor: [0,0]
-        }), interactive: false
-    }).addTo(map);
-
-    // Save to server
-    const dzName = document.getElementById("dz").value;
-    const alt = trackedPlane ? trackedPlane.alt : null;
-    const tail = trackedPlane ? trackedPlane.tail : "";
-
-    const saveStart = Array.isArray(coords[0]) ? coords[0] : [coords[0].lat, coords[0].lng];
-    const saveEnd = Array.isArray(coords[coords.length-1]) ? coords[coords.length-1] : [coords[coords.length-1].lat, coords[coords.length-1].lng];
-    fetch('/jumprun', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            dz: dzName,
-            start: saveStart,
-            end: saveEnd,
-            alt: alt,
-            heading: Math.round(hdg),
-            tail: tail,
-        })
-    }).then(r => r.json()).then(d => {
-        if (d.status === 'saved'){
-            const n = d.submissions || 1;
-            const msg = n > 1 ? `✅ Saved! Averaged with ${n} submissions today.` : '✅ Jump run saved! Others at this DZ can now see it.';
-            showJumpRunStatus(msg);
-            jrMarkMarkers.forEach(m => m.remove()); jrMarkMarkers = [];
-            // Update planeInfo
-            document.getElementById("planeInfo").innerHTML =
-                `<span style="color:#39ff89;font-weight:bold">Jump run saved!</span>` +
-                `<br><div style="display:flex;gap:4px;margin-top:6px">` +
-                `<button onclick="startJrMarkMode()" style="flex:1;padding:5px;background:none;border:1px solid #ff4f4f;color:#ff4f4f;border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✏️ Re-mark</button>` +
-                `<button onclick="clearFrozenTrail()" style="flex:1;padding:5px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✕ Clear All</button>` +
-                `</div>`;
-        }
-    }).catch(e => showJumpRunStatus("⚠️ Could not save — check connection"));
-}
-
-function clearFrozenTrail(){
-    if (planeTrailLine){ planeTrailLine.remove(); planeTrailLine = null; }
-    if (frozenTrailLine){ frozenTrailLine.remove(); frozenTrailLine = null; }
-    if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
-    if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
-    if (communityJrArrow){ communityJrArrow.remove(); communityJrArrow = null; }
-    jrMarkMarkers.forEach(m => m.remove()); jrMarkMarkers = [];
-    frozenTrailPoints = null; jrMarkPoints = [];
-    document.getElementById("planeInfo").style.display = "none";
-    planeTrail = [];
-    map.getContainer().style.cursor = "";
-    showJumpRunStatus(null);
-}
-
-async function loadCommunityJR(){
-    const dzName = document.getElementById("dz").value;
-    const btn = document.getElementById("communityJrBtn");
-    try {
-        const r = await fetch(`/jumprun?dz=${encodeURIComponent(dzName)}`);
-        const d = await r.json();
-        if (!d.start || !d.end){
-            showJumpRunStatus("No jump run saved for this DZ today");
-            return;
-        }
-        // Show age in label
-        const ts = new Date(d.timestamp);
-        const ageHours = (Date.now() - ts.getTime()) / 3600000;
-        let timeStr;
-        if (ageHours < 0.25) timeStr = "just now";
-        else if (ageHours < 1) timeStr = `${Math.round(ageHours*60)}min ago`;
-        else if (ageHours < 24) timeStr = ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
-        else timeStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-        // Draw it
-        if (communityJrLine){ communityJrLine.remove(); }
-        if (communityJrLabel){ communityJrLabel.remove(); }
-        communityJrLine = L.polyline([d.start, d.end], {
-            color: "#ff4f4f", weight: 4, opacity: 0.9
-        }).addTo(map);
-        communityJrLabel = L.marker(d.start, {
-            icon: L.divIcon({
-                html: `<div style="display:inline-block;background:rgba(7,11,16,0.95);border:1.5px solid #ff4f4f;border-radius:6px;padding:5px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;font-weight:700;color:#ff4f4f;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.7);white-space:nowrap;line-height:1.5">Jump Run ${d.heading ? d.heading+'°' : ''}<br><span style="font-weight:600;font-size:0.78rem;letter-spacing:0.06em">${timeStr}${d.tail ? ' · '+d.tail : ''}${d.submission_count > 1 ? ' · '+d.submission_count+' reports' : ''}</span></div>`,
-                className: "", iconAnchor: [0, 24]
-            }), interactive: false
-        }).addTo(map);
-        btn.style.color = "#ff4f4f";
-        btn.style.borderColor = "#ff4f4f";
-        btn.textContent = "📍 Hide Jump Run";
-        btn.onclick = () => {
-            if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
-            if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
-            btn.style.color = "#ff4f4f";
-            btn.style.borderColor = "var(--border)";
-            btn.textContent = "📍 Show Last Jump Run";
-            btn.onclick = loadCommunityJR;
-        };
-    } catch(e){
-        showJumpRunStatus("⚠️ Could not load jump run data");
-    }
-}
-
-// ── CLOUD POPUP DRAG ──
-(function(){
-    function initCloudDrag(){
-        const box = document.getElementById("cloudPopup");
-        if (!box) return;
-        let dragging=false, startX=0, startY=0, origX=0, origY=0;
-        function getPos(e){ return e.touches ? e.touches[0] : e; }
-        function onStart(e){
-            if (e.target.tagName==="BUTTON") return;
-            dragging=true;
-            const p=getPos(e); startX=p.clientX; startY=p.clientY;
-            const rect=box.getBoundingClientRect(); origX=rect.left; origY=rect.top;
-            box.style.cursor="grabbing"; box.style.transition="none";
-            box.style.left=origX+"px"; box.style.top=origY+"px";
-            box.style.bottom="auto"; box.style.transform="none";
-            e.preventDefault();
-        }
-        function onMove(e){
-            if (!dragging) return;
-            const p=getPos(e);
-            box.style.left=(origX+p.clientX-startX)+"px";
-            box.style.top=(origY+p.clientY-startY)+"px";
-            e.preventDefault();
-        }
-        function onEnd(){ dragging=false; box.style.cursor="grab"; }
-        box.addEventListener("mousedown", onStart);
-        box.addEventListener("touchstart", onStart, {passive:false});
-        window.addEventListener("mousemove", onMove);
-        window.addEventListener("touchmove", onMove, {passive:false});
-        window.addEventListener("mouseup", onEnd);
-        window.addEventListener("touchend", onEnd);
-    }
-    // Init after DOM ready
-    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initCloudDrag);
-    else initCloudDrag();
-})();
-
-function skyIcon(sky, cover){
-    if (cover < 13) return '&#9728;'; // sun
-    if (cover < 38) return '&#127780;'; // sun behind small cloud
-    if (cover < 63) return '&#9925;'; // sun behind cloud
-    if (cover < 88) return '&#9729;'; // cloud
-    return '&#127745;'; // cloudy
-}
-
-function toggleCloudPopup(){
-    const popup = document.getElementById("cloudPopup");
-    if (popup.style.display !== "none"){ popup.style.display="none"; return; }
-    popup.style.display = "block";
-    renderCloudPopup();
-}
-
-function renderCloudPopup(){
-    const el = document.getElementById("cloudContent");
-    const clouds = window._lastClouds;
-    if (!clouds || !clouds.length){ el.innerHTML = '<span style="color:var(--muted)">No cloud data available</span>'; return; }
-
-    // Get base time from forecast offset slider
-    const forecastOffsetH = parseInt(document.getElementById("hour").value) || 0;
-    const now = new Date();
-    const baseTime = new Date(now.getTime() + forecastOffsetH * 3600000);
-    baseTime.setMinutes(0, 0, 0);
-
-    // Build table
-    let html = '<table style="border-collapse:collapse;width:100%">';
-
-    // Header row — time labels relative to slider position
-    html += '<tr>';
-    html += '<td style="padding:3px 6px;color:var(--muted);font-size:0.6rem"></td>';
-    for (const b of clouds){
-        const t = new Date(baseTime.getTime() + b.offset_h * 3600000);
-        const hr = t.getHours();
-        const ampm = hr >= 12 ? 'PM' : 'AM';
-        const h12 = hr % 12 || 12;
-        const dayStr = b.offset_h === 0 ? document.getElementById("timeLabel").innerText : `${h12}${ampm}`;
-        html += `<td style="text-align:center;padding:3px 8px;color:var(--muted);font-size:0.65rem;white-space:nowrap">${dayStr}</td>`;
-    }
-    html += '</tr>';
-
-    // Icon row
-    html += '<tr>';
-    html += '<td style="padding:3px 6px;color:var(--muted);font-size:0.6rem"></td>';
-    for (const b of clouds){
-        const iconColor = b.precip > 30 ? '#4488ff' : b.cover > 70 ? 'var(--muted)' : '#ffdd88';
-        html += `<td style="text-align:center;padding:4px 8px;font-size:1.4rem">${skyIcon(b.sky, b.cover)}</td>`;
-    }
-    html += '</tr>';
-
-    // Sky condition row
-    html += '<tr>';
-    html += '<td style="padding:3px 6px;color:var(--muted);font-size:0.6rem"></td>';
-    for (const b of clouds){
-        const label = b.sky.replace(' ', '<br>');
-        html += `<td style="text-align:center;padding:2px 4px;font-size:0.62rem;color:var(--text);line-height:1.3">${label}</td>`;
-    }
-    html += '</tr>';
-
-    // Cover % row
-    html += '<tr>';
-    html += `<td style="padding:3px 6px;color:var(--muted);font-size:0.6rem;white-space:nowrap">% Cov</td>`;
-    for (const b of clouds){
-        const col = b.cover > 75 ? 'var(--muted)' : b.cover > 40 ? '#ffaa00' : '#39ff89';
-        html += `<td style="text-align:center;padding:2px 4px;color:${col};font-size:0.72rem">${b.cover}%</td>`;
-    }
-    html += '</tr>';
-
-    // Cloud base row
-    html += '<tr style="border-top:1px solid var(--border)">';
-    html += `<td style="padding:4px 6px;color:var(--muted);font-size:0.6rem;white-space:nowrap">Base</td>`;
-    for (const b of clouds){
-        const baseStr = b.base_ft != null ? (b.base_ft >= 1000 ? `${(b.base_ft/1000).toFixed(1)}k ft` : `${b.base_ft} ft`) : '—';
-        const baseCol = b.base_ft != null && b.base_ft < 3000 ? '#ff4f4f' : b.base_ft != null && b.base_ft < 6000 ? '#ffaa00' : 'var(--muted)';
-        html += `<td style="text-align:center;padding:4px 4px;color:${baseCol};font-size:0.68rem">${baseStr}</td>`;
-    }
-    html += '</tr>';
-
-    // Precip row (only if any precip)
-    const anyPrecip = clouds.some(b => b.precip > 10);
-    if (anyPrecip){
-        html += '<tr>';
-        html += `<td style="padding:3px 6px;color:var(--muted);font-size:0.6rem;white-space:nowrap">💧 Rain</td>`;
-        for (const b of clouds){
-            const col = b.precip > 50 ? '#ff4f4f' : b.precip > 20 ? '#ffaa00' : 'var(--muted)';
-            html += `<td style="text-align:center;padding:2px 4px;color:${col};font-size:0.68rem">${b.precip > 0 ? b.precip+'%' : '—'}</td>`;
-        }
-        html += '</tr>';
-    }
-
-    html += '</table>';
-    el.innerHTML = html;
-}
-
-function initDZ(){
-    const sel=document.getElementById("dz");
-    const keys=Object.keys(dz);
-    const defaultDz=keys.find(k=>k.toLowerCase().includes("skydive new england"))||keys[0];
-    for (const k of keys){ const o=document.createElement("option"); o.value=k; o.text=k; sel.appendChild(o); }
-    sel.value=defaultDz; lat=dz[defaultDz][0]; lon=dz[defaultDz][1];
-    initMap(); load();
-    document.getElementById("hour").oninput=()=>{
-        renderTime();
-        if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}
-        if(freefallLine){freefallLine.forEach(l=>l.remove());freefallLine=null;}
-        stopPlane(); jrStart=null; jrEnd=null;
-        document.getElementById("jumpRunInfo").style.display="none";
-        document.getElementById("replayBtn").style.display="none";
-        document.getElementById("clearBtn").style.display="none";
-        clearTimeout(loadTimeout); loadTimeout=setTimeout(load,2000);
-    };
-    renderTime();
-    sel.onchange=()=>{
-        const v=sel.value; lat=dz[v][0]; lon=dz[v][1];
-        if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}
-        if(freefallLine){freefallLine.forEach(l=>l.remove());freefallLine=null;}
-        stopPlane(); jrStart=null; jrEnd=null;
-        document.getElementById("jumpRunInfo").style.display="none";
-        document.getElementById("replayBtn").style.display="none";
-        document.getElementById("clearBtn").style.display="none";
-        firstLoad=true; load();
-    };
-}
-if (document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", initDZ);
-} else {
-    initDZ();
-}
-</script>
-</body>
-</html>
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=5000)

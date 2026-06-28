@@ -2072,12 +2072,13 @@ function initDZ(){
             pos => {
                 const nearest = closestDZ(pos.coords.latitude, pos.coords.longitude);
                 if (nearest && nearest !== document.getElementById("dz").value){
-                    // Switch DZ without full reload — just update and reload data
+                    // Only switch if initial load is complete, to avoid double API call
                     const sel = document.getElementById("dz");
                     sel.value = nearest;
                     lat = dz[nearest][0]; lon = dz[nearest][1];
                     firstLoad = true;
-                    load();
+                    // Small delay to let initial load finish first
+                    setTimeout(load, 500);
                 }
             },
             () => {}, // denied or failed — stay on fallback

@@ -8,10 +8,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="2.4.2">
+<meta name="app-version" content="2.4.3">
 <script>
 try {
-    const CURRENT_VERSION = "2.4.2";
+    const CURRENT_VERSION = "2.4.3";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -2027,64 +2027,24 @@ function renderCloudPopup(){
     el.innerHTML = html;
 }
 
-function haversineMi(lat1,lon1,lat2,lon2){
-    const R=3958.8, dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
-    const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
-    return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-}
-
-function closestDZ(userLat, userLon){
-    let best=null, bestDist=Infinity;
-    for (const [name, coords] of Object.entries(dz)){
-        const d=haversineMi(userLat,userLon,coords[0],coords[1]);
-        if (d<bestDist){ bestDist=d; best=name; }
-    }
-    return best;
-}
-
 function initDZ(){
     const sel=document.getElementById("dz");
     const keys=Object.keys(dz);
-    const fallbackDz=keys.find(k=>k.toLowerCase().includes("skydive new england"))||keys[0];
+    const defaultDz=keys.find(k=>k.toLowerCase().includes("skydive new england"))||keys[0];
     for (const k of keys){ const o=document.createElement("option"); o.value=k; o.text=k; sel.appendChild(o); }
-
-    function startWithDZ(dzName){
-        sel.value=dzName; lat=dz[dzName][0]; lon=dz[dzName][1];
-        initMap(); load();
-        document.getElementById("hour").oninput=()=>{
-            renderTime();
-            if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}
-            if(freefallLine){freefallLine.forEach(l=>l.remove());freefallLine=null;}
-            stopPlane(); jrStart=null; jrEnd=null;
-            document.getElementById("jumpRunInfo").style.display="none";
-            document.getElementById("replayBtn").style.display="none";
-            document.getElementById("clearBtn").style.display="none";
-            clearTimeout(loadTimeout); loadTimeout=setTimeout(load,2000);
-        };
+    sel.value=defaultDz; lat=dz[defaultDz][0]; lon=dz[defaultDz][1];
+    initMap(); load();
+    document.getElementById("hour").oninput=()=>{
         renderTime();
-    }
-
-    // Start immediately with fallback, then switch if geolocation returns quickly
-    startWithDZ(fallbackDz);
-
-    if (navigator.geolocation){
-        navigator.geolocation.getCurrentPosition(
-            pos => {
-                const nearest = closestDZ(pos.coords.latitude, pos.coords.longitude);
-                if (nearest && nearest !== document.getElementById("dz").value){
-                    // Only switch if initial load is complete, to avoid double API call
-                    const sel = document.getElementById("dz");
-                    sel.value = nearest;
-                    lat = dz[nearest][0]; lon = dz[nearest][1];
-                    firstLoad = true;
-                    // Small delay to let initial load finish first
-                    setTimeout(load, 500);
-                }
-            },
-            () => {}, // denied or failed — stay on fallback
-            { timeout: 5000, maximumAge: 300000 }
-        );
-    }
+        if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}
+        if(freefallLine){freefallLine.forEach(l=>l.remove());freefallLine=null;}
+        stopPlane(); jrStart=null; jrEnd=null;
+        document.getElementById("jumpRunInfo").style.display="none";
+        document.getElementById("replayBtn").style.display="none";
+        document.getElementById("clearBtn").style.display="none";
+        clearTimeout(loadTimeout); loadTimeout=setTimeout(load,2000);
+    };
+    renderTime();
     sel.onchange=()=>{
         const v=sel.value; lat=dz[v][0]; lon=dz[v][1];
         if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}

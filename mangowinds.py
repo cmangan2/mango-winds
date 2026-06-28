@@ -14,7 +14,7 @@ app = Flask(__name__)
 # =====================================================
 _forecast_cache = {}
 CACHE_TTL = timedelta(minutes=120)  # 2 hour cache to reduce API calls
-CACHE_FILE  = os.path.join(os.path.dirname(__file__), "winds_cache.json")
+CACHE_FILE  = os.environ.get("CACHE_FILE", os.path.join(os.path.dirname(__file__), "winds_cache.json"))
 VISITS_FILE   = os.environ.get("VISITS_FILE",   os.path.join(os.path.dirname(__file__), "visits.json"))
 JUMPRUN_FILE  = os.environ.get("JUMPRUN_FILE",  os.path.join(os.path.dirname(__file__), "jumprun.json"))
 TAILS_FILE    = os.environ.get("TAILS_FILE",    os.path.join(os.path.dirname(__file__), "tails.json"))

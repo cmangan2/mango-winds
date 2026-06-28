@@ -1574,4 +1574,532 @@ async function fetchTraceHistory(icao, tail){
         for (let i = lastDiveIdx - 1; i >= 0; i--){
             const p = pts[i];
             if (jrPts.length > 0){
-                tDist += distMeters([p.lat, p.lon], [jr
+                tDist += distMeters([p.lat, p.lon], [jrPts[0].lat, jrPts[0].lon]);
+                if (tDist > THREE_MI) break;
+            }
+            jrPts.unshift(p);
+        }
+
+        planeHistory = pts.slice(Math.max(0, lastDiveIdx - 60), lastDiveIdx).map(p => ({...p, ts: p.ts * 1000}));
+
+        if (jrPts.length >= 2){
+            drawJumpRunLine(jrPts);
+            showJumpRunStatus(null);
+        } else {
+            showJumpRunStatus(null);
+        }
+            if (historyTrailLine){ if(historyTrailLine)historyTrailLine.remove(); historyTrailLine = null; }
+            const histCoords2 = pts.filter(p => p.lat && p.lon).map(p => [p.lat, p.lon]);
+            if (histCoords2.length > 1){ historyTrailLine = L.polyline(histCoords2, { color: '#00d4ff', weight: 2, opacity: 0.3 }).addTo(map); }
+    } catch(e){
+        console.error("Trace history error:", e);
+        showJumpRunStatus(null);
+    }
+}
+
+function drawJumpRunLine(pts){
+    if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
+    if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
+    if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
+    const coords = pts.map(p => [p.lat, p.lon]);
+    lastJumpRunLine = L.polyline(coords, { color: "#ff4f4f", weight: 4, opacity: 0.9 }).addTo(map);
+    lastJumpRunLabel = L.marker([pts[0].lat, pts[0].lon], {
+        icon: L.divIcon({
+            html: `<div style="display:inline-block;background:rgba(7,11,16,0.95);border:1.5px solid #ff4f4f;border-radius:6px;padding:4px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;font-weight:700;color:#ff4f4f;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.7);white-space:nowrap">Jump Run</div>`,
+            className: "", iconAnchor: [0, 24]
+        }), interactive: false
+    }).addTo(map);
+}
+
+async function startTracking(){
+    const tail = document.getElementById("planeTail").value.trim().toUpperCase();
+    if (!tail){ document.getElementById("trackError").textContent="Enter a tail number"; document.getElementById("trackError").style.display="block"; return; }
+    closeTrackModal();
+    // Save tail for this DZ
+    const dzName = document.getElementById("dz").value;
+    fetch('/tails', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ dz: dzName, tail: tail }) }).catch(()=>{});
+    document.getElementById("trackBtn").textContent = "■ Stop Tracking " + tail;
+    document.getElementById("trackBtn").style.color = "var(--red)";
+    document.getElementById("trackBtn").style.borderColor = "var(--red)";
+    document.getElementById("trackBtn").style.background = "rgba(255,79,79,0.1)";
+    document.getElementById("trackBtn").onclick = stopTracking;
+
+    // First poll — calls ADS-B Exchange directly from browser
+    await pollPlane(tail);
+
+    if (planeTrackInterval) clearInterval(planeTrackInterval);
+    planeTrackInterval = setInterval(() => pollPlane(tail), 5000);
+}
+
+function stopTracking(){
+    if (planeTrackInterval){ clearInterval(planeTrackInterval); planeTrackInterval = null; }
+    if (planeAnimFrame){ cancelAnimationFrame(planeAnimFrame); planeAnimFrame = null; }
+    if (trackedPlaneMarker){ trackedPlaneMarker.remove(); trackedPlaneMarker = null; }
+    if (trackedPlaneLabel){ trackedPlaneLabel.remove(); trackedPlaneLabel = null; }
+    if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
+    if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
+    if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
+    if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
+    const arrow = document.getElementById("planeOffscreenArrow");
+    if (arrow) arrow.remove();
+    trackedPlane = null; planeHistory = []; divingConfirmed = 0;
+    planeTrail = [];
+    if (planeTrailLine){ planeTrailLine.remove(); planeTrailLine = null; }
+    if (historyTrailLine){ historyTrailLine.remove(); historyTrailLine = null; }
+    if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
+    if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
+    if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
+    if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
+    if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
+    showJumpRunStatus(null);
+    // Clean up frozen trail state
+    frozenTrailPoints = null; jrMarkPoints = [];
+    jrMarkMarkers.forEach(m => m.remove()); jrMarkMarkers = [];
+    map.getContainer().style.cursor = "";
+    document.getElementById("planeInfo").style.display = "none";
+    const tb = document.getElementById("trackBtn");
+    tb.textContent = "✈️ Track Plane";
+    tb.style.background = "var(--card-bg)";
+    tb.style.color = "#00d4ff";
+    tb.style.borderColor = "#00d4ff";
+    tb.onclick = openTrackModal;
+}
+
+// ── COMMUNITY JUMP RUN ──
+let frozenTrailPoints = null;   // points from frozen trail for click selection
+let jrMarkMode = false;         // waiting for user to click start/end
+let jrMarkPoints = [];          // [start, end] latlng clicks
+let jrMarkMarkers = [];         // temp markers during selection
+let communityJrLine = null;
+let communityJrLabel = null;
+let communityJrArrow = null;
+let frozenTrailLine = null;
+
+function freezeTrail(){
+    if (!trackedPlane || planeTrail.length < 2){
+        showJumpRunStatus("No flight trail to freeze yet");
+        return;
+    }
+
+    // Save trail before stopTracking clears it
+    const savedTrail = [...planeTrail];
+    const savedTrailLine = planeTrailLine;
+
+    // Stop everything cleanly — but intercept trail removal
+    planeTrail = [];          // prevent stopTracking from using stale trail
+    planeTrailLine = null;    // prevent stopTracking from removing the line
+
+    stopTracking();           // full cleanup of plane marker, intervals, JR lines etc
+
+    // Restore frozen trail
+    frozenTrailPoints = savedTrail;
+    planeTrailLine = savedTrailLine;
+    if (planeTrailLine){ planeTrailLine.setStyle({ opacity: 0.9, weight: 5 }); }
+
+    // Show freeze UI
+    document.getElementById("planeInfo").style.display = "block";
+    document.getElementById("planeInfo").innerHTML =
+        `<span style="color:var(--freefall);font-weight:bold">Trail frozen</span>` +
+        `<br><div style="display:flex;gap:4px;margin-top:6px">` +
+        `<button onclick="startJrMarkMode()" style="flex:1;padding:5px;background:none;border:1px solid #ff4f4f;color:#ff4f4f;border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✏️ Mark Jump Run</button>` +
+        `<button onclick="clearFrozenTrail()" style="flex:1;padding:5px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✕ Clear All</button>` +
+        `</div>`;
+
+    showJumpRunStatus("Tap 'Mark Jump Run' then tap start and end on the trail.");
+}
+
+function nearestTrailPoint(clickLatLng){
+    const trail = frozenTrailPoints || planeTrail;
+    if (!trail || trail.length === 0) return clickLatLng;
+    let best = null, bestDist = Infinity;
+    for (const pt of trail){
+        const d = map.distance(clickLatLng, L.latLng(pt[0], pt[1]));
+        if (d < bestDist){ bestDist = d; best = L.latLng(pt[0], pt[1]); }
+    }
+    return best || clickLatLng;
+}
+
+function startJrMarkMode(){
+    jrMarkMode = true;
+    jrMarkPoints = [];
+    jrMarkMarkers.forEach(m => m.remove()); jrMarkMarkers = [];
+    map.getContainer().style.cursor = "crosshair";
+    showJumpRunStatus("Tap the START of the jump run on the trail...");
+
+    map.once('click', function(e){
+        const snapped = nearestTrailPoint(e.latlng);
+        jrMarkPoints.push(snapped);
+        const m = L.circleMarker([snapped.lat, snapped.lng], {
+            radius: 8, color: '#ff4f4f', fillColor: '#ff4f4f', fillOpacity: 0.9, weight: 2
+        }).addTo(map);
+        jrMarkMarkers.push(m);
+        showJumpRunStatus("Now tap the END of the jump run on the trail...");
+
+        map.once('click', function(e2){
+            const snapped2 = nearestTrailPoint(e2.latlng);
+            jrMarkPoints.push(snapped2);
+            const m2 = L.circleMarker([snapped2.lat, snapped2.lng], {
+                radius: 8, color: '#ff4f4f', fillColor: '#ff4f4f', fillOpacity: 0.9, weight: 2
+            }).addTo(map);
+            jrMarkMarkers.push(m2);
+            map.getContainer().style.cursor = "";
+            jrMarkMode = false;
+            drawAndSaveCommunityJR();
+        });
+    });
+}
+
+function drawAndSaveCommunityJR(){
+    if (jrMarkPoints.length < 2) return;
+    const start = jrMarkPoints[0];
+    const end   = jrMarkPoints[1];
+
+    if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
+    if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
+    if (communityJrArrow){ communityJrArrow.remove(); communityJrArrow = null; }
+
+    // Extract trail segment between the two snapped points
+    const trail = frozenTrailPoints || planeTrail;
+    let coords = [[start.lat, start.lng], [end.lat, end.lng]]; // fallback straight line
+    if (trail && trail.length > 1){
+        // Find indices of start and end in trail
+        let si = 0, ei = trail.length - 1, sd = Infinity, ed = Infinity;
+        for (let i = 0; i < trail.length; i++){
+            const ds = map.distance(start, L.latLng(trail[i][0], trail[i][1]));
+            const de = map.distance(end,   L.latLng(trail[i][0], trail[i][1]));
+            if (ds < sd){ sd = ds; si = i; }
+            if (de < ed){ ed = de; ei = i; }
+        }
+        // Ensure start < end
+        if (si > ei){ const tmp = si; si = ei; ei = tmp; }
+        const seg = trail.slice(si, ei + 1);
+        if (seg.length >= 2) coords = seg;
+    }
+
+    communityJrLine = L.polyline(coords, {
+        color: "#ff4f4f", weight: 4, opacity: 0.9
+    }).addTo(map);
+
+    // coords is array of [lat,lon] pairs
+    const hdg = bearing(
+        Array.isArray(coords[0]) ? coords[0] : [coords[0].lat, coords[0].lng],
+        Array.isArray(coords[coords.length-1]) ? coords[coords.length-1] : [coords[coords.length-1].lat, coords[coords.length-1].lng]
+    );
+    const midPt = coords[Math.floor(coords.length/2)];
+    const midLat = Array.isArray(midPt) ? midPt[0] : midPt.lat;
+    const midLng = Array.isArray(midPt) ? midPt[1] : midPt.lng;
+    const startPt2 = coords[0];
+    const startLat = Array.isArray(startPt2) ? startPt2[0] : startPt2.lat;
+    const startLng = Array.isArray(startPt2) ? startPt2[1] : startPt2.lng;
+
+    communityJrLabel = L.marker([startLat, startLng], {
+        icon: L.divIcon({
+            html: `<div style="display:inline-block;background:rgba(7,11,16,0.95);border:1.5px solid #ff4f4f;border-radius:6px;padding:4px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;font-weight:700;color:#ff4f4f;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.7);white-space:nowrap">Jump Run</div>`,
+            className: "", iconAnchor: [0,0]
+        }), interactive: false
+    }).addTo(map);
+
+    // Save to server
+    const dzName = document.getElementById("dz").value;
+    const alt = trackedPlane ? trackedPlane.alt : null;
+    const tail = trackedPlane ? trackedPlane.tail : "";
+
+    const saveStart = Array.isArray(coords[0]) ? coords[0] : [coords[0].lat, coords[0].lng];
+    const saveEnd = Array.isArray(coords[coords.length-1]) ? coords[coords.length-1] : [coords[coords.length-1].lat, coords[coords.length-1].lng];
+    fetch('/jumprun', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            dz: dzName,
+            start: saveStart,
+            end: saveEnd,
+            alt: alt,
+            heading: Math.round(hdg),
+            tail: tail,
+        })
+    }).then(r => r.json()).then(d => {
+        if (d.status === 'saved'){
+            const n = d.submissions || 1;
+            const msg = n > 1 ? `✅ Saved! Averaged with ${n} submissions today.` : '✅ Jump run saved! Others at this DZ can now see it.';
+            showJumpRunStatus(msg);
+            jrMarkMarkers.forEach(m => m.remove()); jrMarkMarkers = [];
+            // Update planeInfo
+            document.getElementById("planeInfo").innerHTML =
+                `<span style="color:#39ff89;font-weight:bold">Jump run saved!</span>` +
+                `<br><div style="display:flex;gap:4px;margin-top:6px">` +
+                `<button onclick="startJrMarkMode()" style="flex:1;padding:5px;background:none;border:1px solid #ff4f4f;color:#ff4f4f;border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✏️ Re-mark</button>` +
+                `<button onclick="clearFrozenTrail()" style="flex:1;padding:5px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✕ Clear All</button>` +
+                `</div>`;
+        }
+    }).catch(e => showJumpRunStatus("⚠️ Could not save — check connection"));
+}
+
+function clearFrozenTrail(){
+    if (planeTrailLine){ planeTrailLine.remove(); planeTrailLine = null; }
+    if (frozenTrailLine){ frozenTrailLine.remove(); frozenTrailLine = null; }
+    if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
+    if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
+    if (communityJrArrow){ communityJrArrow.remove(); communityJrArrow = null; }
+    jrMarkMarkers.forEach(m => m.remove()); jrMarkMarkers = [];
+    frozenTrailPoints = null; jrMarkPoints = [];
+    document.getElementById("planeInfo").style.display = "none";
+    planeTrail = [];
+    map.getContainer().style.cursor = "";
+    showJumpRunStatus(null);
+}
+
+async function loadCommunityJR(){
+    const dzName = document.getElementById("dz").value;
+    const btn = document.getElementById("communityJrBtn");
+    try {
+        const r = await fetch(`/jumprun?dz=${encodeURIComponent(dzName)}`);
+        const d = await r.json();
+        if (!d.start || !d.end){
+            showJumpRunStatus("No jump run saved for this DZ today");
+            return;
+        }
+        // Show age in label
+        const ts = new Date(d.timestamp);
+        const ageHours = (Date.now() - ts.getTime()) / 3600000;
+        let timeStr;
+        if (ageHours < 0.25) timeStr = "just now";
+        else if (ageHours < 1) timeStr = `${Math.round(ageHours*60)}min ago`;
+        else if (ageHours < 24) timeStr = ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+        else timeStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        // Draw it
+        if (communityJrLine){ communityJrLine.remove(); }
+        if (communityJrLabel){ communityJrLabel.remove(); }
+        communityJrLine = L.polyline([d.start, d.end], {
+            color: "#ff4f4f", weight: 4, opacity: 0.9
+        }).addTo(map);
+        communityJrLabel = L.marker(d.start, {
+            icon: L.divIcon({
+                html: `<div style="display:inline-block;background:rgba(7,11,16,0.95);border:1.5px solid #ff4f4f;border-radius:6px;padding:5px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;font-weight:700;color:#ff4f4f;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.7);white-space:nowrap;line-height:1.5">Jump Run ${d.heading ? d.heading+'°' : ''}<br><span style="font-weight:600;font-size:0.78rem;letter-spacing:0.06em">${timeStr}${d.tail ? ' · '+d.tail : ''}${d.submission_count > 1 ? ' · '+d.submission_count+' reports' : ''}</span></div>`,
+                className: "", iconAnchor: [0, 24]
+            }), interactive: false
+        }).addTo(map);
+        btn.style.color = "#ff4f4f";
+        btn.style.borderColor = "#ff4f4f";
+        btn.textContent = "📍 Hide Jump Run";
+        btn.onclick = () => {
+            if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
+            if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
+            btn.style.color = "#ff4f4f";
+            btn.style.borderColor = "var(--border)";
+            btn.textContent = "📍 Show Last Jump Run";
+            btn.onclick = loadCommunityJR;
+        };
+    } catch(e){
+        showJumpRunStatus("⚠️ Could not load jump run data");
+    }
+}
+
+// ── CLOUD POPUP DRAG ──
+(function(){
+    function initCloudDrag(){
+        const box = document.getElementById("cloudPopup");
+        if (!box) return;
+        let dragging=false, startX=0, startY=0, origX=0, origY=0;
+        function getPos(e){ return e.touches ? e.touches[0] : e; }
+        function onStart(e){
+            if (e.target.tagName==="BUTTON") return;
+            dragging=true;
+            const p=getPos(e); startX=p.clientX; startY=p.clientY;
+            const rect=box.getBoundingClientRect(); origX=rect.left; origY=rect.top;
+            box.style.cursor="grabbing"; box.style.transition="none";
+            box.style.left=origX+"px"; box.style.top=origY+"px";
+            box.style.bottom="auto"; box.style.transform="none";
+            e.preventDefault();
+        }
+        function onMove(e){
+            if (!dragging) return;
+            const p=getPos(e);
+            box.style.left=(origX+p.clientX-startX)+"px";
+            box.style.top=(origY+p.clientY-startY)+"px";
+            e.preventDefault();
+        }
+        function onEnd(){ dragging=false; box.style.cursor="grab"; }
+        box.addEventListener("mousedown", onStart);
+        box.addEventListener("touchstart", onStart, {passive:false});
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("touchmove", onMove, {passive:false});
+        window.addEventListener("mouseup", onEnd);
+        window.addEventListener("touchend", onEnd);
+    }
+    // Init after DOM ready
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initCloudDrag);
+    else initCloudDrag();
+})();
+
+function skyIcon(sky, cover){
+    if (cover < 13) return '&#9728;'; // sun
+    if (cover < 38) return '&#127780;'; // sun behind small cloud
+    if (cover < 63) return '&#9925;'; // sun behind cloud
+    if (cover < 88) return '&#9729;'; // cloud
+    return '&#127745;'; // cloudy
+}
+
+function toggleCloudPopup(){
+    const popup = document.getElementById("cloudPopup");
+    if (popup.style.display !== "none"){ popup.style.display="none"; return; }
+    popup.style.display = "block";
+    renderCloudPopup();
+}
+
+function renderCloudPopup(){
+    const el = document.getElementById("cloudContent");
+    const clouds = window._lastClouds;
+    if (!clouds || !clouds.length){ el.innerHTML = '<span style="color:var(--muted)">No cloud data available</span>'; return; }
+
+    // Get base time from forecast offset slider
+    const forecastOffsetH = parseInt(document.getElementById("hour").value) || 0;
+    const now = new Date();
+    const baseTime = new Date(now.getTime() + forecastOffsetH * 3600000);
+    baseTime.setMinutes(0, 0, 0);
+
+    // Build table
+    let html = '<table style="border-collapse:collapse;width:100%">';
+
+    // Header row — time labels relative to slider position
+    html += '<tr>';
+    html += '<td style="padding:3px 6px;color:var(--muted);font-size:0.6rem"></td>';
+    for (const b of clouds){
+        const t = new Date(baseTime.getTime() + b.offset_h * 3600000);
+        const hr = t.getHours();
+        const ampm = hr >= 12 ? 'PM' : 'AM';
+        const h12 = hr % 12 || 12;
+        const dayStr = b.offset_h === 0 ? document.getElementById("timeLabel").innerText : `${h12}${ampm}`;
+        html += `<td style="text-align:center;padding:3px 8px;color:var(--muted);font-size:0.65rem;white-space:nowrap">${dayStr}</td>`;
+    }
+    html += '</tr>';
+
+    // Icon row
+    html += '<tr>';
+    html += '<td style="padding:3px 6px;color:var(--muted);font-size:0.6rem"></td>';
+    for (const b of clouds){
+        const iconColor = b.precip > 30 ? '#4488ff' : b.cover > 70 ? 'var(--muted)' : '#ffdd88';
+        html += `<td style="text-align:center;padding:4px 8px;font-size:1.4rem">${skyIcon(b.sky, b.cover)}</td>`;
+    }
+    html += '</tr>';
+
+    // Sky condition row
+    html += '<tr>';
+    html += '<td style="padding:3px 6px;color:var(--muted);font-size:0.6rem"></td>';
+    for (const b of clouds){
+        const label = b.sky.replace(' ', '<br>');
+        html += `<td style="text-align:center;padding:2px 4px;font-size:0.62rem;color:var(--text);line-height:1.3">${label}</td>`;
+    }
+    html += '</tr>';
+
+    // Cover % row
+    html += '<tr>';
+    html += `<td style="padding:3px 6px;color:var(--muted);font-size:0.6rem;white-space:nowrap">% Cov</td>`;
+    for (const b of clouds){
+        const col = b.cover > 75 ? 'var(--muted)' : b.cover > 40 ? '#ffaa00' : '#39ff89';
+        html += `<td style="text-align:center;padding:2px 4px;color:${col};font-size:0.72rem">${b.cover}%</td>`;
+    }
+    html += '</tr>';
+
+    // Cloud base row
+    html += '<tr style="border-top:1px solid var(--border)">';
+    html += `<td style="padding:4px 6px;color:var(--muted);font-size:0.6rem;white-space:nowrap">Base</td>`;
+    for (const b of clouds){
+        const baseStr = b.base_ft != null ? (b.base_ft >= 1000 ? `${(b.base_ft/1000).toFixed(1)}k ft` : `${b.base_ft} ft`) : '—';
+        const baseCol = b.base_ft != null && b.base_ft < 3000 ? '#ff4f4f' : b.base_ft != null && b.base_ft < 6000 ? '#ffaa00' : 'var(--muted)';
+        html += `<td style="text-align:center;padding:4px 4px;color:${baseCol};font-size:0.68rem">${baseStr}</td>`;
+    }
+    html += '</tr>';
+
+    // Precip row (only if any precip)
+    const anyPrecip = clouds.some(b => b.precip > 10);
+    if (anyPrecip){
+        html += '<tr>';
+        html += `<td style="padding:3px 6px;color:var(--muted);font-size:0.6rem;white-space:nowrap">💧 Rain</td>`;
+        for (const b of clouds){
+            const col = b.precip > 50 ? '#ff4f4f' : b.precip > 20 ? '#ffaa00' : 'var(--muted)';
+            html += `<td style="text-align:center;padding:2px 4px;color:${col};font-size:0.68rem">${b.precip > 0 ? b.precip+'%' : '—'}</td>`;
+        }
+        html += '</tr>';
+    }
+
+    html += '</table>';
+    el.innerHTML = html;
+}
+
+function haversineMi(lat1,lon1,lat2,lon2){
+    const R=3958.8, dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
+    const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+    return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function closestDZ(userLat, userLon){
+    let best=null, bestDist=Infinity;
+    for (const [name, coords] of Object.entries(dz)){
+        const d=haversineMi(userLat,userLon,coords[0],coords[1]);
+        if (d<bestDist){ bestDist=d; best=name; }
+    }
+    return best;
+}
+
+function initDZ(){
+    const sel=document.getElementById("dz");
+    const keys=Object.keys(dz);
+    const fallbackDz=keys.find(k=>k.toLowerCase().includes("skydive new england"))||keys[0];
+    for (const k of keys){ const o=document.createElement("option"); o.value=k; o.text=k; sel.appendChild(o); }
+
+    function startWithDZ(dzName){
+        sel.value=dzName; lat=dz[dzName][0]; lon=dz[dzName][1];
+        initMap(); load();
+        document.getElementById("hour").oninput=()=>{
+            renderTime();
+            if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}
+            if(freefallLine){freefallLine.forEach(l=>l.remove());freefallLine=null;}
+            stopPlane(); jrStart=null; jrEnd=null;
+            document.getElementById("jumpRunInfo").style.display="none";
+            document.getElementById("replayBtn").style.display="none";
+            document.getElementById("clearBtn").style.display="none";
+            clearTimeout(loadTimeout); loadTimeout=setTimeout(load,2000);
+        };
+        renderTime();
+    }
+
+    // Start immediately with fallback, then switch if geolocation returns quickly
+    startWithDZ(fallbackDz);
+
+    if (navigator.geolocation){
+        navigator.geolocation.getCurrentPosition(
+            pos => {
+                const nearest = closestDZ(pos.coords.latitude, pos.coords.longitude);
+                if (nearest && nearest !== document.getElementById("dz").value){
+                    // Switch DZ without full reload — just update and reload data
+                    const sel = document.getElementById("dz");
+                    sel.value = nearest;
+                    lat = dz[nearest][0]; lon = dz[nearest][1];
+                    firstLoad = true;
+                    load();
+                }
+            },
+            () => {}, // denied or failed — stay on fallback
+            { timeout: 5000, maximumAge: 300000 }
+        );
+    }
+    sel.onchange=()=>{
+        const v=sel.value; lat=dz[v][0]; lon=dz[v][1];
+        if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}
+        if(freefallLine){freefallLine.forEach(l=>l.remove());freefallLine=null;}
+        stopPlane(); jrStart=null; jrEnd=null;
+        document.getElementById("jumpRunInfo").style.display="none";
+        document.getElementById("replayBtn").style.display="none";
+        document.getElementById("clearBtn").style.display="none";
+        firstLoad=true; load();
+    };
+}
+if (document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", initDZ);
+} else {
+    initDZ();
+}
+</script>
+</body>
+</html>

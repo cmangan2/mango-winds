@@ -2026,12 +2026,56 @@ function renderCloudPopup(){
     el.innerHTML = html;
 }
 
+function haversineMi(lat1,lon1,lat2,lon2){
+    const R=3958.8, dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
+    const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+    return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function closestDZ(userLat, userLon){
+    let best=null, bestDist=Infinity;
+    for (const [name, coords] of Object.entries(dz)){
+        const d=haversineMi(userLat,userLon,coords[0],coords[1]);
+        if (d<bestDist){ bestDist=d; best=name; }
+    }
+    return best;
+}
+
 function initDZ(){
     const sel=document.getElementById("dz");
     const keys=Object.keys(dz);
-    const defaultDz=keys.find(k=>k.toLowerCase().includes("skydive new england"))||keys[0];
+    const fallbackDz=keys.find(k=>k.toLowerCase().includes("skydive new england"))||keys[0];
     for (const k of keys){ const o=document.createElement("option"); o.value=k; o.text=k; sel.appendChild(o); }
-    sel.value=defaultDz; lat=dz[defaultDz][0]; lon=dz[defaultDz][1];
+
+    function startWithDZ(dzName){
+        sel.value=dzName; lat=dz[dzName][0]; lon=dz[dzName][1];
+        initMap(); load();
+        document.getElementById("hour").oninput=()=>{
+            renderTime();
+            if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}
+            if(freefallLine){freefallLine.forEach(l=>l.remove());freefallLine=null;}
+            stopPlane(); jrStart=null; jrEnd=null;
+            document.getElementById("jumpRunInfo").style.display="none";
+            document.getElementById("replayBtn").style.display="none";
+            document.getElementById("clearBtn").style.display="none";
+            clearTimeout(loadTimeout); loadTimeout=setTimeout(load,2000);
+        };
+        renderTime();
+    }
+
+    // Try geolocation first
+    if (navigator.geolocation){
+        navigator.geolocation.getCurrentPosition(
+            pos => {
+                const nearest = closestDZ(pos.coords.latitude, pos.coords.longitude);
+                startWithDZ(nearest);
+            },
+            () => startWithDZ(fallbackDz), // denied or failed — use fallback
+            { timeout: 4000, maximumAge: 300000 }
+        );
+    } else {
+        startWithDZ(fallbackDz);
+    }
     sel.onchange=()=>{
         const v=sel.value; lat=dz[v][0]; lon=dz[v][1];
         if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}

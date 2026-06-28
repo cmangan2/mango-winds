@@ -278,24 +278,34 @@ def fetch_forecast(lat, lon, hour_offset=0):
     try:
         api_key = os.environ.get("OPENMETEO_API_KEY")
         base_url = "https://customer-api.open-meteo.com/v1/forecast" if api_key else "https://api.open-meteo.com/v1/forecast"
-        # Wind fields only — 9 variables = 1.0 API call each
+        # Wind fields — split into two requests, each under 10 vars = 1.0 API call each
         wind_fields = [
-            "windspeed_10m","winddirection_10m",
+            "windspeed_10m","winddirection_10m","windspeed_80m","winddirection_80m",
             "windspeed_1000hPa","winddirection_1000hPa",
+            "windspeed_975hPa","winddirection_975hPa",
+            "windspeed_950hPa","winddirection_950hPa",
+        ]
+        wind_fields2 = [
+            "windspeed_925hPa","winddirection_925hPa",
             "windspeed_850hPa","winddirection_850hPa",
             "windspeed_700hPa","winddirection_700hPa",
+            "windspeed_600hPa","winddirection_600hPa",
             "windspeed_500hPa","winddirection_500hPa",
         ]
-        # Temp + height fields — 9 variables = 1.0 API call each
+        # Temp + height fields — split into two requests under 10 vars each
         temp_fields = [
             "temperature_2m",
-            "temperature_1000hPa","temperature_850hPa",
-            "temperature_700hPa","temperature_500hPa",
-            "geopotential_height_1000hPa","geopotential_height_850hPa",
-            "geopotential_height_700hPa","geopotential_height_500hPa",
+            "temperature_1000hPa","temperature_975hPa",
+            "temperature_950hPa","temperature_925hPa",
+            "temperature_850hPa","temperature_700hPa",
+            "temperature_600hPa","temperature_500hPa",
         ]
-        # Combine for the main hourly request — still under 10 per model call split
-        hourly_str = ",".join(wind_fields + temp_fields)
+        height_fields = [
+            "geopotential_height_1000hPa","geopotential_height_975hPa",
+            "geopotential_height_950hPa","geopotential_height_925hPa",
+            "geopotential_height_850hPa","geopotential_height_700hPa",
+            "geopotential_height_600hPa","geopotential_height_500hPa",
+        ]
         # Cloud fields fetched separately from GFS only (not all 4 models)
         cloud_fields_str = "cloudcover_low,cloudcover_mid,cloudcover_high,cloudcover,precipitation_probability,visibility,dewpoint_2m,temperature_2m"
         # Short range (0-18h): GFS + ICON + HRRR + NAM — best resolution for current conditions
@@ -337,33 +347,33 @@ def fetch_forecast(lat, lon, hour_offset=0):
                                  headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
                 return r
 
+            def handle_429(r):
+                if r.status_code == 429 and cached_model:
+                    extended = now + timedelta(hours=6)
+                    _forecast_cache[model_key] = {"data": cached_model["data"], "expires": extended}
+                    print(f"Rate limited — extending cache for {model} by 6h")
+                    return True
+                return False
+
             try:
-                # Fetch winds (≤10 vars = 1.0 call)
-                r1 = fetch_url(",".join(wind_fields))
-                if not r1.ok:
-                    print(f"Open-Meteo {model} wind {r1.status_code}: {r1.text[:200]}")
-                    if r1.status_code == 429 and cached_model:
-                        extended = now + timedelta(hours=6)
-                        _forecast_cache[model_key] = {"data": cached_model["data"], "expires": extended}
-                        print(f"Rate limited — extending cache for {model} by 6h")
-                        return model, cached_model["data"]
-                    return model, None
-                # Fetch temps/heights (≤10 vars = 1.0 call)
-                r2 = fetch_url(",".join(temp_fields))
-                if not r2.ok:
-                    print(f"Open-Meteo {model} temp {r2.status_code}: {r2.text[:200]}")
-                    if r2.status_code == 429 and cached_model:
-                        extended = now + timedelta(hours=6)
-                        _forecast_cache[model_key] = {"data": cached_model["data"], "expires": extended}
-                        return model, cached_model["data"]
-                    return model, None
-                # Merge the two responses
-                mdata = r1.json()
-                t2 = r2.json()
-                if "hourly" in t2:
-                    mdata.setdefault("hourly", {}).update(t2["hourly"])
+                # 4 requests per model, each ≤10 vars = 1.0 API call each
+                responses = []
+                field_groups = [wind_fields, wind_fields2, temp_fields, height_fields]
+                for fg in field_groups:
+                    r = fetch_url(",".join(fg))
+                    if not r.ok:
+                        print(f"Open-Meteo {model} {r.status_code}: {r.text[:200]}")
+                        if handle_429(r):
+                            return model, cached_model["data"]
+                        return model, None
+                    responses.append(r.json())
+                # Merge all responses
+                mdata = responses[0]
+                for resp in responses[1:]:
+                    if "hourly" in resp:
+                        mdata.setdefault("hourly", {}).update(resp["hourly"])
                 _forecast_cache[model_key] = {"data": mdata, "expires": now + CACHE_TTL}
-                print(f"Open-Meteo {model} OK (2 calls)")
+                print(f"Open-Meteo {model} OK (4 calls)")
                 return model, mdata
             except Exception as me:
                 print(f"Open-Meteo {model} error: {me}")
@@ -385,7 +395,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
             return None
 
         print(f"Ensemble: {len(model_data)}/{len(ensemble_models)} models loaded: {list(model_data.keys())}")
-        record_api_call(len(ensemble_models) * 2)  # 2 calls per model (wind + temp split)
+        record_api_call(len(ensemble_models) * 4)  # 4 calls per model (wind1+wind2+temp+height)
         result = {"source": "openmeteo_ensemble", "models": model_data}
         _forecast_cache[dz_key] = {"data": result, "expires": now + CACHE_TTL}
         save_cache_to_disk()

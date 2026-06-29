@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="2.4.5">
+<meta name="app-version" content="2.4.6">
 <script>
 try {
     const CURRENT_VERSION = "2.4.6";
@@ -111,6 +111,9 @@ body {
 @media (min-width: 600px) {
     #panel-handle { display: none; }
     #panel-body { display: contents; }
+    #controls { overflow-y: auto; max-height: 45vh; }
+    #controls::-webkit-scrollbar { width: 3px; }
+    #controls::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 }
 #panel-header { padding: 14px 16px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 #panel-header h1 { font-weight: 700; font-size: 1.35rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
@@ -1289,7 +1292,7 @@ let lastJumpRunArrow = null;
 let divingConfirmed = 0;        // consecutive dive polls
 const LEVEL_THRESHOLD = 600;   // fpm — within this = level flight
 const DIVE_THRESHOLD  = -1000; // fpm — below this = diving after drop
-const DIVE_CONFIRM    = 3;     // consecutive dive polls to confirm
+const DIVE_CONFIRM    = 2;     // consecutive dive polls to confirm
 
 async function openTrackModal(){
     const m = document.getElementById("trackModal");
@@ -1529,15 +1532,21 @@ function detectJumpRun(data){
 
 function extractAndDrawJumpRun(){
     if (planeHistory.length < 2) return;
-    // Use last 3 miles of track before the dive
-    const THREE_MILES_M = 4828;
+    const TWO_MILES_M = 3219;
+
+    // Walk backwards — skip the confirmed dive points first
+    let startIdx = planeHistory.length - 1;
+    while (startIdx >= 0 && (planeHistory[startIdx].vert || 0) < -1000){
+        startIdx--;
+    }
+    // Now collect up to 2 miles of pre-dive track
     const pts = [];
     let totalDist = 0;
-    for (let i = planeHistory.length - 1; i >= 0; i--){
+    for (let i = startIdx; i >= 0; i--){
         const p = planeHistory[i];
         if (pts.length > 0){
             totalDist += distMeters([p.lat, p.lon], [pts[0].lat, pts[0].lon]);
-            if (totalDist > THREE_MILES_M) break;
+            if (totalDist > TWO_MILES_M) break;
         }
         pts.unshift(p);
     }
@@ -1551,10 +1560,46 @@ function updatePlaneMarker(data){
     trackedPlane = data;
     if (trackedPlaneMarker) trackedPlaneMarker.setIcon(planeTrackIcon(data.hdg||0, data.on_ground));
     if (data.fr24id) trackedPlane.fr24id = data.fr24id;
-    // Always record real position to trail regardless of tab visibility
+    // Always record real position + metadata to trail
     planeTrail.push([data.lat, data.lon]);
+    // Store metadata alongside trail for hover tooltips
+    if (!window._planeTrailMeta) window._planeTrailMeta = [];
+    window._planeTrailMeta.push({ alt: data.alt, spd: data.spd, vert: data.vert });
     if (planeTrailLine){ planeTrailLine.setLatLngs(planeTrail); }
-    else { planeTrailLine = L.polyline(planeTrail, { color: '#00d4ff', weight: 4, opacity: 0.6 }).addTo(map); }
+    else {
+        planeTrailLine = L.polyline(planeTrail, { color: '#00d4ff', weight: 4, opacity: 0.6 }).addTo(map);
+        // Add hover tooltip every ~10 points
+        planeTrailLine.on('mousemove', function(e){
+            if (!window._planeTrailMeta || planeTrail.length < 2) return;
+            // Find nearest trail point to mouse
+            let best = 0, bestDist = Infinity;
+            for (let i = 0; i < planeTrail.length; i++){
+                const d = map.distance(e.latlng, L.latLng(planeTrail[i][0], planeTrail[i][1]));
+                if (d < bestDist){ bestDist = d; best = i; }
+            }
+            const meta = window._planeTrailMeta[best];
+            if (!meta) return;
+            const alt  = meta.alt  ? Math.round(meta.alt).toLocaleString() + " ft" : "—";
+            const spd  = meta.spd  ? Math.round(meta.spd) + " kt" : "—";
+            const vert = meta.vert ? (meta.vert > 0 ? "↑" : "↓") + Math.abs(Math.round(meta.vert)).toLocaleString() + " fpm" : "—";
+            // Show tooltip
+            let tip = document.getElementById("trailTooltip");
+            if (!tip){
+                tip = document.createElement("div");
+                tip.id = "trailTooltip";
+                tip.style.cssText = "position:fixed;z-index:8500;pointer-events:none;background:rgba(7,11,16,0.95);border:1px solid #00d4ff;border-radius:6px;padding:5px 10px;font-family:'Share Tech Mono',monospace;font-size:0.78rem;font-weight:bold;color:#00d4ff;line-height:1.8;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.6)";
+                document.body.appendChild(tip);
+            }
+            tip.style.display = "block";
+            tip.style.left = (e.originalEvent.clientX + 16) + "px";
+            tip.style.top  = (e.originalEvent.clientY - 10) + "px";
+            tip.innerHTML = alt + "<br>" + spd + "<br>" + vert;
+        });
+        planeTrailLine.on('mouseout', function(){
+            const tip = document.getElementById("trailTooltip");
+            if (tip) tip.style.display = "none";
+        });
+    }
     planeAnimFrom = trackedPlaneMarker ? trackedPlaneMarker.getLatLng() : { lat: data.lat, lng: data.lon };
     planeAnimTo   = { lat: data.lat, lng: data.lon };
     planeAnimStart = null;
@@ -1657,15 +1702,17 @@ async function fetchTraceHistory(icao, tail){
             return;
         }
 
-        // Walk back from dive — take last 3 miles of track
-        const THREE_MI = 4828;
+        // Walk back from dive — skip dive points, take last 2 miles of pre-dive track
+        const TWO_MI = 3219;
+        let traceStart = lastDiveIdx - 1;
+        while (traceStart >= 0 && (pts[traceStart].vert || 0) < -1000) traceStart--;
         const jrPts = [];
         let tDist = 0;
-        for (let i = lastDiveIdx - 1; i >= 0; i--){
+        for (let i = traceStart; i >= 0; i--){
             const p = pts[i];
             if (jrPts.length > 0){
                 tDist += distMeters([p.lat, p.lon], [jrPts[0].lat, jrPts[0].lon]);
-                if (tDist > THREE_MI) break;
+                if (tDist > TWO_MI) break;
             }
             jrPts.unshift(p);
         }
@@ -1720,10 +1767,14 @@ async function startTracking(){
 
     if (planeTrackInterval) clearInterval(planeTrackInterval);
     planeTrackInterval = setInterval(() => pollPlane(tail), 5000);
+    // Auto-save trail every 60 seconds
+    if (window._autoSaveInterval) clearInterval(window._autoSaveInterval);
+    window._autoSaveInterval = setInterval(() => { if (planeTrail.length > 5) saveLastLoad(); }, 60000);
 }
 
 function stopTracking(){
     if (planeTrackInterval){ clearInterval(planeTrackInterval); planeTrackInterval = null; }
+    if (window._autoSaveInterval){ clearInterval(window._autoSaveInterval); window._autoSaveInterval = null; }
     if (planeAnimFrame){ cancelAnimationFrame(planeAnimFrame); planeAnimFrame = null; }
     if (trackedPlaneMarker){ trackedPlaneMarker.remove(); trackedPlaneMarker = null; }
     if (trackedPlaneLabel){ trackedPlaneLabel.remove(); trackedPlaneLabel = null; }
@@ -1734,7 +1785,7 @@ function stopTracking(){
     const arrow = document.getElementById("planeOffscreenArrow");
     if (arrow) arrow.remove();
     trackedPlane = null; planeHistory = []; divingConfirmed = 0;
-    planeTrail = [];
+    planeTrail = []; window._planeTrailMeta = [];
     if (planeTrailLine){ planeTrailLine.remove(); planeTrailLine = null; }
     if (historyTrailLine){ historyTrailLine.remove(); historyTrailLine = null; }
     if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }

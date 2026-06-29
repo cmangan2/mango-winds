@@ -18,6 +18,28 @@ CACHE_FILE  = os.environ.get("CACHE_FILE", os.path.join(os.path.dirname(__file__
 VISITS_FILE   = os.environ.get("VISITS_FILE",   os.path.join(os.path.dirname(__file__), "visits.json"))
 JUMPRUN_FILE  = os.environ.get("JUMPRUN_FILE",  os.path.join(os.path.dirname(__file__), "jumprun.json"))
 TAILS_FILE    = os.environ.get("TAILS_FILE",    os.path.join(os.path.dirname(__file__), "tails.json"))
+LASTLOAD_FILE = os.environ.get("LASTLOAD_FILE", os.path.join(os.path.dirname(__file__), "lastload.json"))
+
+# Last load storage: {dz_name: {trail, jumprun_start, jumprun_end, tail, timestamp}}
+_lastload_log = {}
+
+def load_lastload():
+    global _lastload_log
+    try:
+        if os.path.exists(LASTLOAD_FILE):
+            with open(LASTLOAD_FILE) as f:
+                _lastload_log = json.load(f)
+    except Exception as e:
+        print(f"Lastload load error: {e}")
+
+def save_lastload():
+    try:
+        with open(LASTLOAD_FILE, "w") as f:
+            json.dump(_lastload_log, f)
+    except Exception as e:
+        print(f"Lastload save error: {e}")
+
+load_lastload()
 
 # Tail number storage: {dz_name: ["N123AB", "N456CD", ...]}
 _tails_log = {}
@@ -1137,6 +1159,37 @@ def tails():
     _tails_log[dz_name] = tails[:10]
     save_tails()
     return jsonify({"status": "saved", "tails": _tails_log[dz_name]})
+
+
+@app.route("/lastload", methods=["GET", "POST"])
+def lastload():
+    if request.method == "GET":
+        dz_name = request.args.get("dz", "")
+        if dz_name and dz_name in _lastload_log:
+            return jsonify(_lastload_log[dz_name])
+        return jsonify({})
+
+    # POST — save a last load trail
+    data = request.json
+    dz_name = data.get("dz", "").strip()
+    if not dz_name:
+        return jsonify({"error": "dz required"}), 400
+    trail = data.get("trail", [])
+    if len(trail) < 2:
+        return jsonify({"error": "trail too short"}), 400
+    # Downsample trail to max 200 points to keep payload small
+    step = max(1, len(trail) // 200)
+    trail_sampled = trail[::step]
+    _lastload_log[dz_name] = {
+        "trail":          trail_sampled,
+        "jumprun_start":  data.get("jumprun_start"),
+        "jumprun_end":    data.get("jumprun_end"),
+        "jumprun_coords": data.get("jumprun_coords"),
+        "tail":           data.get("tail", ""),
+        "timestamp":      datetime.now(timezone.utc).isoformat(),
+    }
+    save_lastload()
+    return jsonify({"status": "saved"})
 
 
 @app.route("/jumprun", methods=["GET", "POST"])

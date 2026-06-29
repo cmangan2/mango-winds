@@ -3,6 +3,12 @@
 <head>
 <title>Mango Wind Hub</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#070b10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Wind Hub">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2222,6 +2228,15 @@ if (document.readyState === "loading"){
     document.addEventListener("DOMContentLoaded", initDZ);
 } else {
     initDZ();
+}
+
+// Register service worker for PWA
+if ('serviceWorker' in navigator){
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/static/sw.js')
+            .then(r => console.log('SW registered'))
+            .catch(e => console.warn('SW failed:', e));
+    });
 }
 
 // When tab becomes visible again, reset animation anchor to avoid jagged trail

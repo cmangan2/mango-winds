@@ -438,6 +438,7 @@ select:focus { border-color: var(--accent); }
                 <button id="defineBtn" onclick="openDefineModal()">📐 Define Jump Run</button>
                 <button id="patternBtn" onclick="togglePatternMode()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid #ff4f4f;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🎯 Place Landing Spot</button>
                 <button id="trackBtn" onclick="openTrackModal()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#00d4ff;border:1px solid #00d4ff;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">✈️ Track Plane</button>
+                <button id="lastLoadBtn" onclick="toggleLastLoad()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#00d4ff;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">✈️ Show Last Load</button>
                 <button id="communityJrBtn" onclick="loadCommunityJR()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">📍 Show Last Jump Run</button>
                 <div id="planeInfo" style="display:none;margin-top:6px;background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--muted);line-height:1.8"></div>
                 <div id="patternControls" style="display:none;margin-top:6px;background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px">
@@ -1274,6 +1275,11 @@ const PLANE_ANIM_DUR = 5000;
 let planeTrail = [];          // recent positions for trail line
 let planeTrailLine = null;    // Leaflet polyline
 let historyTrailLine = null;  // Historical flight path from trace
+let lastLoadTrailLine = null;
+let lastLoadJrLine = null;
+let lastLoadJrLabel = null;
+let lastLoadPlane = null;
+let lastLoadVisible = false;
 
 // Jump run detection history
 let planeHistory = [];          // rolling 5-min buffer of position snapshots
@@ -1419,6 +1425,78 @@ function clearTrackedJR(){
     showJumpRunStatus(null);
 }
 
+function saveLastLoad(){
+    if (planeTrail.length < 2) return;
+    const dzName = document.getElementById("dz").value;
+    const tail = trackedPlane ? trackedPlane.tail : "";
+    let jrCoords = null;
+    if (lastJumpRunLine){
+        const lls = lastJumpRunLine.getLatLngs();
+        if (lls.length >= 2) jrCoords = lls.map(ll => [ll.lat, ll.lng]);
+    }
+    fetch('/lastload', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ dz: dzName, tail, trail: planeTrail, jumprun_coords: jrCoords })
+    }).catch(e => console.warn("Could not save last load:", e));
+}
+
+function clearLastLoad(){
+    if (lastLoadTrailLine){ lastLoadTrailLine.remove(); lastLoadTrailLine = null; }
+    if (lastLoadJrLine){ lastLoadJrLine.remove(); lastLoadJrLine = null; }
+    if (lastLoadJrLabel){ lastLoadJrLabel.remove(); lastLoadJrLabel = null; }
+    if (lastLoadPlane){ lastLoadPlane.remove(); lastLoadPlane = null; }
+    lastLoadVisible = false;
+    const btn = document.getElementById("lastLoadBtn");
+    if (btn){ btn.textContent = "✈️ Show Last Load"; btn.style.color = "#00d4ff"; btn.style.borderColor = "var(--border)"; }
+}
+
+async function toggleLastLoad(){
+    if (lastLoadVisible){ clearLastLoad(); return; }
+    const dzName = document.getElementById("dz").value;
+    try {
+        const r = await fetch(`/lastload?dz=${encodeURIComponent(dzName)}`);
+        const d = await r.json();
+        if (!d.trail || d.trail.length < 2){ showJumpRunStatus("No load data saved for this DZ yet"); return; }
+        clearLastLoad();
+        // Draw dimmer trail
+        lastLoadTrailLine = L.polyline(d.trail, { color:'#00d4ff', weight:3, opacity:0.45, dashArray:'4,4' }).addTo(map);
+        // Draw jump run
+        if (d.jumprun_coords && d.jumprun_coords.length >= 2){
+            lastLoadJrLine = L.polyline(d.jumprun_coords, { color:'#ff4f4f', weight:4, opacity:0.85 }).addTo(map);
+            const ts = new Date(d.timestamp);
+            const timeStr = ts.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', timeZoneName:'short'});
+            lastLoadJrLabel = L.marker(d.jumprun_coords[0], {
+                icon: L.divIcon({
+                    html: `<div style="display:inline-block;background:rgba(7,11,16,0.95);border:1.5px solid #ff4f4f;border-radius:6px;padding:4px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.85rem;font-weight:700;color:#ff4f4f;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.7);white-space:nowrap">Jump Run<br><span style="font-size:0.72rem;font-weight:600;letter-spacing:0.06em">${timeStr}${d.tail ? ' · '+d.tail : ''}</span></div>`,
+                    className:"", iconAnchor:[0,24]
+                }), interactive:false
+            }).addTo(map);
+        }
+        // Ghost plane at last position
+        const lastPt = d.trail[d.trail.length-1];
+        lastLoadPlane = L.marker(lastPt, {
+            icon: L.divIcon({
+                html: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="-30 -30 60 60" style="opacity:0.55;filter:drop-shadow(0 0 4px rgba(0,212,255,0.4))">
+                    <rect x="-4" y="-18" width="8" height="36" rx="3" fill="#00d4ff"/>
+                    <polygon points="0,-28 -3,-18 3,-18" fill="#00d4ff"/>
+                    <polygon points="-28,-2 -4,-5 -4,1 -28,3" fill="#00d4ff"/>
+                    <polygon points="28,-2 4,-5 4,1 28,3" fill="#00d4ff"/>
+                    <polygon points="-14,17 -3,15 -3,19 -14,19" fill="#00d4ff"/>
+                    <polygon points="14,17 3,15 3,19 14,19" fill="#00d4ff"/>
+                    <polygon points="0,10 -2,18 2,18" fill="#00d4ff"/>
+                    <ellipse cx="0" cy="-24" rx="3.5" ry="4" fill="#00d4ff"/>
+                </svg>`,
+                className:"", iconSize:[48,48], iconAnchor:[24,24]
+            }), zIndexOffset:900
+        }).addTo(map);
+        lastLoadVisible = true;
+        const btn = document.getElementById("lastLoadBtn");
+        btn.textContent = "✈️ Hide Last Load"; btn.style.color = "#00d4ff"; btn.style.borderColor = "#00d4ff";
+        map.fitBounds(lastLoadTrailLine.getBounds(), {padding:[40,40], maxZoom:13});
+    } catch(e){ showJumpRunStatus("⚠️ Could not load last load data"); console.error(e); }
+}
+
 function showLastJumpRun(){
     if (lastJumpRunLine){ map.fitBounds(lastJumpRunLine.getBounds(), {padding:[60,60], maxZoom:13}); }
     else { showJumpRunStatus("No jump run detected yet"); }
@@ -1446,6 +1524,7 @@ function detectJumpRun(data){
     // Confirmed dive after being level — extract jump run from history
     if (divingConfirmed === DIVE_CONFIRM) {
         extractAndDrawJumpRun();
+        setTimeout(saveLastLoad, 500); // save after JR line is drawn
     }
 }
 
@@ -1664,6 +1743,8 @@ function stopTracking(){
     if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
     if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
     if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
+    // Save last load before clearing trail
+    if (planeTrail.length > 10) saveLastLoad();
     showJumpRunStatus(null);
     // Clean up frozen trail state
     frozenTrailPoints = null; jrMarkPoints = [];
@@ -2051,6 +2132,7 @@ function initDZ(){
         if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}
         if(freefallLine){freefallLine.forEach(l=>l.remove());freefallLine=null;}
         stopPlane(); jrStart=null; jrEnd=null;
+        clearLastLoad();
         document.getElementById("jumpRunInfo").style.display="none";
         document.getElementById("replayBtn").style.display="none";
         document.getElementById("clearBtn").style.display="none";
@@ -2062,6 +2144,7 @@ function initDZ(){
         if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}
         if(freefallLine){freefallLine.forEach(l=>l.remove());freefallLine=null;}
         stopPlane(); jrStart=null; jrEnd=null;
+        clearLastLoad();
         document.getElementById("jumpRunInfo").style.display="none";
         document.getElementById("replayBtn").style.display="none";
         document.getElementById("clearBtn").style.display="none";
@@ -2073,6 +2156,18 @@ if (document.readyState === "loading"){
 } else {
     initDZ();
 }
+
+// When tab becomes visible again, reset animation anchor to avoid jagged trail
+document.addEventListener("visibilitychange", function(){
+    if (document.visibilityState === "visible" && trackedPlane){
+        // Snap animation to current known position — no interpolation from stale point
+        planeAnimFrom = { lat: trackedPlane.lat, lng: trackedPlane.lon };
+        planeAnimTo   = { lat: trackedPlane.lat, lng: trackedPlane.lon };
+        planeAnimStart = null;
+        if (planeAnimFrame){ cancelAnimationFrame(planeAnimFrame); planeAnimFrame = null; }
+        if (trackedPlaneMarker) trackedPlaneMarker.setLatLng([trackedPlane.lat, trackedPlane.lon]);
+    }
+});
 </script>
 </body>
 </html>

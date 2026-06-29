@@ -160,7 +160,10 @@ def load_cache_from_disk():
                 if expires > now:
                     # Restore tuple key from string
                     parts = k.split(",")
-                    key = (float(parts[0]), float(parts[1]))
+                    if parts[0] == "cloud":
+                        key = ("cloud", float(parts[1]), float(parts[2]))
+                    else:
+                        key = (float(parts[0]), float(parts[1]))
                     _forecast_cache[key] = {"data": v["data"], "expires": expires}
             print(f"Loaded {len(_forecast_cache)} cache entries from disk")
     except Exception as e:
@@ -172,7 +175,10 @@ def save_cache_to_disk():
     try:
         serializable = {}
         for k, v in _forecast_cache.items():
-            str_key = f"{k[0]},{k[1]}"
+            if isinstance(k, tuple) and len(k) == 3 and k[0] == "cloud":
+                str_key = f"cloud,{k[1]},{k[2]}"
+            else:
+                str_key = f"{k[0]},{k[1]}"
             serializable[str_key] = {
                 "data": v["data"],
                 "expires": v["expires"].isoformat()
@@ -1542,7 +1548,8 @@ def data():
 def index():
     # Pass only lat/lon to frontend (strip ICAO)
     dz_frontend = {k: (v[0], v[1]) for k, v in DROPZONES.items()}
-    resp = make_response(render_template("index.html", dz=dz_frontend))
+    is_dev = os.environ.get("ENV", "production") == "dev"
+    resp = make_response(render_template("index.html", dz=dz_frontend, is_dev=is_dev))
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     resp.headers["Pragma"] = "no-cache"
     resp.headers["Expires"] = "0"

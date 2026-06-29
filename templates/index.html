@@ -8,10 +8,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="2.4.6">
+<meta name="app-version" content="2.4.7">
 <script>
 try {
-    const CURRENT_VERSION = "2.4.6";
+    const CURRENT_VERSION = "2.4.7";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -1420,6 +1420,23 @@ function clearTrackedJR(){
     showJumpRunStatus(null);
 }
 
+function autoSaveDetectedJR(pts){
+    if (!pts || pts.length < 2) return;
+    const dzName = document.getElementById("dz").value;
+    const tail = trackedPlane ? trackedPlane.tail : "";
+    const start = [pts[0].lat, pts[0].lon];
+    const end   = [pts[pts.length-1].lat, pts[pts.length-1].lon];
+    const hdg   = Math.round(bearing(start, end));
+    const alt   = pts[pts.length-1].alt ? Math.round(pts[pts.length-1].alt) : null;
+    fetch('/jumprun', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ dz: dzName, start, end, heading: hdg, alt, tail })
+    }).then(r => r.json()).then(d => {
+        if (d.status === 'saved') console.log(`Auto-saved detected JR for ${dzName}: ${hdg}°`);
+    }).catch(e => console.warn("Could not auto-save JR:", e));
+}
+
 function saveLastLoad(){
     if (planeTrail.length < 2) return;
     const dzName = document.getElementById("dz").value;
@@ -1546,6 +1563,8 @@ function extractAndDrawJumpRun(){
     if (pts.length < 2){ showJumpRunStatus("⚠️ Jump run not detected — not enough track data"); return; }
     showJumpRunStatus(null);
     drawJumpRunLine(pts);
+    // Auto-save detected jump run to community store if no manual one exists today
+    autoSaveDetectedJR(pts);
 }
 
 function updatePlaneMarker(data){

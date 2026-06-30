@@ -155,17 +155,27 @@ def load_cache_from_disk():
             with open(CACHE_FILE, "r") as f:
                 raw = json.load(f)
             now = datetime.now(timezone.utc)
+            loaded = 0
+            skipped = 0
             for k, v in raw.items():
-                expires = datetime.fromisoformat(v["expires"])
-                if expires > now:
-                    # Restore tuple key from string
+                try:
+                    expires = datetime.fromisoformat(v["expires"])
+                    if expires <= now:
+                        continue
                     parts = k.split(",")
-                    if parts[0] == "cloud":
+                    if len(parts) == 3 and parts[0] == "cloud":
                         key = ("cloud", float(parts[1]), float(parts[2]))
-                    else:
+                    elif len(parts) == 2:
                         key = (float(parts[0]), float(parts[1]))
+                    else:
+                        skipped += 1
+                        continue
                     _forecast_cache[key] = {"data": v["data"], "expires": expires}
-            print(f"Loaded {len(_forecast_cache)} cache entries from disk")
+                    loaded += 1
+                except Exception:
+                    skipped += 1
+                    continue
+            print(f"Loaded {loaded} cache entries from disk ({skipped} skipped)")
     except Exception as e:
         print(f"Cache load error: {e}")
 

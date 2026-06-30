@@ -225,6 +225,12 @@ select:focus { border-color: var(--accent); }
 </head>
 <body>
 
+{% if is_dev %}
+<div style="position:fixed;top:0;left:0;right:0;z-index:999999;background:#ffaa00;color:#070b10;text-align:center;padding:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.85rem;font-weight:700;letter-spacing:0.1em">
+    ⚠️ DEV ENVIRONMENT — mango-winds-dev.onrender.com
+</div>
+{% endif %}
+
 <div id="welcomeModal">
     <div id="welcomeBox">
         <div id="welcomeHeader">
@@ -241,6 +247,9 @@ select:focus { border-color: var(--accent); }
             </div>
             <div style="text-align:center;margin-bottom:8px">
                 <button onclick="openQuickStart()" style="background:none;border:none;color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;cursor:pointer;letter-spacing:0.06em;text-decoration:underline;text-underline-offset:3px">Quick Start Guide</button>
+            </div>
+            <div style="background:var(--card-alt);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-top:4px;text-align:center">
+                <div style="font-size:0.78rem;color:var(--muted);line-height:1.5">💡 Tip: Add this to your home screen for quick access like an app! Tap your browser's <b style="color:var(--text)">Share</b> or <b style="color:var(--text)">Menu</b> button, then <b style="color:var(--text)">"Add to Home Screen"</b>.</div>
             </div>
         </div>
         <button id="welcomeClose" onclick="closeWelcome()">Let's Go!</button>

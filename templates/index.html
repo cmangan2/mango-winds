@@ -79,6 +79,7 @@ body {
     overflow: hidden;
     transition: transform 0.3s ease;
 }
+#panel-body { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
 @media (max-width: 599px) {
     #wrap { flex-direction: column; position: relative; }
     #map { position: absolute; inset: 0; z-index: 1; }
@@ -149,7 +150,7 @@ select:focus { border-color: var(--accent); }
 .summary-card.freefall .sc-label { color: var(--freefall); }
 .summary-card .sc-data { display: flex; gap: 16px; font-family: 'Share Tech Mono', monospace; font-size: 0.8rem; color: var(--text); flex-wrap: wrap; }
 .summary-card .sc-data span { color: var(--muted); font-size: 0.7rem; margin-right: 2px; }
-#cards-wrap { flex: 1; overflow-y: auto; padding: 10px 14px 14px; -webkit-overflow-scrolling: touch; }
+#cards-wrap { flex: 1; overflow-y: auto; padding: 10px 14px 14px; -webkit-overflow-scrolling: touch; min-height: 0; }
 #cards-wrap::-webkit-scrollbar { width: 4px; }
 #cards-wrap::-webkit-scrollbar-track { background: transparent; }
 #cards-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -434,7 +435,7 @@ select:focus { border-color: var(--accent); }
                     <span id="timeLabel">+0h</span>
                 </div>
                 <input type="range" min="0" max="71" value="0" id="hour">
-                <div id="btn-scroll" style="overflow-y:auto;max-height:168px;margin-top:2px">
+                <div id="btn-scroll" style="overflow-y:auto;max-height:190px;margin-top:2px">
                 <button id="drawBtn" onclick="toggleDrawMode()">✏️ Draw Jump Run</button>
                 <button id="defineBtn" onclick="openDefineModal()">📐 Define Jump Run</button>
                 <button id="patternBtn" onclick="togglePatternMode()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid #ff4f4f;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🎯 Place Landing Spot</button>

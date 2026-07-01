@@ -1079,12 +1079,18 @@ async function load(){
             // Per-altitude model agreement
             let agreeHtml = '';
             if (d.winds_spread) {
-                // Try exact match first, then nearest key within 1000ft
                 let spread = d.winds_spread[a];
                 if (spread === undefined) {
-                    const keys = Object.keys(d.winds_spread).map(Number);
-                    const nearest = keys.reduce((best, k) => Math.abs(k-a) < Math.abs(best-a) ? k : best, keys[0]);
-                    if (Math.abs(nearest - a) <= 1000) spread = d.winds_spread[nearest];
+                    // Interpolate between nearest known altitudes
+                    const keys = Object.keys(d.winds_spread).map(Number).sort((x,y)=>x-y);
+                    let lo = null, hi = null;
+                    for (const k of keys){ if (k <= a) lo = k; }
+                    for (let i = keys.length-1; i >= 0; i--){ if (keys[i] >= a){ hi = keys[i]; break; } }
+                    if (lo !== null && hi !== null && lo !== hi){
+                        const t = (a - lo) / (hi - lo);
+                        spread = d.winds_spread[lo] + (d.winds_spread[hi] - d.winds_spread[lo]) * t;
+                    } else if (lo !== null) spread = d.winds_spread[lo];
+                    else if (hi !== null) spread = d.winds_spread[hi];
                 }
                 if (spread !== undefined) {
                     if (spread <= 20)      agreeHtml = `<span class="agree" style="color:#39ff89;text-align:center;display:block">High</span>`;

@@ -116,10 +116,7 @@ body {
 }
 @media (min-width: 600px) {
     #panel-handle { display: none; }
-    #panel-body { display: contents; }
-    #controls { overflow-y: auto; max-height: 45vh; }
-    #controls::-webkit-scrollbar { width: 3px; }
-    #controls::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    #panel-body { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
 }
 #panel-header { padding: 14px 16px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 #panel-header h1 { font-weight: 700; font-size: 1.35rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
@@ -149,7 +146,7 @@ select:focus { border-color: var(--accent); }
 .summary-card.freefall .sc-label { color: var(--freefall); }
 .summary-card .sc-data { display: flex; gap: 16px; font-family: 'Share Tech Mono', monospace; font-size: 0.8rem; color: var(--text); flex-wrap: wrap; }
 .summary-card .sc-data span { color: var(--muted); font-size: 0.7rem; margin-right: 2px; }
-#cards-wrap { flex: 1; overflow-y: auto; padding: 10px 14px 14px; -webkit-overflow-scrolling: touch; }
+#cards-wrap { flex: 1; overflow-y: auto; padding: 10px 14px 14px; -webkit-overflow-scrolling: touch; min-height: 0; }
 #cards-wrap::-webkit-scrollbar { width: 4px; }
 #cards-wrap::-webkit-scrollbar-track { background: transparent; }
 #cards-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -220,6 +217,8 @@ select:focus { border-color: var(--accent); }
 #attribution { padding: 10px 4px 4px; font-size: 0.62rem; color: var(--muted); text-align: center; line-height: 1.8; border-top: 1px solid var(--border); margin-top: 8px; }
 #attribution a { color: var(--muted); text-decoration: none; }
 #attribution a:hover { color: var(--accent); }
+#btn-scroll::-webkit-scrollbar { width: 3px; }
+#btn-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 #jumpRunInfo { margin-top: 6px; font-family: 'Share Tech Mono', monospace; font-size: 0.72rem; color: var(--muted); line-height: 1.6; }
 </style>
 </head>
@@ -432,12 +431,11 @@ select:focus { border-color: var(--accent); }
                     <span id="timeLabel">+0h</span>
                 </div>
                 <input type="range" min="0" max="71" value="0" id="hour">
+                <div id="btn-scroll" style="overflow-y:auto;max-height:190px;margin-top:2px">
                 <button id="drawBtn" onclick="toggleDrawMode()">✏️ Draw Jump Run</button>
                 <button id="defineBtn" onclick="openDefineModal()">📐 Define Jump Run</button>
                 <button id="patternBtn" onclick="togglePatternMode()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid #ff4f4f;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🎯 Place Landing Spot</button>
                 <button id="trackBtn" onclick="openTrackModal()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#00d4ff;border:1px solid #00d4ff;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">✈️ Track Plane</button>
-                <button id="lastLoadBtn" onclick="toggleLastLoad()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#00d4ff;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">✈️ Show Last Load</button>
-                <button id="communityJrBtn" onclick="loadCommunityJR()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">📍 Show Last Jump Run</button>
                 <div id="planeInfo" style="display:none;margin-top:6px;background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--muted);line-height:1.8"></div>
                 <div id="patternControls" style="display:none;margin-top:6px;background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px">
                     <div style="display:flex;gap:8px;margin-bottom:6px">
@@ -467,7 +465,10 @@ select:focus { border-color: var(--accent); }
 
                 <button id="advancedBtn" onclick="openAdvancedModal()" style="margin-top:6px;width:100%;padding:6px 10px;background:var(--card-bg);color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">⚙️ Canopy Settings</button>
                 <div id="jumpRunInfo" style="display:none"></div>
-            </div>
+                <button id="lastLoadBtn" onclick="toggleLastLoad()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#00d4ff;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">✈️ Show Last Load</button>
+                <button id="communityJrBtn" onclick="loadCommunityJR()" style="margin-top:6px;margin-bottom:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">📍 Show Last Jump Run</button>
+                </div><!-- end btn-scroll -->
+            </div><!-- end controls -->
             <div id="summaries">
                 <div class="summary-card canopy" id="canopyBlock"><div class="sc-label">Canopy  •  SFC – 3 000 ft</div><div class="sc-data">—</div></div>
                 <div class="summary-card freefall" id="freefallBlock"><div class="sc-label">Freefall  •  4 000 – 14 000 ft</div><div class="sc-data">—</div></div>
@@ -1017,8 +1018,8 @@ async function load(){
                 <div>${arrow(d.canopy.direction, 'var(--canopy)')}</div>
             </div>
             <div class="sc-data" style="margin-top:4px">
-                <div><span>UPWIND</span>${(maxUpwind/1609.344).toFixed(2)} mi</div>
-                <div><span>DWNWIND</span>${(maxDownwind/1609.344).toFixed(2)} mi</div>
+                <div><span>MAX UPWIND DIST</span>${(maxUpwind/1609.344).toFixed(2)} mi</div>
+                <div><span>MAX DWNWIND DIST</span>${(maxDownwind/1609.344).toFixed(2)} mi</div>
             </div>`;
         const ffFromDir=(d.freefall.direction+180)%360;
         document.getElementById("freefallBlock").innerHTML =
@@ -1435,9 +1436,6 @@ function clearTrackedJR(){
     if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
     if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
     if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
-    if (planeTrailLine){ planeTrailLine.remove(); planeTrailLine = null; }
-    if (historyTrailLine){ historyTrailLine.remove(); historyTrailLine = null; }
-    planeTrail = [];
     showJumpRunStatus(null);
 }
 
@@ -1648,9 +1646,9 @@ function updatePlaneMarker(data){
         `<span style="color:var(--accent);font-weight:bold">${data.tail}</span>${groundStr}<br>` +
         `ALT&nbsp;&nbsp;${alt}<br>SPD&nbsp;&nbsp;${spd}<br>HDG&nbsp;&nbsp;${hdg}<br>VERT&nbsp;${vert}` +
         `<br><div style="display:flex;gap:4px;margin-top:6px">` +
-        `<button onclick="clearTrackedJR()" style="flex:1;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">Clear</button>` +
-        `<button onclick="freezeTrail()" style="flex:1;padding:4px;background:none;border:1px solid var(--freefall);color:var(--freefall);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">Freeze</button>` +
-        `<button onclick="stopTracking()" style="flex:1;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">&#9646; Stop</button>` +
+        `<button onclick="clearTrackedJR()" style="flex:1;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.78rem;cursor:pointer">✕ JR</button>` +
+        `<button onclick="stopTracking()" style="flex:1;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.78rem;cursor:pointer">&#9646; Stop</button>` +
+        `<button onclick="clearTracking()" style="flex:1;padding:4px;background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.78rem;cursor:pointer">✕ Clear</button>` +
         `</div>`;
 }
 
@@ -1806,6 +1804,62 @@ async function startTracking(){
 }
 
 function stopTracking(){
+    // Stop polling but keep trail + plane + JR on map
+    if (planeTrackInterval){ clearInterval(planeTrackInterval); planeTrackInterval = null; }
+    if (window._autoSaveInterval){ clearInterval(window._autoSaveInterval); window._autoSaveInterval = null; }
+    if (planeAnimFrame){ cancelAnimationFrame(planeAnimFrame); planeAnimFrame = null; }
+    if (trackedPlaneLabel){ trackedPlaneLabel.remove(); trackedPlaneLabel = null; }
+    const arrow = document.getElementById("planeOffscreenArrow");
+    if (arrow) arrow.remove();
+    if (planeTrail.length > 10) saveLastLoad();
+    showJumpRunStatus(null);
+    jrMarkPoints = [];
+    jrMarkMarkers.forEach(m => m.remove()); jrMarkMarkers = [];
+    map.getContainer().style.cursor = "";
+    showStoppedPanel();
+    const tb = document.getElementById("trackBtn");
+    tb.textContent = "✈️ Track Plane";
+    tb.style.background = "var(--card-bg)";
+    tb.style.color = "#00d4ff";
+    tb.style.borderColor = "#00d4ff";
+    tb.onclick = openTrackModal;
+}
+
+function showStoppedPanel(){
+    const tail = trackedPlane ? trackedPlane.tail : "";
+    const alt  = trackedPlane && trackedPlane.alt ? Math.round(trackedPlane.alt).toLocaleString() + " ft" : "—";
+    const spd  = trackedPlane && trackedPlane.spd ? Math.round(trackedPlane.spd) + " kt" : "—";
+    const hdg  = trackedPlane && trackedPlane.hdg ? Math.round(trackedPlane.hdg) + "°" : "—";
+    document.getElementById("planeInfo").style.display = "block";
+    document.getElementById("planeInfo").innerHTML =
+        `<span style="color:var(--muted);font-weight:bold">${tail} — Stopped</span><br>` +
+        `ALT&nbsp;&nbsp;${alt}<br>SPD&nbsp;&nbsp;${spd}<br>HDG&nbsp;&nbsp;${hdg}` +
+        `<br><div style="display:flex;gap:4px;margin-top:6px">` +
+        `<button onclick="startJrMarkMode()" style="flex:1;padding:4px;background:none;border:1px solid #ff4f4f;color:#ff4f4f;border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.78rem;cursor:pointer">✏️ Mark JR</button>` +
+        `<button onclick="resumeTracking()" style="flex:1;padding:4px;background:none;border:1px solid var(--accent);color:var(--accent);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.78rem;cursor:pointer">▶ Resume</button>` +
+        `<button onclick="clearTracking()" style="flex:1;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.78rem;cursor:pointer">✕ Clear</button>` +
+        `</div>`;
+}
+
+function resumeTracking(){
+    if (!trackedPlane) return;
+    const tail = trackedPlane.tail;
+    document.getElementById("planeInfo").innerHTML =
+        `<span style="color:var(--accent);font-weight:bold">${tail}</span><br>Resuming...`;
+    if (planeTrackInterval) clearInterval(planeTrackInterval);
+    planeTrackInterval = setInterval(() => pollPlane(tail), 5000);
+    if (window._autoSaveInterval) clearInterval(window._autoSaveInterval);
+    window._autoSaveInterval = setInterval(() => { if (planeTrail.length > 5) saveLastLoad(); }, 60000);
+    pollPlane(tail);
+    const tb = document.getElementById("trackBtn");
+    tb.textContent = "■ Stop Tracking " + tail;
+    tb.style.color = "var(--red)";
+    tb.style.borderColor = "var(--red)";
+    tb.style.background = "rgba(255,79,79,0.1)";
+    tb.onclick = stopTracking;
+}
+
+function clearTracking(){
     if (planeTrackInterval){ clearInterval(planeTrackInterval); planeTrackInterval = null; }
     if (window._autoSaveInterval){ clearInterval(window._autoSaveInterval); window._autoSaveInterval = null; }
     if (planeAnimFrame){ cancelAnimationFrame(planeAnimFrame); planeAnimFrame = null; }
@@ -1814,25 +1868,18 @@ function stopTracking(){
     if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
     if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
     if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
-    if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
+    if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
+    if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
+    if (planeTrailLine){ planeTrailLine.remove(); planeTrailLine = null; }
+    if (historyTrailLine){ historyTrailLine.remove(); historyTrailLine = null; }
     const arrow = document.getElementById("planeOffscreenArrow");
     if (arrow) arrow.remove();
     trackedPlane = null; planeHistory = []; divingConfirmed = 0;
     planeTrail = []; window._planeTrailMeta = [];
-    if (planeTrailLine){ planeTrailLine.remove(); planeTrailLine = null; }
-    if (historyTrailLine){ historyTrailLine.remove(); historyTrailLine = null; }
-    if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
-    if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
-    if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
-    if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
-    if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
-    // Save last load before clearing trail
-    if (planeTrail.length > 10) saveLastLoad();
-    showJumpRunStatus(null);
-    // Clean up frozen trail state
     frozenTrailPoints = null; jrMarkPoints = [];
     jrMarkMarkers.forEach(m => m.remove()); jrMarkMarkers = [];
     map.getContainer().style.cursor = "";
+    showJumpRunStatus(null);
     document.getElementById("planeInfo").style.display = "none";
     const tb = document.getElementById("trackBtn");
     tb.textContent = "✈️ Track Plane";
@@ -1841,6 +1888,7 @@ function stopTracking(){
     tb.style.borderColor = "#00d4ff";
     tb.onclick = openTrackModal;
 }
+
 
 // ── COMMUNITY JUMP RUN ──
 let frozenTrailPoints = null;   // points from frozen trail for click selection
@@ -2219,7 +2267,7 @@ function initDZ(){
         renderTime();
         if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}
         if(freefallLine){freefallLine.forEach(l=>l.remove());freefallLine=null;}
-        stopPlane(); jrStart=null; jrEnd=null;
+        clearTracking(); stopPlane(); jrStart=null; jrEnd=null;
         clearLastLoad();
         document.getElementById("jumpRunInfo").style.display="none";
         document.getElementById("replayBtn").style.display="none";
@@ -2231,7 +2279,7 @@ function initDZ(){
         const v=sel.value; lat=dz[v][0]; lon=dz[v][1];
         if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}
         if(freefallLine){freefallLine.forEach(l=>l.remove());freefallLine=null;}
-        stopPlane(); jrStart=null; jrEnd=null;
+        clearTracking(); stopPlane(); jrStart=null; jrEnd=null;
         clearLastLoad();
         document.getElementById("jumpRunInfo").style.display="none";
         document.getElementById("replayBtn").style.display="none";

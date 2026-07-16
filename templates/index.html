@@ -565,7 +565,7 @@ function drawFreefallParallel(){
     const bear = bearing(jrStart, jrEnd);
     let gndKts = '—';
     if (lastWind14k) {
-        const airspeedMs = 110 * 0.514444;
+        const airspeedMs = 85 * 0.514444;
         const wSpdMs = lastWind14k.speed * 0.514444;
         const angleDiff = ((lastWind14k.direction - bear + 180 + 360) % 360) - 180;
         const headwindMs = wSpdMs * Math.cos(angleDiff * Math.PI / 180);
@@ -661,7 +661,7 @@ function startPlaneAnimation(){
     if (!jrStart || !jrEnd || !lastWind14k || !lastFreefall) return;
     const hdg = bearing(jrStart, jrEnd);
     const jrDist = distMeters(jrStart, jrEnd);
-    const airspeed = 110 * 0.514444;
+    const airspeed = 85 * 0.514444;
     const wSpd = lastWind14k.speed * 0.514444;
     const wDir = lastWind14k.direction;
     const angleDiff = ((wDir - hdg + 180 + 360) % 360) - 180;

@@ -912,6 +912,13 @@ def debug():
 
 @app.route("/stats")
 def stats():
+    try:
+        return stats_page()
+    except Exception as e:
+        import traceback
+        return f"<pre style='color:red'>Stats error: {e}\n{traceback.format_exc()}</pre>", 500
+
+def stats_page():
     import pytz
     from datetime import timedelta as td
     est = pytz.timezone("America/New_York")

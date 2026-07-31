@@ -78,6 +78,7 @@ body {
     border-left: 1px solid var(--border);
     overflow: hidden;
     transition: transform 0.3s ease;
+    height: 100vh; height: 100dvh;
 }
 @media (max-width: 599px) {
     #wrap { flex-direction: column; position: relative; }
@@ -116,10 +117,12 @@ body {
 }
 @media (min-width: 600px) {
     #panel-handle { display: none; }
-    #panel-body { display: flex; flex-direction: column; flex: 1; overflow-y: auto; }
+    #panel-header { flex-shrink: 0; }
+    #panel-body { display: flex; flex-direction: column; flex: 1; overflow-y: auto; min-height: 0; }
     #panel-body::-webkit-scrollbar { width: 4px; }
     #panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-    #cards-wrap { overflow-y: visible; flex: unset; }
+    #cards-wrap { overflow-y: visible; flex: unset; min-height: 0; }
+    #controls { flex-shrink: 0; }
 }
 #panel-header { padding: 14px 16px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 #panel-header h1 { font-weight: 700; font-size: 1.35rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
@@ -472,8 +475,11 @@ select:focus { border-color: var(--accent); }
                 <button id="communityJrBtn" onclick="loadCommunityJR()" style="margin-top:6px;margin-bottom:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">📍 Show Last Jump Run</button>
                 </div><!-- end btn-scroll -->
             </div><!-- end controls -->
-            <div id="summaries" style="position:relative">
-                <button onclick="toggleSummaries()" id="toggleSummariesBtn" style="position:absolute;top:6px;right:6px;z-index:1;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:2px 8px;font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;letter-spacing:0.08em;cursor:pointer">Hide</button>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 14px 2px;flex-shrink:0">
+                <span style="font-size:0.64rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)">Summary</span>
+                <button onclick="toggleSummaries()" id="toggleSummariesBtn" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:2px 8px;font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;letter-spacing:0.08em;cursor:pointer">Hide</button>
+            </div>
+            <div id="summaries">
                 <div class="summary-card canopy" id="canopyBlock"><div class="sc-label">Canopy  •  SFC – 3 000 ft</div><div class="sc-data">—</div></div>
                 <div class="summary-card freefall" id="freefallBlock"><div class="sc-label">Freefall  •  4 000 – 14 000 ft</div><div class="sc-data">—</div></div>
             </div>

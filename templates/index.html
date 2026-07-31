@@ -472,6 +472,10 @@ select:focus { border-color: var(--accent); }
                 <button id="communityJrBtn" onclick="loadCommunityJR()" style="margin-top:6px;margin-bottom:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">📍 Show Last Jump Run</button>
                 </div><!-- end btn-scroll -->
             </div><!-- end controls -->
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 14px 0">
+                <span style="font-size:0.64rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)">Summary</span>
+                <button onclick="toggleSummaries()" id="toggleSummariesBtn" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:2px 8px;font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;letter-spacing:0.08em;cursor:pointer;-webkit-tap-highlight-color:transparent">Hide</button>
+            </div>
             <div id="summaries">
                 <div class="summary-card canopy" id="canopyBlock"><div class="sc-label">Canopy  •  SFC – 3 000 ft</div><div class="sc-data">—</div></div>
                 <div class="summary-card freefall" id="freefallBlock"><div class="sc-label">Freefall  •  4 000 – 14 000 ft</div><div class="sc-data">—</div></div>
@@ -1174,6 +1178,14 @@ function updateWindSummary(d){
     window.addEventListener("mouseup", onEnd);
     window.addEventListener("touchend", onEnd);
 })();
+
+function toggleSummaries(){
+    const wrap = document.getElementById("summaries");
+    const btn = document.getElementById("toggleSummariesBtn");
+    const hidden = wrap.style.display === "none";
+    wrap.style.display = hidden ? "" : "none";
+    btn.textContent = hidden ? "Hide" : "Show";
+}
 
 function toggleCards(){ const wrap=document.getElementById("cards-wrap"),btn=document.getElementById("toggleCardsBtn"),hidden=wrap.style.display==="none"; wrap.style.display=hidden?"":"none"; btn.textContent=hidden?"Hide":"Show"; }
 function closeWelcome(){

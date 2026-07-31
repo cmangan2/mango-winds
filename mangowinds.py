@@ -374,10 +374,10 @@ def fetch_forecast(lat, lon, hour_offset=0):
             else:
                 fcast_days = 3
             model_param = "" if model in ("hrrr_conus", "nam_conus") else f"&models={model}"
-            key_param = f"&apikey={api_key}" if api_key else ""
+            # No API key in base_params — free API by default
             base_params = (f"?latitude={lat}&longitude={lon}"
                           f"&forecast_days={fcast_days}&timezone=auto"
-                          f"&wind_speed_unit=kn{model_param}{key_param}")
+                          f"&wind_speed_unit=kn{model_param}")
 
             def fetch_url(fields_str, use_paid=False):
                 if use_paid and api_key:
@@ -1359,8 +1359,7 @@ def fetch_cloud_data(lat, lon):
         fields = "cloudcover_low,cloudcover_mid,cloudcover_high,cloudcover,precipitation_probability,visibility,dewpoint_2m,temperature_2m"
         url = (f"{base}?latitude={lat}&longitude={lon}&hourly={fields}"
                f"&forecast_days=3&timezone=auto&models=gfs_seamless")
-        if api_key:
-            url += f"&apikey={api_key}"
+        # No key for free API
         r = requests.get(url, timeout=10, headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
         if r.ok:
             data = r.json()

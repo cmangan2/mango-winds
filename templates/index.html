@@ -2105,11 +2105,12 @@ async function loadCommunityJR(){
         // Show age in label
         const ts = new Date(d.timestamp);
         const ageHours = (Date.now() - ts.getTime()) / 3600000;
+        const dateStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         let timeStr;
-        if (ageHours < 0.25) timeStr = "just now";
-        else if (ageHours < 1) timeStr = `${Math.round(ageHours*60)}min ago`;
-        else if (ageHours < 24) timeStr = ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
-        else timeStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        if (ageHours < 0.25) timeStr = `${dateStr} · just now`;
+        else if (ageHours < 1) timeStr = `${dateStr} · ${Math.round(ageHours*60)}min ago`;
+        else if (ageHours < 24) timeStr = `${dateStr} · ` + ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+        else timeStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
         // Draw it
         if (communityJrLine){ communityJrLine.remove(); }
         if (communityJrLabel){ communityJrLabel.remove(); }

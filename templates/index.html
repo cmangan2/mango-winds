@@ -1183,6 +1183,7 @@ function closeWelcome(){
         if (wSel && wSel.value && mSel && wSel.value !== mSel.value){
             mSel.value = wSel.value;
             lat = dz[wSel.value][0]; lon = dz[wSel.value][1];
+            try{ localStorage.setItem("mwh-dz", wSel.value); }catch(e){}
             firstLoad = true; load();
         }
     } catch(e){}
@@ -2257,7 +2258,9 @@ function renderCloudPopup(){
 function initDZ(){
     const sel=document.getElementById("dz");
     const keys=Object.keys(dz);
-    const defaultDz=keys.find(k=>k.toLowerCase().includes("skydive new england"))||keys[0];
+    const sneDz=keys.find(k=>k.toLowerCase().includes("skydive new england"))||keys[0];
+    let savedDz=null; try{ savedDz=localStorage.getItem("mwh-dz"); }catch(e){}
+    const defaultDz=(savedDz && dz[savedDz]) ? savedDz : sneDz;
     const wSel = document.getElementById("welcomeDzSelect");
     for (const k of keys){
         const o=document.createElement("option"); o.value=k; o.text=k; sel.appendChild(o);
@@ -2280,6 +2283,7 @@ function initDZ(){
     renderTime();
     sel.onchange=()=>{
         const v=sel.value; lat=dz[v][0]; lon=dz[v][1];
+        try{ localStorage.setItem("mwh-dz", v); }catch(e){}
         if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}
         if(freefallLine){freefallLine.forEach(l=>l.remove());freefallLine=null;}
         clearTracking(); stopPlane(); jrStart=null; jrEnd=null;

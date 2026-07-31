@@ -380,6 +380,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
                           f"&wind_speed_unit=kn{model_param}")
 
             def fetch_url(fields_str, use_paid=False):
+                record_api_call(1)  # count every attempt including failures
                 if use_paid and api_key:
                     paid_url = "https://customer-api.open-meteo.com/v1/forecast"
                     paid_params = base_params.replace(base_url, paid_url) if base_url in base_params else base_params
@@ -457,7 +458,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
             return None
 
         print(f"Ensemble: {len(model_data)}/{len(ensemble_models)} models loaded: {list(model_data.keys())}")
-        record_api_call(len(ensemble_models) * 4)  # 4 calls per model (wind1+wind2+temp+height)
+        # Record is now done per-fetch inside fetch_url
         result = {"source": "openmeteo_ensemble", "models": model_data}
         _forecast_cache[dz_key] = {"data": result, "expires": now + CACHE_TTL}
         save_cache_to_disk()
@@ -967,7 +968,7 @@ def stats_page():
     api_limit = 10000
     api_pct = round(total_api_today / api_limit * 100, 1)
     api_bar_w = min(int(total_api_today / api_limit * 300), 300)
-    api_color = "#39ff89" if api_pct < 60 else "#ffaa00" if api_pct < 85 else "#ff4f4f"
+    api_color = "#39ff89" if api_pct < 40 else "#ffaa00" if api_pct < 70 else "#ff4f4f"
     import pytz as _pytz2
     from datetime import datetime as _dt2
     api_hourly_rows = ""
@@ -1065,7 +1066,7 @@ def admin():
     api_limit = 10000
     api_pct = round(total_api_today / api_limit * 100, 1)
     api_bar_w = min(int(total_api_today / api_limit * 300), 300)
-    api_color = "#39ff89" if api_pct < 60 else "#ffaa00" if api_pct < 85 else "#ff4f4f"
+    api_color = "#39ff89" if api_pct < 40 else "#ffaa00" if api_pct < 70 else "#ff4f4f"
     import pytz as _pytz2
     from datetime import datetime as _dt2
     api_hourly_rows = ""

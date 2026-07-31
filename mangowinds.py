@@ -315,7 +315,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
     print(f"Fetching Open-Meteo ensemble for hour={hour_offset}")
     try:
         api_key = os.environ.get("OPENMETEO_API_KEY")
-        base_url = "https://customer-api.open-meteo.com/v1/forecast" if api_key else "https://api.open-meteo.com/v1/forecast"
+        base_url = "https://api.open-meteo.com/v1/forecast"  # always try free first
         # Wind fields — split into two requests, each under 10 vars = 1.0 API call each
         wind_fields = [
             "windspeed_10m","winddirection_10m","windspeed_80m","winddirection_80m",
@@ -379,19 +379,34 @@ def fetch_forecast(lat, lon, hour_offset=0):
                           f"&forecast_days={fcast_days}&timezone=auto"
                           f"&wind_speed_unit=kn{model_param}{key_param}")
 
-            def fetch_url(fields_str):
-                url = f"{endpoint}{base_params}&hourly={fields_str}"
+            def fetch_url(fields_str, use_paid=False):
+                if use_paid and api_key:
+                    paid_url = "https://customer-api.open-meteo.com/v1/forecast"
+                    paid_params = base_params.replace(base_url, paid_url) if base_url in base_params else base_params
+                    # Rebuild with paid URL and key
+                    mp = "" if model in ("hrrr_conus", "nam_conus") else f"&models={model}"
+                    kp = f"&apikey={api_key}"
+                    pp = (f"?latitude={lat}&longitude={lon}"
+                          f"&forecast_days={fcast_days}&timezone=auto"
+                          f"&wind_speed_unit=kn{mp}{kp}")
+                    url = f"https://customer-api.open-meteo.com/v1/forecast{pp}&hourly={fields_str}"
+                else:
+                    url = f"{endpoint}{base_params}&hourly={fields_str}"
                 r = requests.get(url, timeout=15,
                                  headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
                 return r
 
-            def handle_429(r):
-                if r.status_code == 429 and cached_model:
-                    extended = now + timedelta(hours=6)
-                    _forecast_cache[model_key] = {"data": cached_model["data"], "expires": extended}
-                    print(f"Rate limited — extending cache for {model} by 6h")
-                    return True
-                return False
+            def handle_429(r, fg):
+                if r.status_code == 429:
+                    if api_key:
+                        print(f"Free API rate limited for {model} — retrying with paid key")
+                        return fetch_url(",".join(fg), use_paid=True)
+                    elif cached_model:
+                        extended = now + timedelta(hours=6)
+                        _forecast_cache[model_key] = {"data": cached_model["data"], "expires": extended}
+                        print(f"Rate limited — extending cache for {model} by 6h")
+                    return None
+                return None
 
             try:
                 # 4 requests per model, each ≤10 vars = 1.0 API call each
@@ -401,9 +416,18 @@ def fetch_forecast(lat, lon, hour_offset=0):
                     r = fetch_url(",".join(fg))
                     if not r.ok:
                         print(f"Open-Meteo {model} {r.status_code}: {r.text[:200]}")
-                        if handle_429(r):
-                            return model, cached_model["data"]
-                        return model, None
+                        if r.status_code == 429:
+                            r2 = handle_429(r, fg)
+                            if r2 and r2.ok:
+                                r = r2  # use paid response
+                            else:
+                                if cached_model:
+                                    extended = now + timedelta(hours=6)
+                                    _forecast_cache[model_key] = {"data": cached_model["data"], "expires": extended}
+                                    return model, cached_model["data"]
+                                return model, None
+                        else:
+                            return model, None
                     responses.append(r.json())
                 # Merge all responses
                 mdata = responses[0]
@@ -1331,7 +1355,7 @@ def fetch_cloud_data(lat, lon):
         return cached["data"]
     try:
         api_key = os.environ.get("OPENMETEO_API_KEY")
-        base = "https://customer-api.open-meteo.com/v1/gfs" if api_key else "https://api.open-meteo.com/v1/gfs"
+        base = "https://api.open-meteo.com/v1/gfs"  # free first
         fields = "cloudcover_low,cloudcover_mid,cloudcover_high,cloudcover,precipitation_probability,visibility,dewpoint_2m,temperature_2m"
         url = (f"{base}?latitude={lat}&longitude={lon}&hourly={fields}"
                f"&forecast_days=3&timezone=auto&models=gfs_seamless")

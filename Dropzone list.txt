@@ -15,3 +15,4 @@ STF - Niagara Airport (Niagara Falls, NY): 43.100355,-78.948219,KIAG
 Marshall DZ (Hellena, MT): 46.625968, -112.112264,KHLN
 Parachute Montreal SS (Montreal, CA): 45.286169, -73.012757,CYJN
 Skydive Burnaby (Ontario, CA): 42.876005, -79.354754,CYHM
+Skydive Toronto (Toronto, CA): 44.237372, -79.640659,CYLS

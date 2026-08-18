@@ -476,6 +476,12 @@ select:focus { border-color: var(--accent); }
                 <div id="jumpRunInfo" style="display:none"></div>
                 <button id="lastLoadBtn" onclick="toggleLastLoad()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#00d4ff;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">✈️ Show Last Load</button>
                 <button id="communityJrBtn" onclick="loadCommunityJR()" style="margin-top:6px;margin-bottom:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">📍 Show Last Jump Run</button>
+                <button id="fixJrBtn" onclick="toggleFixJrPanel()" style="margin-bottom:6px;width:100%;padding:6px 10px;background:none;color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🛠️ Fix Jump Run</button>
+                <div id="fixJrPanel" style="display:none;margin-bottom:6px;padding:8px 10px;background:var(--card-bg);border:1px solid var(--border);border-radius:6px">
+                    <div style="font-size:0.68rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Looks wrong for today?</div>
+                    <button onclick="startManualJrOverride()" style="width:100%;margin-bottom:5px;padding:6px;background:none;border:1px solid #00d4ff;color:#00d4ff;border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✏️ Draw Manually</button>
+                    <button onclick="discardTodayJumpRun()" style="width:100%;padding:6px;background:none;border:1px solid #ff4f4f;color:#ff4f4f;border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">🗑️ Discard Today's</button>
+                </div>
                 </div><!-- end btn-scroll -->
             </div><!-- end controls -->
             <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 14px 2px;flex-shrink:0">
@@ -1267,6 +1273,62 @@ function submitDefineJumpRun(){
     jrStart=startPt; jrEnd=offsetLatLon(startPt[0],startPt[1],dir,length);
     closeDefineModal(); drawJumpRun();
     if (window.innerWidth<600&&panelOpen) togglePanel();
+
+    if (manualJrOverrideActive){
+        manualJrOverrideActive = false;
+        saveManualJrOverride(jrStart, jrEnd, Math.round(bearing(jrStart, jrEnd)));
+    }
+}
+
+// ── JUMP RUN OVERRIDE (manual fix / discard for today's shared jump run) ──
+let manualJrOverrideActive = false;
+
+function toggleFixJrPanel(){
+    const p = document.getElementById("fixJrPanel");
+    p.style.display = (p.style.display === "none") ? "block" : "none";
+}
+
+function startManualJrOverride(){
+    // Reuses the existing "define jump run" modal — direction/distance/offset/length —
+    // then saves the resulting line as today's official jump run for this DZ.
+    manualJrOverrideActive = true;
+    document.getElementById("fixJrPanel").style.display = "none";
+    openDefineModal();
+}
+
+function saveManualJrOverride(start, end, hdg){
+    const dzName = document.getElementById("dz").value;
+    fetch('/jumprun', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            dz: dzName, start, end, heading: hdg,
+            alt: null, tail: '', source: 'manual'
+        })
+    }).then(r => r.json()).then(d => {
+        if (d.status === 'saved'){
+            showJumpRunStatus("✅ Jump run set — this replaces auto-detection for today");
+            loadCommunityJR();
+        } else {
+            showJumpRunStatus("⚠️ Could not save override");
+        }
+    }).catch(e => showJumpRunStatus("⚠️ Could not save — check connection"));
+}
+
+function discardTodayJumpRun(){
+    document.getElementById("fixJrPanel").style.display = "none";
+    const dzName = document.getElementById("dz").value;
+    fetch('/jumprun', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dz: dzName, source: 'discard' })
+    }).then(r => r.json()).then(d => {
+        if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
+        if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
+        if (communityJrArrow){ communityJrArrow.remove(); communityJrArrow = null; }
+        clearTrackedJR();
+        showJumpRunStatus("🗑️ Today's jump run discarded");
+    }).catch(e => showJumpRunStatus("⚠️ Could not discard — check connection"));
 }
 
 function initMap(){
@@ -1471,9 +1533,10 @@ function autoSaveDetectedJR(pts){
     fetch('/jumprun', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ dz: dzName, start, end, heading: hdg, alt, tail })
+        body: JSON.stringify({ dz: dzName, start, end, heading: hdg, alt, tail, source: 'auto' })
     }).then(r => r.json()).then(d => {
         if (d.status === 'saved') console.log(`Auto-saved detected JR for ${dzName}: ${hdg}°`);
+        else if (d.status === 'ignored_locked') console.log(`Auto-detection ignored for ${dzName} — manual override active`);
     }).catch(e => console.warn("Could not auto-save JR:", e));
 }
 
@@ -1789,9 +1852,13 @@ function drawJumpRunLine(pts){
     if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
     if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
     if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
-    const coords = pts.map(p => [p.lat, p.lon]);
-    lastJumpRunLine = L.polyline(coords, { color: "#ff4f4f", weight: 4, opacity: 0.9 }).addTo(map);
-    lastJumpRunLabel = L.marker([pts[0].lat, pts[0].lon], {
+    // Draw only start -> end as a straight line. Drawing every raw history point
+    // (the old behavior) turns a single noisy/glitched ADS-B position into a
+    // visible zigzag or triangle, since the raw track isn't perfectly straight.
+    const start = [pts[0].lat, pts[0].lon];
+    const end = [pts[pts.length - 1].lat, pts[pts.length - 1].lon];
+    lastJumpRunLine = L.polyline([start, end], { color: "#ff4f4f", weight: 4, opacity: 0.9 }).addTo(map);
+    lastJumpRunLabel = L.marker(start, {
         icon: L.divIcon({
             html: `<div style="display:inline-block;background:rgba(7,11,16,0.95);border:1.5px solid #ff4f4f;border-radius:6px;padding:4px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;font-weight:700;color:#ff4f4f;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.7);white-space:nowrap">Jump Run</div>`,
             className: "", iconAnchor: [0, 24]

@@ -360,7 +360,10 @@ select:focus { border-color: var(--accent); }
             </div>
             <div id="trackError" style="display:none;color:var(--red);font-size:0.8rem"></div>
         </div>
-        <button onclick="startTracking()" style="margin:6px 18px 16px;padding:11px;background:var(--accent);color:var(--bg);border:none;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">Start Tracking</button>
+        <div style="display:flex;gap:8px;margin:6px 18px 16px">
+            <button onclick="startTracking()" style="flex:1;padding:11px;background:var(--accent);color:var(--bg);border:none;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">🔴 Live Track</button>
+            <button onclick="loadLastFlight()" style="flex:1;padding:11px;background:var(--card-bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">📋 Last Flight</button>
+        </div>
     </div>
 </div>
 
@@ -1372,7 +1375,6 @@ function planeTrackIcon(hdg, onGround){
       <!-- Vertical stab -->
       <polygon points="0,10 -2,18 2,18" fill="${color}"/>
       <!-- Engine pod (same color, no dark tip) -->
-      <ellipse cx="0" cy="-24" rx="3.5" ry="4" fill="${color}"/>
     </svg>`;
     return L.divIcon({ html: svg, className: "", iconSize: [72,72], iconAnchor: [36,36] });
 }
@@ -1535,7 +1537,6 @@ async function toggleLastLoad(){
                     <polygon points="-14,17 -3,15 -3,19 -14,19" fill="#00d4ff"/>
                     <polygon points="14,17 3,15 3,19 14,19" fill="#00d4ff"/>
                     <polygon points="0,10 -2,18 2,18" fill="#00d4ff"/>
-                    <ellipse cx="0" cy="-24" rx="3.5" ry="4" fill="#00d4ff"/>
                 </svg>`,
                 className:"", iconSize:[48,48], iconAnchor:[24,24]
             }), zIndexOffset:900
@@ -1796,6 +1797,112 @@ function drawJumpRunLine(pts){
             className: "", iconAnchor: [0, 24]
         }), interactive: false
     }).addTo(map);
+}
+
+async function loadLastFlight(){
+    const tail = document.getElementById("planeTail").value.trim().toUpperCase();
+    if (!tail){ document.getElementById("trackError").textContent="Enter a tail number"; document.getElementById("trackError").style.display="block"; return; }
+    closeTrackModal();
+
+    // Update button state
+    const tb = document.getElementById("trackBtn");
+    tb.textContent = "📋 " + tail + " — Last Flight";
+    tb.style.color = "var(--freefall)";
+    tb.style.borderColor = "var(--freefall)";
+    tb.style.background = "rgba(255,170,0,0.1)";
+    tb.onclick = clearTracking;
+
+    document.getElementById("planeInfo").style.display = "block";
+    document.getElementById("planeInfo").innerHTML = `<span style="color:var(--freefall)">Loading last flight for ${tail}...</span>`;
+
+    try {
+        // Step 1: Get ICAO from live lookup
+        const liveR = await fetch(`/plane?tail=${encodeURIComponent(tail)}`);
+        const liveD = await liveR.json();
+        let icao = liveD.icao || "";
+
+        if (!icao){
+            document.getElementById("planeInfo").innerHTML = `<span style="color:var(--red)">Could not find ICAO for ${tail}</span>`;
+            return;
+        }
+
+        // Step 2: Fetch today's globe_history trace
+        showJumpRunStatus("🔍 Loading today's flight history...");
+        const today = new Date();
+        const yyyy = today.getUTCFullYear();
+        const mm = String(today.getUTCMonth()+1).padStart(2,'0');
+        const dd = String(today.getUTCDate()).padStart(2,'0');
+        const sub = icao.slice(-2);
+        const traceUrl = `https://globe_history.adsb.lol/${yyyy}/${mm}/${dd}/traces/${sub}/trace_full_${icao}.json`;
+
+        const traceR = await fetch(`/plane/trace?icao=${encodeURIComponent(icao)}&source=history&date=${yyyy}-${mm}-${dd}`);
+        const traceD = await traceR.json();
+        const pts = traceD.points || [];
+
+        if (pts.length < 2){
+            showJumpRunStatus(null);
+            document.getElementById("planeInfo").innerHTML =
+                `<span style="color:var(--muted)">${tail} — No flight history today</span>` +
+                `<br><button onclick="clearTracking()" style="margin-top:6px;width:100%;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✕ Clear</button>`;
+            return;
+        }
+
+        // Step 3: Find most recent flight segment (after last landing/gap)
+        const FLIGHT_GAP_S = 600; // 10 min gap = new flight
+        let segStart = 0;
+        for (let i = 1; i < pts.length; i++){
+            if ((pts[i].ts - pts[i-1].ts) > FLIGHT_GAP_S) segStart = i;
+        }
+        const flightPts = pts.slice(segStart);
+
+        // Draw history trail
+        if (historyTrailLine){ historyTrailLine.remove(); historyTrailLine = null; }
+        const coords = flightPts.filter(p => p.lat && p.lon).map(p => [p.lat, p.lon]);
+        if (coords.length > 1){
+            historyTrailLine = L.polyline(coords, { color:'#00d4ff', weight:3, opacity:0.55, dashArray:'4,4' }).addTo(map);
+            map.fitBounds(historyTrailLine.getBounds(), {padding:[40,40], maxZoom:12});
+        }
+
+        // Step 4: Detect most recent jump run
+        const DIVE = -1000;
+        let lastDiveIdx = -1;
+        for (let i = 2; i < flightPts.length; i++){
+            if ((flightPts[i].vert||0) < DIVE && (flightPts[i-1].vert||0) < DIVE) lastDiveIdx = i;
+        }
+
+        if (lastDiveIdx >= 0){
+            const TWO_MI = 3219;
+            let traceStart = lastDiveIdx - 1;
+            while (traceStart >= 0 && (flightPts[traceStart].vert||0) < DIVE) traceStart--;
+            const jrPts = [];
+            let tDist = 0;
+            for (let i = traceStart; i >= 0; i--){
+                const p = flightPts[i];
+                if (jrPts.length > 0){
+                    tDist += distMeters([p.lat, p.lon], [jrPts[0].lat, jrPts[0].lon]);
+                    if (tDist > TWO_MI) break;
+                }
+                jrPts.unshift(p);
+            }
+            if (jrPts.length >= 2) drawJumpRunLine(jrPts);
+        }
+
+        showJumpRunStatus(null);
+
+        // Set trackedPlane for display
+        const lastPt = flightPts[flightPts.length-1];
+        trackedPlane = { tail, icao, lat: lastPt.lat, lon: lastPt.lon, alt: lastPt.alt, spd: lastPt.spd, hdg: lastPt.hdg, vert: lastPt.vert };
+
+        document.getElementById("planeInfo").innerHTML =
+            `<span style="color:var(--freefall);font-weight:bold">${tail} — Last Flight</span><br>` +
+            `${flightPts.length} points · ${lastDiveIdx >= 0 ? 'Jump run detected' : 'No dive detected'}` +
+            `<br><button onclick="clearTracking()" style="margin-top:6px;width:100%;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✕ Clear</button>`;
+
+    } catch(e){
+        console.error("Last flight error:", e);
+        showJumpRunStatus(null);
+        document.getElementById("planeInfo").innerHTML = `<span style="color:var(--red)">Could not load last flight — ${e.message}</span>`;
+    }
 }
 
 async function startTracking(){

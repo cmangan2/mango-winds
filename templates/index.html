@@ -1510,6 +1510,17 @@ function showJumpRunStatus(msg){
     setTimeout(() => { const e = document.getElementById("jumpRunStatus"); if (e) e.remove(); }, 6000);
 }
 
+function showLastFlightNotFoundPopup(tail){
+    const existing = document.getElementById("lastFlightNotFoundPopup");
+    if (existing) existing.remove();
+    const div = document.createElement("div");
+    div.id = "lastFlightNotFoundPopup";
+    div.style.cssText = "position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:99997;background:rgba(13,21,32,0.96);border:1px solid var(--red);border-radius:8px;padding:10px 18px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;font-weight:600;color:var(--red);letter-spacing:0.04em;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.5)";
+    div.textContent = tail ? `Last flight not found for ${tail}` : "Last flight not found";
+    document.body.appendChild(div);
+    setTimeout(() => { const e = document.getElementById("lastFlightNotFoundPopup"); if (e) e.remove(); }, 5000);
+}
+
 function clearTrackedJR(){
     if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
     if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
@@ -1885,6 +1896,7 @@ async function loadLastFlight(){
 
         if (!icao){
             document.getElementById("planeInfo").innerHTML = `<span style="color:var(--red)">Could not find ICAO for ${tail}</span>`;
+            showLastFlightNotFoundPopup(tail);
             return;
         }
 
@@ -1906,6 +1918,7 @@ async function loadLastFlight(){
             document.getElementById("planeInfo").innerHTML =
                 `<span style="color:var(--muted)">${tail} — No flight history today</span>` +
                 `<br><button onclick="clearTracking()" style="margin-top:6px;width:100%;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✕ Clear</button>`;
+            showLastFlightNotFoundPopup(tail);
             return;
         }
 

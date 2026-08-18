@@ -1246,7 +1246,7 @@ def jumprun():
         dz_name = request.args.get("dz", "")
         if dz_name and dz_name in _jumprun_log:
             entry = _jumprun_log[dz_name]
-            # Reset if from a previous calendar day (local time)
+            # Reset if from a previous calendar day (local time) — this also clears any lock
             try:
                 ts = datetime.fromisoformat(entry.get("timestamp", ""))
                 entry_date = ts.astimezone().date()
@@ -1264,6 +1264,36 @@ def jumprun():
     if not dz_name:
         return jsonify({"error": "dz required"}), 400
 
+    source = data.get("source", "auto")   # "auto" | "manual" | "discard"
+    now_utc = datetime.now(timezone.utc)
+    existing = _jumprun_log.get(dz_name, {})
+
+    # A manual override or discard from earlier today locks the entry — auto-detection
+    # can no longer overwrite or average into it until the next calendar day.
+    def is_locked_today(entry):
+        if not entry or not entry.get("locked"):
+            return False
+        try:
+            ts = datetime.fromisoformat(entry.get("timestamp", ""))
+            return ts.astimezone().date() == datetime.now().astimezone().date()
+        except Exception:
+            return False
+
+    if source == "discard":
+        _jumprun_log[dz_name] = {
+            "start": None, "end": None, "alt": None, "heading": None,
+            "timestamp": now_utc.isoformat(), "tail": "",
+            "submission_count": 0, "locked": True,
+        }
+        save_jumprun()
+        print(f"Jump run discarded for {dz_name}")
+        return jsonify({"status": "discarded"})
+
+    if source != "manual" and is_locked_today(existing):
+        # Auto-detection tried to write over a manual override/discard — ignore it.
+        print(f"Ignoring auto jump run for {dz_name} — locked by manual override today")
+        return jsonify({"status": "ignored_locked"})
+
     new_start   = data.get("start")   # [lat, lon]
     new_end     = data.get("end")     # [lat, lon]
     new_alt     = data.get("alt")
@@ -1273,8 +1303,20 @@ def jumprun():
     if not new_start or not new_end:
         return jsonify({"error": "start and end required"}), 400
 
-    now_utc = datetime.now(timezone.utc)
-    existing = _jumprun_log.get(dz_name, {})
+    if source == "manual":
+        _jumprun_log[dz_name] = {
+            "start":            new_start,
+            "end":              new_end,
+            "alt":              new_alt,
+            "heading":          new_heading,
+            "timestamp":        now_utc.isoformat(),
+            "tail":             new_tail,
+            "submission_count": 1,
+            "locked":           True,
+        }
+        save_jumprun()
+        print(f"Jump run manually set for {dz_name}: hdg={new_heading}° (locked)")
+        return jsonify({"status": "saved", "submissions": 1})
 
     # Check if existing entry is from today and heading is within 30° (same jump run direction)
     def heading_diff(a, b):

@@ -970,8 +970,6 @@ async function load(){
             }
             if (marker) marker.remove();
             marker = L.marker([lat, lon]).addTo(map);
-            if (canopyCircle) canopyCircle.remove();
-            canopyCircle = L.circle([lat,lon],{radius:canopyAirspeedKt*0.514444*canopyDescentTime,color:'#39ff89',weight:2,opacity:0.4,fill:false,dashArray:'6,5'}).addTo(map);
             if (firstLoad) { map.setView([lat,lon],12); firstLoad=false; }
             return;
         }
@@ -986,7 +984,6 @@ async function load(){
         const windDir = d.canopy.wind_dir;
         const descentTime = canopyDescentTime;
         const canopyAirspeed = canopyAirspeedKt * 0.514444;
-        canopyCircle = L.circle([lat,lon],{radius:glideR,color:'#39ff89',weight:2,opacity:0.4,fill:false,dashArray:'6,5'}).addTo(map);
         const cosLatC = Math.cos(lat*Math.PI/180);
         const wFromRad = windDir*Math.PI/180;
         const wVx = windSpd*Math.sin(wFromRad), wVy = windSpd*Math.cos(wFromRad);
@@ -1125,8 +1122,6 @@ async function load(){
         console.error("Load error:", e);
         if (marker) marker.remove();
         marker=L.marker([lat,lon]).addTo(map);
-        if (canopyCircle) canopyCircle.remove();
-        canopyCircle=L.circle([lat,lon],{radius:canopyAirspeedKt*0.514444*canopyDescentTime,color:'#39ff89',weight:2,opacity:0.4,fill:false,dashArray:'6,5'}).addTo(map);
         if (firstLoad){ map.setView([lat,lon],12); firstLoad=false; }
         document.getElementById("utcLabel").innerText="⚠️ Could not load winds — check connection";
         document.getElementById("utcLabel").style.color="var(--red)";

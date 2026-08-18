@@ -1676,10 +1676,28 @@ function extractAndDrawJumpRun(){
 }
 
 function updatePlaneMarker(data){
-    detectJumpRun(data);
     trackedPlane = data;
     if (trackedPlaneMarker) trackedPlaneMarker.setIcon(planeTrackIcon(data.hdg||0, data.on_ground));
     if (data.fr24id) trackedPlane.fr24id = data.fr24id;
+
+    // Reject implausible GPS jumps before recording to trail or running dive detection.
+    // A jump plane won't cover more than ~250kt groundspeed between polls (5s apart);
+    // a bigger implied speed means a bad ADS-B fix, not real movement.
+    const MAX_PLAUSIBLE_KT = 250;
+    const now = Date.now();
+    if (planeTrail.length > 0 && window._lastTrailTs){
+        const last = planeTrail[planeTrail.length - 1];
+        const distM = distMeters(last, [data.lat, data.lon]);
+        const dtSec = Math.max((now - window._lastTrailTs) / 1000, 1);
+        const impliedKt = (distM / dtSec) * 1.94384; // m/s -> knots
+        if (impliedKt > MAX_PLAUSIBLE_KT){
+            console.warn(`Rejected GPS glitch: implied ${Math.round(impliedKt)}kt between polls`);
+            return; // skip this point entirely — don't add to trail, don't run dive detection
+        }
+    }
+    window._lastTrailTs = now;
+
+    detectJumpRun(data);
     // Always record real position + metadata to trail
     planeTrail.push([data.lat, data.lon]);
     // Store metadata alongside trail for hover tooltips

@@ -315,7 +315,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
     print(f"Fetching Open-Meteo ensemble for hour={hour_offset}")
     try:
         api_key = os.environ.get("OPENMETEO_API_KEY")
-        base_url = "https://customer-api.open-meteo.com/v1/forecast" if api_key else "https://api.open-meteo.com/v1/forecast"
+        base_url = "https://api.open-meteo.com/v1/forecast"  # always try free first
         # Wind fields — split into two requests, each under 10 vars = 1.0 API call each
         wind_fields = [
             "windspeed_10m","winddirection_10m","windspeed_80m","winddirection_80m",
@@ -374,24 +374,40 @@ def fetch_forecast(lat, lon, hour_offset=0):
             else:
                 fcast_days = 3
             model_param = "" if model in ("hrrr_conus", "nam_conus") else f"&models={model}"
-            key_param = f"&apikey={api_key}" if api_key else ""
+            # No API key in base_params — free API by default
             base_params = (f"?latitude={lat}&longitude={lon}"
                           f"&forecast_days={fcast_days}&timezone=auto"
-                          f"&wind_speed_unit=kn{model_param}{key_param}")
+                          f"&wind_speed_unit=kn{model_param}")
 
-            def fetch_url(fields_str):
-                url = f"{endpoint}{base_params}&hourly={fields_str}"
+            def fetch_url(fields_str, use_paid=False):
+                record_api_call(1)  # count every attempt including failures
+                if use_paid and api_key:
+                    paid_url = "https://customer-api.open-meteo.com/v1/forecast"
+                    paid_params = base_params.replace(base_url, paid_url) if base_url in base_params else base_params
+                    # Rebuild with paid URL and key
+                    mp = "" if model in ("hrrr_conus", "nam_conus") else f"&models={model}"
+                    kp = f"&apikey={api_key}"
+                    pp = (f"?latitude={lat}&longitude={lon}"
+                          f"&forecast_days={fcast_days}&timezone=auto"
+                          f"&wind_speed_unit=kn{mp}{kp}")
+                    url = f"https://customer-api.open-meteo.com/v1/forecast{pp}&hourly={fields_str}"
+                else:
+                    url = f"{endpoint}{base_params}&hourly={fields_str}"
                 r = requests.get(url, timeout=15,
                                  headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
                 return r
 
-            def handle_429(r):
-                if r.status_code == 429 and cached_model:
-                    extended = now + timedelta(hours=6)
-                    _forecast_cache[model_key] = {"data": cached_model["data"], "expires": extended}
-                    print(f"Rate limited — extending cache for {model} by 6h")
-                    return True
-                return False
+            def handle_429(r, fg):
+                if r.status_code == 429:
+                    if api_key:
+                        print(f"Free API rate limited for {model} — retrying with paid key")
+                        return fetch_url(",".join(fg), use_paid=True)
+                    elif cached_model:
+                        extended = now + timedelta(hours=6)
+                        _forecast_cache[model_key] = {"data": cached_model["data"], "expires": extended}
+                        print(f"Rate limited — extending cache for {model} by 6h")
+                    return None
+                return None
 
             try:
                 # 4 requests per model, each ≤10 vars = 1.0 API call each
@@ -401,9 +417,18 @@ def fetch_forecast(lat, lon, hour_offset=0):
                     r = fetch_url(",".join(fg))
                     if not r.ok:
                         print(f"Open-Meteo {model} {r.status_code}: {r.text[:200]}")
-                        if handle_429(r):
-                            return model, cached_model["data"]
-                        return model, None
+                        if r.status_code == 429:
+                            r2 = handle_429(r, fg)
+                            if r2 and r2.ok:
+                                r = r2  # use paid response
+                            else:
+                                if cached_model:
+                                    extended = now + timedelta(hours=6)
+                                    _forecast_cache[model_key] = {"data": cached_model["data"], "expires": extended}
+                                    return model, cached_model["data"]
+                                return model, None
+                        else:
+                            return model, None
                     responses.append(r.json())
                 # Merge all responses
                 mdata = responses[0]
@@ -433,7 +458,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
             return None
 
         print(f"Ensemble: {len(model_data)}/{len(ensemble_models)} models loaded: {list(model_data.keys())}")
-        record_api_call(len(ensemble_models) * 4)  # 4 calls per model (wind1+wind2+temp+height)
+        # Record is now done per-fetch inside fetch_url
         result = {"source": "openmeteo_ensemble", "models": model_data}
         _forecast_cache[dz_key] = {"data": result, "expires": now + CACHE_TTL}
         save_cache_to_disk()
@@ -912,6 +937,13 @@ def debug():
 
 @app.route("/stats")
 def stats():
+    try:
+        return stats_page()
+    except Exception as e:
+        import traceback
+        return f"<pre style='color:red'>Stats error: {e}\n{traceback.format_exc()}</pre>", 500
+
+def stats_page():
     import pytz
     from datetime import timedelta as td
     est = pytz.timezone("America/New_York")
@@ -936,7 +968,7 @@ def stats():
     api_limit = 10000
     api_pct = round(total_api_today / api_limit * 100, 1)
     api_bar_w = min(int(total_api_today / api_limit * 300), 300)
-    api_color = "#39ff89" if api_pct < 60 else "#ffaa00" if api_pct < 85 else "#ff4f4f"
+    api_color = "#39ff89" if api_pct < 40 else "#ffaa00" if api_pct < 70 else "#ff4f4f"
     import pytz as _pytz2
     from datetime import datetime as _dt2
     api_hourly_rows = ""
@@ -1034,7 +1066,7 @@ def admin():
     api_limit = 10000
     api_pct = round(total_api_today / api_limit * 100, 1)
     api_bar_w = min(int(total_api_today / api_limit * 300), 300)
-    api_color = "#39ff89" if api_pct < 60 else "#ffaa00" if api_pct < 85 else "#ff4f4f"
+    api_color = "#39ff89" if api_pct < 40 else "#ffaa00" if api_pct < 70 else "#ff4f4f"
     import pytz as _pytz2
     from datetime import datetime as _dt2
     api_hourly_rows = ""
@@ -1214,7 +1246,7 @@ def jumprun():
         dz_name = request.args.get("dz", "")
         if dz_name and dz_name in _jumprun_log:
             entry = _jumprun_log[dz_name]
-            # Reset if from a previous calendar day (local time)
+            # Reset if from a previous calendar day (local time) — this also clears any lock
             try:
                 ts = datetime.fromisoformat(entry.get("timestamp", ""))
                 entry_date = ts.astimezone().date()
@@ -1232,6 +1264,36 @@ def jumprun():
     if not dz_name:
         return jsonify({"error": "dz required"}), 400
 
+    source = data.get("source", "auto")   # "auto" | "manual" | "discard"
+    now_utc = datetime.now(timezone.utc)
+    existing = _jumprun_log.get(dz_name, {})
+
+    # A manual override or discard from earlier today locks the entry — auto-detection
+    # can no longer overwrite or average into it until the next calendar day.
+    def is_locked_today(entry):
+        if not entry or not entry.get("locked"):
+            return False
+        try:
+            ts = datetime.fromisoformat(entry.get("timestamp", ""))
+            return ts.astimezone().date() == datetime.now().astimezone().date()
+        except Exception:
+            return False
+
+    if source == "discard":
+        _jumprun_log[dz_name] = {
+            "start": None, "end": None, "alt": None, "heading": None,
+            "timestamp": now_utc.isoformat(), "tail": "",
+            "submission_count": 0, "locked": True,
+        }
+        save_jumprun()
+        print(f"Jump run discarded for {dz_name}")
+        return jsonify({"status": "discarded"})
+
+    if source != "manual" and is_locked_today(existing):
+        # Auto-detection tried to write over a manual override/discard — ignore it.
+        print(f"Ignoring auto jump run for {dz_name} — locked by manual override today")
+        return jsonify({"status": "ignored_locked"})
+
     new_start   = data.get("start")   # [lat, lon]
     new_end     = data.get("end")     # [lat, lon]
     new_alt     = data.get("alt")
@@ -1241,8 +1303,20 @@ def jumprun():
     if not new_start or not new_end:
         return jsonify({"error": "start and end required"}), 400
 
-    now_utc = datetime.now(timezone.utc)
-    existing = _jumprun_log.get(dz_name, {})
+    if source == "manual":
+        _jumprun_log[dz_name] = {
+            "start":            new_start,
+            "end":              new_end,
+            "alt":              new_alt,
+            "heading":          new_heading,
+            "timestamp":        now_utc.isoformat(),
+            "tail":             new_tail,
+            "submission_count": 1,
+            "locked":           True,
+        }
+        save_jumprun()
+        print(f"Jump run manually set for {dz_name}: hdg={new_heading}° (locked)")
+        return jsonify({"status": "saved", "submissions": 1})
 
     # Check if existing entry is from today and heading is within 30° (same jump run direction)
     def heading_diff(a, b):
@@ -1324,12 +1398,11 @@ def fetch_cloud_data(lat, lon):
         return cached["data"]
     try:
         api_key = os.environ.get("OPENMETEO_API_KEY")
-        base = "https://customer-api.open-meteo.com/v1/gfs" if api_key else "https://api.open-meteo.com/v1/gfs"
+        base = "https://api.open-meteo.com/v1/gfs"  # free first
         fields = "cloudcover_low,cloudcover_mid,cloudcover_high,cloudcover,precipitation_probability,visibility,dewpoint_2m,temperature_2m"
         url = (f"{base}?latitude={lat}&longitude={lon}&hourly={fields}"
                f"&forecast_days=3&timezone=auto&models=gfs_seamless")
-        if api_key:
-            url += f"&apikey={api_key}"
+        # No key for free API
         r = requests.get(url, timeout=10, headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
         if r.ok:
             data = r.json()

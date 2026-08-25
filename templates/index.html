@@ -78,6 +78,7 @@ body {
     border-left: 1px solid var(--border);
     overflow: hidden;
     transition: transform 0.3s ease;
+    height: 100vh; height: 100dvh;
 }
 @media (max-width: 599px) {
     #wrap { flex-direction: column; position: relative; }
@@ -116,7 +117,12 @@ body {
 }
 @media (min-width: 600px) {
     #panel-handle { display: none; }
-    #panel-body { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+    #panel-header { flex-shrink: 0; }
+    #panel-body { display: flex; flex-direction: column; flex: 1; overflow-y: auto; min-height: 0; }
+    #panel-body::-webkit-scrollbar { width: 4px; }
+    #panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    #cards-wrap { overflow-y: visible; flex: unset; min-height: 0; }
+    #controls { flex-shrink: 0; }
 }
 #panel-header { padding: 14px 16px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 #panel-header h1 { font-weight: 700; font-size: 1.35rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
@@ -153,7 +159,7 @@ select:focus { border-color: var(--accent); }
 .alt-section-title { font-size: 0.64rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin: 10px 0 4px; }
 .alt-section-title.upper { color: var(--freefall); }
 .alt-section-title.lower { color: var(--canopy); }
-.wind-card { display: grid; grid-template-columns: 52px 20px 42px 68px 38px 42px; align-items: center; gap: 4px; padding: 6px 10px; margin: 2px 0; border-radius: 6px; background: var(--card-alt); border: 1px solid transparent; transition: border-color 0.15s; font-family: 'Share Tech Mono', monospace; font-size: 0.78rem; }
+.wind-card { display: grid; grid-template-columns: 52px 20px 68px 38px 42px 42px; align-items: center; gap: 4px; padding: 6px 10px; margin: 2px 0; border-radius: 6px; background: var(--card-alt); border: 1px solid transparent; transition: border-color 0.15s; font-family: 'Share Tech Mono', monospace; font-size: 0.78rem; }
 .wind-card:hover { border-color: var(--border); }
 .wind-card.upper { background: rgba(255,170,0,0.06); }
 .wind-card.upper .alt { color: var(--freefall); opacity: 0.75; }
@@ -354,7 +360,10 @@ select:focus { border-color: var(--accent); }
             </div>
             <div id="trackError" style="display:none;color:var(--red);font-size:0.8rem"></div>
         </div>
-        <button onclick="startTracking()" style="margin:6px 18px 16px;padding:11px;background:var(--accent);color:var(--bg);border:none;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">Start Tracking</button>
+        <div style="display:flex;gap:8px;margin:6px 18px 16px">
+            <button onclick="startTracking()" style="flex:1;padding:11px;background:var(--accent);color:var(--bg);border:none;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">🔴 Live Track</button>
+            <button onclick="loadLastFlight()" style="flex:1;padding:11px;background:var(--card-bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">📋 Last Flight</button>
+        </div>
     </div>
 </div>
 
@@ -467,6 +476,12 @@ select:focus { border-color: var(--accent); }
                 <div id="jumpRunInfo" style="display:none"></div>
                 <button id="lastLoadBtn" onclick="toggleLastLoad()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#00d4ff;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">✈️ Show Last Load</button>
                 <button id="communityJrBtn" onclick="loadCommunityJR()" style="margin-top:6px;margin-bottom:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">📍 Show Last Jump Run</button>
+                <button id="fixJrBtn" onclick="toggleFixJrPanel()" style="margin-bottom:6px;width:100%;padding:6px 10px;background:none;color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🛠️ Fix Jump Run</button>
+                <div id="fixJrPanel" style="display:none;margin-bottom:6px;padding:8px 10px;background:var(--card-bg);border:1px solid var(--border);border-radius:6px">
+                    <div style="font-size:0.68rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Looks wrong for today?</div>
+                    <button onclick="startManualJrOverride()" style="width:100%;margin-bottom:5px;padding:6px;background:none;border:1px solid #00d4ff;color:#00d4ff;border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✏️ Draw Manually</button>
+                    <button onclick="discardTodayJumpRun()" style="width:100%;padding:6px;background:none;border:1px solid #ff4f4f;color:#ff4f4f;border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">🗑️ Discard Today's</button>
+                </div>
                 </div><!-- end btn-scroll -->
             </div><!-- end controls -->
             <!-- Detail popups — triggered by tapping arrows on the wind summary widget -->
@@ -564,7 +579,7 @@ function drawFreefallParallel(){
     const bear = bearing(jrStart, jrEnd);
     let gndKts = '—';
     if (lastWind14k) {
-        const airspeedMs = 110 * 0.514444;
+        const airspeedMs = 85 * 0.514444;
         const wSpdMs = lastWind14k.speed * 0.514444;
         const angleDiff = ((lastWind14k.direction - bear + 180 + 360) % 360) - 180;
         const headwindMs = wSpdMs * Math.cos(angleDiff * Math.PI / 180);
@@ -582,12 +597,12 @@ function drawFreefallParallel(){
 function recommendedSep(gndKts){
     if (!gndKts || gndKts <= 0) return null;
     if (gndKts < 70)  return 12;
-    if (gndKts < 80)  return 10;
-    if (gndKts < 90)  return 8;
-    if (gndKts < 100) return 7;
-    if (gndKts < 110) return 6;
-    if (gndKts <= 120) return 5;
-    return 4;
+    if (gndKts < 80)  return 11;
+    if (gndKts < 90)  return 10;
+    if (gndKts < 100) return 9;
+    if (gndKts < 110) return 8;
+    if (gndKts <= 120) return 7;
+    return 6;
 }
 
 function drawJumpRun(){
@@ -660,7 +675,7 @@ function startPlaneAnimation(){
     if (!jrStart || !jrEnd || !lastWind14k || !lastFreefall) return;
     const hdg = bearing(jrStart, jrEnd);
     const jrDist = distMeters(jrStart, jrEnd);
-    const airspeed = 110 * 0.514444;
+    const airspeed = 85 * 0.514444;
     const wSpd = lastWind14k.speed * 0.514444;
     const wDir = lastWind14k.direction;
     const angleDiff = ((wDir - hdg + 180 + 360) % 360) - 180;
@@ -877,8 +892,16 @@ function endDraw(ll){
     const startPx = map.latLngToContainerPoint(L.latLng(jrStart));
     const endPx = map.latLngToContainerPoint(L.latLng(endPt));
     const dist = Math.sqrt((startPx.x-endPx.x)**2+(startPx.y-endPx.y)**2);
-    if (dist < 15) { jrStart = null; return; }
+    if (dist < 15) {
+        jrStart = null;
+        if (manualJrOverrideActive){ manualJrOverrideActive = false; showJumpRunStatus(null); }
+        return;
+    }
     jrEnd = endPt; drawJumpRun(); toggleDrawMode();
+    if (manualJrOverrideActive){
+        manualJrOverrideActive = false;
+        saveManualJrOverride(jrStart, jrEnd, Math.round(bearing(jrStart, jrEnd)));
+    }
 }
 
 function onMapMouseDown(e){ if (!drawMode) return; startDraw(e.latlng); }
@@ -950,8 +973,6 @@ async function load(){
             }
             if (marker) marker.remove();
             marker = L.marker([lat, lon]).addTo(map);
-            if (canopyCircle) canopyCircle.remove();
-            canopyCircle = L.circle([lat,lon],{radius:canopyAirspeedKt*0.514444*canopyDescentTime,color:'#39ff89',weight:2,opacity:0.4,fill:false,dashArray:'6,5'}).addTo(map);
             if (firstLoad) { map.setView([lat,lon],12); firstLoad=false; }
             return;
         }
@@ -966,7 +987,6 @@ async function load(){
         const windDir = d.canopy.wind_dir;
         const descentTime = canopyDescentTime;
         const canopyAirspeed = canopyAirspeedKt * 0.514444;
-        canopyCircle = L.circle([lat,lon],{radius:glideR,color:'#39ff89',weight:2,opacity:0.4,fill:false,dashArray:'6,5'}).addTo(map);
         const cosLatC = Math.cos(lat*Math.PI/180);
         const wFromRad = windDir*Math.PI/180;
         const wVx = windSpd*Math.sin(wFromRad), wVy = windSpd*Math.cos(wFromRad);
@@ -1055,10 +1075,10 @@ async function load(){
         html+=`<div class="wind-card" style="border-bottom:1px solid var(--border);padding:2px 10px;margin-bottom:2px">
             ${hdr('ALT','left')}
             ${hdr('DIR','left')}
-            ${hdr('AGREE','center')}
             ${hdr('SPD','right')}
             ${hdr('HDG','right')}
             ${hdr('TMP','right')}
+            ${hdr('AGREE','center')}
         </div>`;
         let lastGroup='low';
         for (const a of alts){
@@ -1100,15 +1120,13 @@ async function load(){
                     else                   agreeHtml = `<span class="agree" style="color:#ff4f4f;text-align:center;display:block">Low</span>`;
                 }
             }
-            html+=`<div class="wind-card ${group==='high'?'upper':''}"><span class="alt">${altLabel}</span><span class="arrow">${svgArrow}</span>${agreeHtml}<span class="speed ${cls}">${w.speed.toFixed(1)} kt</span><span class="dir">${w.direction.toFixed(0)}°</span><span class="temp" style="color:${tempColor};font-weight:bold">${tempStr}</span></div>`;
+            html+=`<div class="wind-card ${group==='high'?'upper':''}"><span class="alt">${altLabel}</span><span class="arrow">${svgArrow}</span><span class="speed ${cls}">${w.speed.toFixed(1)} kt</span><span class="dir">${w.direction.toFixed(0)}°</span><span class="temp" style="color:${tempColor};font-weight:bold">${tempStr}</span>${agreeHtml}</div>`;
         }
         document.getElementById("cards").innerHTML=html;
     } catch(e) {
         console.error("Load error:", e);
         if (marker) marker.remove();
         marker=L.marker([lat,lon]).addTo(map);
-        if (canopyCircle) canopyCircle.remove();
-        canopyCircle=L.circle([lat,lon],{radius:canopyAirspeedKt*0.514444*canopyDescentTime,color:'#39ff89',weight:2,opacity:0.4,fill:false,dashArray:'6,5'}).addTo(map);
         if (firstLoad){ map.setView([lat,lon],12); firstLoad=false; }
         document.getElementById("utcLabel").innerText="⚠️ Could not load winds — check connection";
         document.getElementById("utcLabel").style.color="var(--red)";
@@ -1184,6 +1202,17 @@ function toggleDetailPopup(id){
     window.addEventListener("touchend", onEnd);
 })();
 
+function toggleDetailPopup(id){
+    const el = document.getElementById(id);
+    if (!el) return;
+    const visible = el.style.display !== 'none';
+    ['canopyBlock','freefallBlock'].forEach(function(bid){
+        const b = document.getElementById(bid);
+        if (b) b.style.display = 'none';
+    });
+    if (!visible) el.style.display = 'block';
+}
+
 function toggleCards(){ const wrap=document.getElementById("cards-wrap"),btn=document.getElementById("toggleCardsBtn"),hidden=wrap.style.display==="none"; wrap.style.display=hidden?"":"none"; btn.textContent=hidden?"Hide":"Show"; }
 function closeWelcome(){
     try {
@@ -1192,6 +1221,7 @@ function closeWelcome(){
         if (wSel && wSel.value && mSel && wSel.value !== mSel.value){
             mSel.value = wSel.value;
             lat = dz[wSel.value][0]; lon = dz[wSel.value][1];
+            try{ localStorage.setItem("mwh-dz", wSel.value); }catch(e){}
             firstLoad = true; load();
         }
     } catch(e){}
@@ -1257,6 +1287,58 @@ function submitDefineJumpRun(){
     jrStart=startPt; jrEnd=offsetLatLon(startPt[0],startPt[1],dir,length);
     closeDefineModal(); drawJumpRun();
     if (window.innerWidth<600&&panelOpen) togglePanel();
+}
+
+// ── JUMP RUN OVERRIDE (manual fix / discard for today's shared jump run) ──
+let manualJrOverrideActive = false;
+
+function toggleFixJrPanel(){
+    const p = document.getElementById("fixJrPanel");
+    p.style.display = (p.style.display === "none") ? "block" : "none";
+}
+
+function startManualJrOverride(){
+    // Uses the same click-and-drag draw-on-map interaction as "Draw Jump Run",
+    // then saves the resulting line as today's official jump run for this DZ.
+    manualJrOverrideActive = true;
+    document.getElementById("fixJrPanel").style.display = "none";
+    showJumpRunStatus("✏️ Click and drag on the map to set today's jump run");
+    if (!drawMode) toggleDrawMode();
+}
+
+function saveManualJrOverride(start, end, hdg){
+    const dzName = document.getElementById("dz").value;
+    fetch('/jumprun', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            dz: dzName, start, end, heading: hdg,
+            alt: null, tail: '', source: 'manual'
+        })
+    }).then(r => r.json()).then(d => {
+        if (d.status === 'saved'){
+            showJumpRunStatus("✅ Jump run set — this replaces auto-detection for today");
+            loadCommunityJR();
+        } else {
+            showJumpRunStatus("⚠️ Could not save override");
+        }
+    }).catch(e => showJumpRunStatus("⚠️ Could not save — check connection"));
+}
+
+function discardTodayJumpRun(){
+    document.getElementById("fixJrPanel").style.display = "none";
+    const dzName = document.getElementById("dz").value;
+    fetch('/jumprun', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dz: dzName, source: 'discard' })
+    }).then(r => r.json()).then(d => {
+        if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
+        if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
+        if (communityJrArrow){ communityJrArrow.remove(); communityJrArrow = null; }
+        clearTrackedJR();
+        showJumpRunStatus("🗑️ Today's jump run discarded");
+    }).catch(e => showJumpRunStatus("⚠️ Could not discard — check connection"));
 }
 
 function initMap(){
@@ -1365,7 +1447,6 @@ function planeTrackIcon(hdg, onGround){
       <!-- Vertical stab -->
       <polygon points="0,10 -2,18 2,18" fill="${color}"/>
       <!-- Engine pod (same color, no dark tip) -->
-      <ellipse cx="0" cy="-24" rx="3.5" ry="4" fill="${color}"/>
     </svg>`;
     return L.divIcon({ html: svg, className: "", iconSize: [72,72], iconAnchor: [36,36] });
 }
@@ -1412,9 +1493,10 @@ function animatePlane(timestamp){
     if (trackedPlaneMarker){ trackedPlaneMarker.setLatLng([pLat, pLng]); }
     else { trackedPlaneMarker = L.marker([pLat, pLng], { icon: planeTrackIcon(trackedPlane.hdg||0, trackedPlane.on_ground), zIndexOffset: 1100 }).addTo(map); }
     const alt  = trackedPlane.alt  ? Math.round(trackedPlane.alt).toLocaleString() + " ft" : "—";
+    const hdg  = (trackedPlane.hdg !== undefined && trackedPlane.hdg !== null) ? Math.round(trackedPlane.hdg) + "°" : "";
     const spd  = trackedPlane.spd  ? Math.round(trackedPlane.spd)  + " kt" : "—";
     const vert = trackedPlane.vert ? (trackedPlane.vert>0?"↑":"↓") + Math.abs(Math.round(trackedPlane.vert)).toLocaleString() + " fpm" : "";
-    const lHtml = `<div style="background:rgba(7,11,16,0.95);border:1px solid #00d4ff;border-radius:6px;padding:5px 10px;font-family:'Share Tech Mono',monospace;font-size:0.82rem;font-weight:bold;color:#00d4ff;white-space:nowrap;line-height:1.8;min-width:90px">${alt}<br>${spd}${vert ? '<br>'+vert : ''}</div>`;
+    const lHtml = `<div style="background:rgba(7,11,16,0.95);border:1px solid #00d4ff;border-radius:6px;padding:5px 10px;font-family:'Share Tech Mono',monospace;font-size:0.82rem;font-weight:bold;color:#00d4ff;white-space:nowrap;line-height:1.8;min-width:90px">${alt}${hdg ? '<br>'+hdg : ''}<br>${spd}${vert ? '<br>'+vert : ''}</div>`;
     if (trackedPlaneLabel){ trackedPlaneLabel.setLatLng([pLat,pLng]); trackedPlaneLabel.setIcon(L.divIcon({ html: lHtml, className: "", iconAnchor: [-28,0] })); }
     else { trackedPlaneLabel = L.marker([pLat,pLng], { icon: L.divIcon({ html: lHtml, className: "", iconAnchor: [-28,0] }), zIndexOffset: 1101, interactive: false }).addTo(map); }
     updateOffscreenArrow(pLat, pLng);
@@ -1444,6 +1526,17 @@ function showJumpRunStatus(msg){
     setTimeout(() => { const e = document.getElementById("jumpRunStatus"); if (e) e.remove(); }, 6000);
 }
 
+function showLastFlightNotFoundPopup(tail){
+    const existing = document.getElementById("lastFlightNotFoundPopup");
+    if (existing) existing.remove();
+    const div = document.createElement("div");
+    div.id = "lastFlightNotFoundPopup";
+    div.style.cssText = "position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:99997;background:rgba(13,21,32,0.96);border:1px solid var(--red);border-radius:8px;padding:10px 18px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;font-weight:600;color:var(--red);letter-spacing:0.04em;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.5)";
+    div.textContent = tail ? `Last flight not found for ${tail}` : "Last flight not found";
+    document.body.appendChild(div);
+    setTimeout(() => { const e = document.getElementById("lastFlightNotFoundPopup"); if (e) e.remove(); }, 5000);
+}
+
 function clearTrackedJR(){
     if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
     if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
@@ -1462,9 +1555,10 @@ function autoSaveDetectedJR(pts){
     fetch('/jumprun', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ dz: dzName, start, end, heading: hdg, alt, tail })
+        body: JSON.stringify({ dz: dzName, start, end, heading: hdg, alt, tail, source: 'auto' })
     }).then(r => r.json()).then(d => {
         if (d.status === 'saved') console.log(`Auto-saved detected JR for ${dzName}: ${hdg}°`);
+        else if (d.status === 'ignored_locked') console.log(`Auto-detection ignored for ${dzName} — manual override active`);
     }).catch(e => console.warn("Could not auto-save JR:", e));
 }
 
@@ -1528,7 +1622,6 @@ async function toggleLastLoad(){
                     <polygon points="-14,17 -3,15 -3,19 -14,19" fill="#00d4ff"/>
                     <polygon points="14,17 3,15 3,19 14,19" fill="#00d4ff"/>
                     <polygon points="0,10 -2,18 2,18" fill="#00d4ff"/>
-                    <ellipse cx="0" cy="-24" rx="3.5" ry="4" fill="#00d4ff"/>
                 </svg>`,
                 className:"", iconSize:[48,48], iconAnchor:[24,24]
             }), zIndexOffset:900
@@ -1599,10 +1692,28 @@ function extractAndDrawJumpRun(){
 }
 
 function updatePlaneMarker(data){
-    detectJumpRun(data);
     trackedPlane = data;
     if (trackedPlaneMarker) trackedPlaneMarker.setIcon(planeTrackIcon(data.hdg||0, data.on_ground));
     if (data.fr24id) trackedPlane.fr24id = data.fr24id;
+
+    // Reject implausible GPS jumps before recording to trail or running dive detection.
+    // A jump plane won't cover more than ~250kt groundspeed between polls (5s apart);
+    // a bigger implied speed means a bad ADS-B fix, not real movement.
+    const MAX_PLAUSIBLE_KT = 250;
+    const now = Date.now();
+    if (planeTrail.length > 0 && window._lastTrailTs){
+        const last = planeTrail[planeTrail.length - 1];
+        const distM = distMeters(last, [data.lat, data.lon]);
+        const dtSec = Math.max((now - window._lastTrailTs) / 1000, 1);
+        const impliedKt = (distM / dtSec) * 1.94384; // m/s -> knots
+        if (impliedKt > MAX_PLAUSIBLE_KT){
+            console.warn(`Rejected GPS glitch: implied ${Math.round(impliedKt)}kt between polls`);
+            return; // skip this point entirely — don't add to trail, don't run dive detection
+        }
+    }
+    window._lastTrailTs = now;
+
+    detectJumpRun(data);
     // Always record real position + metadata to trail
     planeTrail.push([data.lat, data.lon]);
     // Store metadata alongside trail for hover tooltips
@@ -1781,14 +1892,126 @@ function drawJumpRunLine(pts){
     if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
     if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
     if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
-    const coords = pts.map(p => [p.lat, p.lon]);
-    lastJumpRunLine = L.polyline(coords, { color: "#ff4f4f", weight: 4, opacity: 0.9 }).addTo(map);
-    lastJumpRunLabel = L.marker([pts[0].lat, pts[0].lon], {
+    // Draw only start -> end as a straight line. Drawing every raw history point
+    // (the old behavior) turns a single noisy/glitched ADS-B position into a
+    // visible zigzag or triangle, since the raw track isn't perfectly straight.
+    const start = [pts[0].lat, pts[0].lon];
+    const end = [pts[pts.length - 1].lat, pts[pts.length - 1].lon];
+    lastJumpRunLine = L.polyline([start, end], { color: "#ff4f4f", weight: 4, opacity: 0.9 }).addTo(map);
+    lastJumpRunLabel = L.marker(start, {
         icon: L.divIcon({
             html: `<div style="display:inline-block;background:rgba(7,11,16,0.95);border:1.5px solid #ff4f4f;border-radius:6px;padding:4px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;font-weight:700;color:#ff4f4f;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.7);white-space:nowrap">Jump Run</div>`,
             className: "", iconAnchor: [0, 24]
         }), interactive: false
     }).addTo(map);
+}
+
+async function loadLastFlight(){
+    const tail = document.getElementById("planeTail").value.trim().toUpperCase();
+    if (!tail){ document.getElementById("trackError").textContent="Enter a tail number"; document.getElementById("trackError").style.display="block"; return; }
+    closeTrackModal();
+
+    // Update button state
+    const tb = document.getElementById("trackBtn");
+    tb.textContent = "📋 " + tail + " — Last Flight";
+    tb.style.color = "var(--freefall)";
+    tb.style.borderColor = "var(--freefall)";
+    tb.style.background = "rgba(255,170,0,0.1)";
+    tb.onclick = clearTracking;
+
+    document.getElementById("planeInfo").style.display = "block";
+    document.getElementById("planeInfo").innerHTML = `<span style="color:var(--freefall)">Loading last flight for ${tail}...</span>`;
+
+    try {
+        // Step 1: Get ICAO from live lookup
+        const liveR = await fetch(`/plane?tail=${encodeURIComponent(tail)}`);
+        const liveD = await liveR.json();
+        let icao = liveD.icao || "";
+
+        if (!icao){
+            document.getElementById("planeInfo").innerHTML = `<span style="color:var(--red)">Could not find ICAO for ${tail}</span>`;
+            showLastFlightNotFoundPopup(tail);
+            return;
+        }
+
+        // Step 2: Fetch today's globe_history trace
+        showJumpRunStatus("🔍 Loading today's flight history...");
+        const today = new Date();
+        const yyyy = today.getUTCFullYear();
+        const mm = String(today.getUTCMonth()+1).padStart(2,'0');
+        const dd = String(today.getUTCDate()).padStart(2,'0');
+        const sub = icao.slice(-2);
+        const traceUrl = `https://globe_history.adsb.lol/${yyyy}/${mm}/${dd}/traces/${sub}/trace_full_${icao}.json`;
+
+        const traceR = await fetch(`/plane/trace?icao=${encodeURIComponent(icao)}&source=history&date=${yyyy}-${mm}-${dd}`);
+        const traceD = await traceR.json();
+        const pts = traceD.points || [];
+
+        if (pts.length < 2){
+            showJumpRunStatus(null);
+            document.getElementById("planeInfo").innerHTML =
+                `<span style="color:var(--muted)">${tail} — No flight history today</span>` +
+                `<br><button onclick="clearTracking()" style="margin-top:6px;width:100%;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✕ Clear</button>`;
+            showLastFlightNotFoundPopup(tail);
+            return;
+        }
+
+        // Step 3: Find most recent flight segment (after last landing/gap)
+        const FLIGHT_GAP_S = 600; // 10 min gap = new flight
+        let segStart = 0;
+        for (let i = 1; i < pts.length; i++){
+            if ((pts[i].ts - pts[i-1].ts) > FLIGHT_GAP_S) segStart = i;
+        }
+        const flightPts = pts.slice(segStart);
+
+        // Draw history trail
+        if (historyTrailLine){ historyTrailLine.remove(); historyTrailLine = null; }
+        const coords = flightPts.filter(p => p.lat && p.lon).map(p => [p.lat, p.lon]);
+        if (coords.length > 1){
+            historyTrailLine = L.polyline(coords, { color:'#00d4ff', weight:3, opacity:0.55, dashArray:'4,4' }).addTo(map);
+            map.fitBounds(historyTrailLine.getBounds(), {padding:[40,40], maxZoom:12});
+        }
+
+        // Step 4: Detect most recent jump run
+        const DIVE = -1000;
+        let lastDiveIdx = -1;
+        for (let i = 2; i < flightPts.length; i++){
+            if ((flightPts[i].vert||0) < DIVE && (flightPts[i-1].vert||0) < DIVE) lastDiveIdx = i;
+        }
+
+        if (lastDiveIdx >= 0){
+            const TWO_MI = 3219;
+            let traceStart = lastDiveIdx - 1;
+            while (traceStart >= 0 && (flightPts[traceStart].vert||0) < DIVE) traceStart--;
+            const jrPts = [];
+            let tDist = 0;
+            for (let i = traceStart; i >= 0; i--){
+                const p = flightPts[i];
+                if (jrPts.length > 0){
+                    tDist += distMeters([p.lat, p.lon], [jrPts[0].lat, jrPts[0].lon]);
+                    if (tDist > TWO_MI) break;
+                }
+                jrPts.unshift(p);
+            }
+            if (jrPts.length >= 2) drawJumpRunLine(jrPts);
+        }
+
+        showJumpRunStatus(null);
+
+        // Set trackedPlane for display
+        const lastPt = flightPts[flightPts.length-1];
+        trackedPlane = { tail, icao, lat: lastPt.lat, lon: lastPt.lon, alt: lastPt.alt, spd: lastPt.spd, hdg: lastPt.hdg, vert: lastPt.vert };
+
+        document.getElementById("planeInfo").innerHTML =
+            `<span style="color:var(--freefall);font-weight:bold">${tail} — Last Flight</span><br>` +
+            `${flightPts.length} points · ${lastDiveIdx >= 0 ? 'Jump run detected' : 'No dive detected'}` +
+            `<br><button onclick="clearTracking()" style="margin-top:6px;width:100%;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✕ Clear</button>`;
+
+    } catch(e){
+        console.error("Last flight error:", e);
+        showJumpRunStatus(null);
+        document.getElementById("planeInfo").innerHTML = `<span style="color:var(--red)">Could not load last flight — ${e.message}</span>`;
+    }
 }
 
 async function startTracking(){
@@ -2098,11 +2321,12 @@ async function loadCommunityJR(){
         // Show age in label
         const ts = new Date(d.timestamp);
         const ageHours = (Date.now() - ts.getTime()) / 3600000;
+        const dateStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         let timeStr;
-        if (ageHours < 0.25) timeStr = "just now";
-        else if (ageHours < 1) timeStr = `${Math.round(ageHours*60)}min ago`;
-        else if (ageHours < 24) timeStr = ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
-        else timeStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        if (ageHours < 0.25) timeStr = `${dateStr} · just now`;
+        else if (ageHours < 1) timeStr = `${dateStr} · ${Math.round(ageHours*60)}min ago`;
+        else if (ageHours < 24) timeStr = `${dateStr} · ` + ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+        else timeStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
         // Draw it
         if (communityJrLine){ communityJrLine.remove(); }
         if (communityJrLabel){ communityJrLabel.remove(); }
@@ -2266,7 +2490,9 @@ function renderCloudPopup(){
 function initDZ(){
     const sel=document.getElementById("dz");
     const keys=Object.keys(dz);
-    const defaultDz=keys.find(k=>k.toLowerCase().includes("skydive new england"))||keys[0];
+    const sneDz=keys.find(k=>k.toLowerCase().includes("skydive new england"))||keys[0];
+    let savedDz=null; try{ savedDz=localStorage.getItem("mwh-dz"); }catch(e){}
+    const defaultDz=(savedDz && dz[savedDz]) ? savedDz : sneDz;
     const wSel = document.getElementById("welcomeDzSelect");
     for (const k of keys){
         const o=document.createElement("option"); o.value=k; o.text=k; sel.appendChild(o);
@@ -2289,6 +2515,7 @@ function initDZ(){
     renderTime();
     sel.onchange=()=>{
         const v=sel.value; lat=dz[v][0]; lon=dz[v][1];
+        try{ localStorage.setItem("mwh-dz", v); }catch(e){}
         if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}
         if(freefallLine){freefallLine.forEach(l=>l.remove());freefallLine=null;}
         clearTracking(); stopPlane(); jrStart=null; jrEnd=null;

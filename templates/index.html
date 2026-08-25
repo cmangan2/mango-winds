@@ -136,7 +136,7 @@ select:focus { border-color: var(--accent); }
 .time-row label { margin: 0; }
 #timeLabel { font-family: 'Share Tech Mono', monospace; font-size: 0.72rem; color: var(--accent); white-space: nowrap; }
 #hour { width: 100%; accent-color: var(--accent); cursor: pointer; height: 6px; border-radius: 3px; }
-#summaries { padding: 10px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; }
+/* #summaries removed — detail blocks are now floating popups */
 .summary-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; position: relative; overflow: hidden; }
 .summary-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
 .summary-card.canopy::before { background: var(--canopy); }
@@ -371,19 +371,19 @@ select:focus { border-color: var(--accent); }
 <div id="windSummary" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:8000;background:rgba(13,21,32,0.92);border:1px solid var(--border);border-radius:12px;padding:10px 14px;box-shadow:0 8px 32px rgba(0,0,0,0.6);backdrop-filter:blur(8px);cursor:grab;user-select:none;touch-action:none;min-width:240px">
     <button onclick="document.getElementById('windSummary').style.display='none'" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
     <div style="display:flex;gap:16px;align-items:center;justify-content:center">
-        <div style="text-align:center">
+        <div style="text-align:center;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.15s;-webkit-tap-highlight-color:transparent" onclick="toggleDetailPopup('freefallBlock')" title="Tap for freefall detail">
             <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--freefall);margin-bottom:3px">Freefall</div>
             <div id="wsBalloonArrow" style="font-size:1.4rem;line-height:1">—</div>
             <div id="wsBalloonVal" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text);margin-top:2px">—</div>
         </div>
         <div style="width:1px;height:40px;background:var(--border)"></div>
-        <div style="text-align:center">
+        <div style="text-align:center;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.15s;-webkit-tap-highlight-color:transparent" onclick="toggleDetailPopup('canopyBlock')" title="Tap for canopy detail">
             <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--canopy);margin-bottom:3px">Canopy</div>
             <div id="wsCanopyArrow" style="font-size:1.4rem;line-height:1">—</div>
             <div id="wsCanopyVal" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text);margin-top:2px">—</div>
         </div>
         <div style="width:1px;height:40px;background:var(--border)"></div>
-        <div style="text-align:center">
+        <div style="text-align:center;padding:4px 8px">
             <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);margin-bottom:3px">Surface</div>
             <div id="wsSurfaceArrow" style="font-size:1.4rem;line-height:1">—</div>
             <div id="wsSurfaceVal" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text);margin-top:2px">—</div>
@@ -469,10 +469,9 @@ select:focus { border-color: var(--accent); }
                 <button id="communityJrBtn" onclick="loadCommunityJR()" style="margin-top:6px;margin-bottom:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">📍 Show Last Jump Run</button>
                 </div><!-- end btn-scroll -->
             </div><!-- end controls -->
-            <div id="summaries">
-                <div class="summary-card canopy" id="canopyBlock"><div class="sc-label">Canopy  •  SFC – 3 000 ft</div><div class="sc-data">—</div></div>
-                <div class="summary-card freefall" id="freefallBlock"><div class="sc-label">Freefall  •  4 000 – 14 000 ft</div><div class="sc-data">—</div></div>
-            </div>
+            <!-- Detail popups — triggered by tapping arrows on the wind summary widget -->
+            <div id="canopyBlock" style="display:none;position:fixed;bottom:148px;left:50%;transform:translateX(-50%);z-index:8010;background:rgba(13,21,32,0.97);border:1px solid var(--canopy);border-radius:12px;padding:12px 16px 10px;box-shadow:0 8px 32px rgba(0,0,0,0.7);backdrop-filter:blur(10px);min-width:240px;max-width:90vw"></div>
+            <div id="freefallBlock" style="display:none;position:fixed;bottom:148px;left:50%;transform:translateX(-50%);z-index:8010;background:rgba(13,21,32,0.97);border:1px solid var(--freefall);border-radius:12px;padding:12px 16px 10px;box-shadow:0 8px 32px rgba(0,0,0,0.7);backdrop-filter:blur(10px);min-width:240px;max-width:90vw"></div>
             <div id="cards-header" style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px 0">
                 <span style="font-size:0.64rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)">Winds by Altitude</span>
                 <button id="toggleCardsBtn" onclick="toggleCards()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:2px 8px;font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;letter-spacing:0.08em;cursor:pointer;-webkit-tap-highlight-color:transparent">Hide</button>
@@ -1011,19 +1010,21 @@ async function load(){
             if (proj>maxDownwind) maxDownwind=proj;
         }
         document.getElementById("canopyBlock").innerHTML =
-            `<div class="sc-label">Canopy &nbsp;•&nbsp; SFC – 3 000 ft</div>
+            `<button onclick="document.getElementById('canopyBlock').style.display='none'" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
+            <div style="font-size:0.68rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--canopy);margin-bottom:8px">Canopy &nbsp;•&nbsp; SFC – 3 000 ft</div>
             <div class="sc-data">
                 <div><span>SPD</span>${d.canopy.speed.toFixed(1)} kt</div>
                 <div><span>DIR</span>${d.canopy.direction.toFixed(0)}°</div>
                 <div>${arrow(d.canopy.direction, 'var(--canopy)')}</div>
             </div>
-            <div class="sc-data" style="margin-top:4px">
+            <div class="sc-data" style="margin-top:6px">
                 <div><span>MAX UPWIND DIST</span>${(maxUpwind/1609.344).toFixed(2)} mi</div>
                 <div><span>MAX DWNWIND DIST</span>${(maxDownwind/1609.344).toFixed(2)} mi</div>
             </div>`;
         const ffFromDir=(d.freefall.direction+180)%360;
         document.getElementById("freefallBlock").innerHTML =
-            `<div class="sc-label">Freefall &nbsp;•&nbsp; 4 000 – 14 000 ft</div>
+            `<button onclick="document.getElementById('freefallBlock').style.display='none'" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
+            <div style="font-size:0.68rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--freefall);margin-bottom:8px">Freefall &nbsp;•&nbsp; 4 000 – 14 000 ft</div>
             <div class="sc-data">
                 <div><span>SPD</span>${d.freefall.speed.toFixed(1)} kt</div>
                 <div><span>DIR</span>${ffFromDir.toFixed(0)}°</div>
@@ -1138,6 +1139,17 @@ function updateWindSummary(d){
         document.getElementById("wsSurfaceArrow").innerHTML = dirArrowSvg(sfc.direction, "var(--accent)");
         document.getElementById("wsSurfaceVal").textContent = sfc.speed.toFixed(1) + " kt";
     }
+}
+
+function toggleDetailPopup(id){
+    const el = document.getElementById(id);
+    if (!el) return;
+    const visible = el.style.display !== 'none';
+    ['canopyBlock','freefallBlock'].forEach(function(bid){
+        const b = document.getElementById(bid);
+        if (b) b.style.display = 'none';
+    });
+    if (!visible) el.style.display = 'block';
 }
 
 // ── WIND SUMMARY DRAG ──

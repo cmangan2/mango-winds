@@ -1,4 +1,4 @@
-from flask import Flask, render_template, make_response, jsonify, request
+from flask import Flask, render_template, make_response, jsonify, request, redirect
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
@@ -1221,7 +1221,8 @@ def load_pending_dzs():
 def save_pending_dzs(pending):
     import json as _json
     try:
-        os.makedirs(os.path.dirname(PENDING_DZ_FILE), exist_ok=True)
+        _pd = os.path.dirname(PENDING_DZ_FILE)
+        if _pd: os.makedirs(_pd, exist_ok=True)
         with open(PENDING_DZ_FILE, "w", encoding="utf-8") as f:
             for entry in pending:
                 f.write(_json.dumps(entry) + "\n")
@@ -1283,7 +1284,8 @@ def add_dropzone():
 
     # Go live immediately — write to user_dropzones.txt and runtime dict
     try:
-        os.makedirs(os.path.dirname(USER_DZ_FILE), exist_ok=True)
+        _ud = os.path.dirname(USER_DZ_FILE)
+        if _ud: os.makedirs(_ud, exist_ok=True)
         with open(USER_DZ_FILE, "a", encoding="utf-8") as f:
             f.write(f"{name}: {lat},{lon},{icao or ''}\n")
         DROPZONES[name] = (lat, lon, icao)
@@ -1378,7 +1380,8 @@ def admin_dropzone_action():
                     new_lines.append(line)
             if not replaced:
                 new_lines.append(f"{name}: {lat},{lon},{icao or ''}\n")
-            os.makedirs(os.path.dirname(USER_DZ_FILE), exist_ok=True)
+            _ud2 = os.path.dirname(USER_DZ_FILE)
+            if _ud2: os.makedirs(_ud2, exist_ok=True)
             with open(USER_DZ_FILE, "w", encoding="utf-8") as f:
                 f.writelines(new_lines)
             if original_name in DROPZONES and original_name != name:

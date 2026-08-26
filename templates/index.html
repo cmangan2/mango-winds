@@ -1266,9 +1266,11 @@ window._stopWindParticles = function(){};
 
         function getVel(id){
             const s = windState[id];
-            if (!s) return { vx:0, vy:0, spd:0 };
-            const spd = Math.max(s.speedKt * 0.28, 0.4);
-            return { vx: spd*Math.sin(s.dirRad), vy: -spd*Math.cos(s.dirRad), spd };
+            if (!s) return { vx:0, vy:0, spd:0, tailLen:8 };
+            const baseSpd = 0.4; // constant slow movement regardless of wind
+            const tailLen = Math.max(s.speedKt * 1.8, 6); // tail length encodes speed
+            return { vx: baseSpd*Math.sin(s.dirRad), vy: -baseSpd*Math.cos(s.dirRad),
+                     spd: baseSpd, tailLen };
         }
 
         function randInCircle(cx, cy, r){
@@ -1304,7 +1306,7 @@ window._stopWindParticles = function(){};
             if (!active) return;
             const layer = LAYERS[active];
             const dz = getDZCenter();
-            const { vx, vy, spd } = getVel(active);
+            const { vx, vy, spd, tailLen } = getVel(active);
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             // clip to map container — particles never bleed into the panel
             ctx.save();
@@ -1321,8 +1323,11 @@ window._stopWindParticles = function(){};
                 }
                 const alpha = p.age<0.15 ? p.age/0.15 : p.age>0.75 ? (1-p.age)/0.25 : 1;
                 if (alpha<=0) continue;
-                const tail=Math.max(spd*5,6), nx=spd>0?vx/spd:0, ny=spd>0?vy/spd:0;
+                const nx=spd>0?vx/spd:0, ny=spd>0?vy/spd:0;
+                const tail = tailLen; // tail length from getVel, encodes wind speed
                 const tx=p.x-nx*tail, ty=p.y-ny*tail;
+                // skip zero-length gradients which error on some browsers
+                if (Math.abs(p.x-tx) < 0.5 && Math.abs(p.y-ty) < 0.5) continue;
                 const a=Math.round(alpha*220).toString(16).padStart(2,'0');
                 const g=ctx.createLinearGradient(tx,ty,p.x,p.y);
                 g.addColorStop(0,'transparent');

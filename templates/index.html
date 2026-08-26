@@ -1209,9 +1209,9 @@ function updateWindSummary(d){
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const LAYERS = {
-        freefallBlock: { color: '#ffaa00', count: 350 },
-        canopyBlock:   { color: '#39ff89', count: 300 },
-        surfaceBlock:  { color: '#00d4ff', count: 250 }
+        freefallBlock: { color: '#ffaa00', count: 600 },
+        canopyBlock:   { color: '#39ff89', count: 500 },
+        surfaceBlock:  { color: '#00d4ff', count: 400 }
     };
     let activeLayer = null;
     let particles = [];
@@ -1225,11 +1225,13 @@ function updateWindSummary(d){
     window.addEventListener('resize', () => { resize(); if (activeLayer) respawn(); });
     resize();
 
-    // Get DZ screen position — falls back to canvas center if map not ready
+    // Get DZ screen position in viewport coords — falls back to canvas center if map not ready
     function dzCenter(){
         try {
+            const mapEl = map.getContainer();
+            const mapRect = mapEl.getBoundingClientRect();
             const pt = map.latLngToContainerPoint(L.latLng(lat, lon));
-            return { x: pt.x, y: pt.y };
+            return { x: mapRect.left + pt.x, y: mapRect.top + pt.y };
         } catch(e) {
             return { x: canvas.width / 2, y: canvas.height / 2 };
         }
@@ -1250,7 +1252,7 @@ function updateWindSummary(d){
         const state = windState[id];
         if (!state) return { vx: 0, vy: 0 };
         // kt → px/frame at ~60fps. Scale so faster winds move noticeably faster.
-        const speedPx = Math.max(state.speedKt * 0.55, 0.8);
+        const speedPx = Math.max(state.speedKt * 0.9, 1.2);
         return {
             vx: speedPx * Math.sin(state.dirRad),
             vy: -speedPx * Math.cos(state.dirRad)

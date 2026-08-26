@@ -1228,12 +1228,22 @@ def save_pending_dzs(pending):
     except Exception as e:
         print(f"save_pending_dzs error: {e}")
 
+def load_user_dz_lines():
+    """Return raw lines from user_dropzones.txt."""
+    try:
+        if not os.path.exists(USER_DZ_FILE):
+            return []
+        with open(USER_DZ_FILE, "r", encoding="utf-8") as f:
+            return f.readlines()
+    except Exception:
+        return []
+
 def notify_discord(name, lat, lon, icao, submission_id):
     if not DISCORD_WEBHOOK:
         return
     try:
         admin_url = f"https://mango-winds.onrender.com/admin/dropzones?token={ADMIN_TOKEN}"
-        msg = {"embeds": [{"title": "✈️ New Dropzone Submission", "color": 0x00d4ff,
+        msg = {"embeds": [{"title": "✈️ New Dropzone Added (Live)", "color": 0x00d4ff,
             "fields": [
                 {"name": "Name", "value": name, "inline": False},
                 {"name": "Latitude", "value": str(lat), "inline": True},
@@ -1241,7 +1251,7 @@ def notify_discord(name, lat, lon, icao, submission_id):
                 {"name": "METAR", "value": icao or "Not provided", "inline": True},
                 {"name": "ID", "value": submission_id, "inline": True},
             ],
-            "description": f"[👉 Review & Approve]({admin_url})",
+            "description": f"This DZ is already live. [👉 Edit or Remove]({admin_url})",
             "footer": {"text": "Mango Wind Hub"}}]}
         requests.post(DISCORD_WEBHOOK, json=msg, timeout=5)
     except Exception as e:
@@ -1269,19 +1279,28 @@ def add_dropzone():
         if dist <= 10:
             return jsonify({"error": f"Too close to an existing dropzone: {existing_name} ({dist:.1f} mi away). It may already be listed!"}), 409
 
-    for p in load_pending_dzs():
-        dist = haversine_miles(lat, lon, p["lat"], p["lon"])
-        if dist <= 10:
-            return jsonify({"error": f"A nearby dropzone is already pending review: {p['name']} ({dist:.1f} mi away)."}), 409
-
     submission_id = str(uuid.uuid4())[:8]
+
+    # Go live immediately — write to user_dropzones.txt and runtime dict
+    try:
+        os.makedirs(os.path.dirname(USER_DZ_FILE), exist_ok=True)
+        with open(USER_DZ_FILE, "a", encoding="utf-8") as f:
+            f.write(f"{name}: {lat},{lon},{icao or ''}\n")
+        DROPZONES[name] = (lat, lon, icao)
+    except Exception as e:
+        return jsonify({"error": f"Could not save dropzone: {e}"}), 500
+
+    # Also track in the review list so admin can edit/remove
     entry = {"id": submission_id, "name": name, "lat": lat, "lon": lon, "icao": icao or ""}
     pending = load_pending_dzs()
     pending.append(entry)
     save_pending_dzs(pending)
+
+    # Notify Discord
     notify_discord(name, lat, lon, icao, submission_id)
 
-    return jsonify({"ok": True, "pending": True, "message": "Thanks! Your dropzone has been submitted for review and will appear once approved."})
+    return jsonify({"ok": True, "name": name, "lat": lat, "lon": lon, "icao": icao,
+                    "message": f"{name} has been added! It\'s now available for everyone."})
 
 
 @app.route("/admin/dropzones")
@@ -1300,13 +1319,13 @@ def admin_dropzones():
                 <td><input name="lon" value="{p['lon']}" style="width:100px;background:#1a2535;color:#c8daea;border:1px solid #2a3f55;border-radius:4px;padding:4px 8px;font-family:monospace"></td>
                 <td><input name="icao" value="{p.get('icao','')}" style="width:70px;background:#1a2535;color:#c8daea;border:1px solid #2a3f55;border-radius:4px;padding:4px 8px;font-family:monospace;text-transform:uppercase"></td>
                 <td>
-                    <button name="action" value="approve" style="background:#39ff89;color:#070b10;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-weight:700;margin-right:6px">✓ Approve</button>
-                    <button name="action" value="reject" style="background:#ff4f4f;color:#fff;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-weight:700">✕ Reject</button>
+                    <button name="action" value="approve" style="background:#39ff89;color:#070b10;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-weight:700;margin-right:6px">✓ Save Edits</button>
+                    <button name="action" value="reject" style="background:#ff4f4f;color:#fff;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-weight:700">✕ Remove</button>
                 </td>
             </form>
         </tr>"""
     if not pending:
-        rows = '<tr><td colspan="5" style="text-align:center;padding:24px;color:#5a7a96">No pending submissions</td></tr>'
+        rows = '<tr><td colspan="5" style="text-align:center;padding:24px;color:#5a7a96">No user submissions yet</td></tr>'
     html = f"""<!DOCTYPE html><html><head><title>MWH — Dropzone Review</title>
 <style>body{{background:#070b10;color:#c8daea;font-family:monospace,sans-serif;padding:32px}}
 h1{{color:#00d4ff;letter-spacing:.1em;font-size:1.4rem;margin-bottom:24px}}
@@ -1314,7 +1333,7 @@ table{{border-collapse:collapse;width:100%}}th{{color:#5a7a96;font-size:.72rem;l
 td{{padding:10px 12px;border-bottom:1px solid #1a2535;vertical-align:middle}}
 .msg{{background:#1a2535;border-left:3px solid #39ff89;padding:12px 16px;border-radius:4px;margin-bottom:16px;color:#39ff89}}
 .err{{background:#1a2535;border-left:3px solid #ff4f4f;padding:12px 16px;border-radius:4px;margin-bottom:16px;color:#ff4f4f}}</style></head>
-<body><h1>🛫 Mango Wind Hub — Dropzone Review</h1>
+<body><h1>🛫 Mango Wind Hub — Dropzone Review</h1><p style="color:#5a7a96;font-size:.85rem;margin-top:-16px;margin-bottom:20px">All submissions are live. Edit fields and save, or remove entirely.</p>
 {"".join(f'<div class="msg">{m}</div>' for m in request.args.getlist("msg"))}
 {"".join(f'<div class="err">{e}</div>' for e in request.args.getlist("err"))}
 <table><thead><tr><th>Name</th><th>Lat</th><th>Lon</th><th>METAR</th><th>Action</th></tr></thead>
@@ -1341,19 +1360,52 @@ def admin_dropzone_action():
     pending = load_pending_dzs()
     new_pending = [p for p in pending if p["id"] != sub_id]
 
+    original = next((p for p in pending if p["id"] == sub_id), None)
+    original_name = original["name"] if original else name
+
     if action == "approve":
+        # Save edits — rewrite user_dropzones.txt replacing the original entry
         try:
+            existing = load_user_dz_lines()
+            new_lines = []
+            replaced = False
+            for line in existing:
+                parsed = parse_dz_line(line)
+                if parsed and parsed[0] == original_name:
+                    new_lines.append(f"{name}: {lat},{lon},{icao or ''}\n")
+                    replaced = True
+                else:
+                    new_lines.append(line)
+            if not replaced:
+                new_lines.append(f"{name}: {lat},{lon},{icao or ''}\n")
             os.makedirs(os.path.dirname(USER_DZ_FILE), exist_ok=True)
-            with open(USER_DZ_FILE, "a", encoding="utf-8") as f:
-                f.write(f"{name}: {lat},{lon},{icao or ''}\n")
+            with open(USER_DZ_FILE, "w", encoding="utf-8") as f:
+                f.writelines(new_lines)
+            if original_name in DROPZONES and original_name != name:
+                del DROPZONES[original_name]
             DROPZONES[name] = (lat, lon, icao)
         except Exception as e:
             return redirect(f"/admin/dropzones?token={ADMIN_TOKEN}&err={quote(str(e))}")
-        save_pending_dzs(new_pending)
-        return redirect(f"/admin/dropzones?token={ADMIN_TOKEN}&msg={quote(name + ' approved and added!')}")
+        # Update pending record with new values
+        for p in new_pending:
+            if p["id"] == sub_id:
+                p.update({"name": name, "lat": lat, "lon": lon, "icao": icao or ""})
+        new_pending_with_updated = new_pending + ([{"id": sub_id, "name": name, "lat": lat, "lon": lon, "icao": icao or ""}] if sub_id not in [p["id"] for p in new_pending] else [])
+        save_pending_dzs(new_pending_with_updated)
+        return redirect(f"/admin/dropzones?token={ADMIN_TOKEN}&msg={quote(name + ' updated!')}")
     else:
+        # Remove — delete from user_dropzones.txt and runtime
+        try:
+            existing = load_user_dz_lines()
+            new_lines = [l for l in existing if not (parse_dz_line(l) and parse_dz_line(l)[0] == original_name)]
+            with open(USER_DZ_FILE, "w", encoding="utf-8") as f:
+                f.writelines(new_lines)
+            if original_name in DROPZONES:
+                del DROPZONES[original_name]
+        except Exception as e:
+            return redirect(f"/admin/dropzones?token={ADMIN_TOKEN}&err={quote(str(e))}")
         save_pending_dzs(new_pending)
-        return redirect(f"/admin/dropzones?token={ADMIN_TOKEN}&msg={quote('Submission rejected.')}")
+        return redirect(f"/admin/dropzones?token={ADMIN_TOKEN}&msg={quote(original_name + ' removed.')}") 
 
 
 @app.route("/plane/trace")

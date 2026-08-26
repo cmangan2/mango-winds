@@ -2830,6 +2830,13 @@ function initDZ(){
         const o=document.createElement("option"); o.value=k; o.text=k; sel.appendChild(o);
         const o2=o.cloneNode(true); wSel.appendChild(o2);
     }
+    // Add "➕ Add my dropzone..." at the bottom of both selects
+    [sel, wSel].forEach(function(s){
+        const o = document.createElement('option');
+        o.value = '__add__'; o.text = '➕  Add my dropzone...';
+        o.style.color = 'var(--accent)';
+        s.appendChild(o);
+    });
     sel.value=defaultDz; wSel.value=defaultDz;
     lat=dz[defaultDz][0]; lon=dz[defaultDz][1];
     initMap(); load();

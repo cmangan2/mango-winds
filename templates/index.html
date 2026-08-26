@@ -379,7 +379,7 @@ select:focus { border-color: var(--accent); }
 
 <!-- ── WIND SUMMARY BOX ── -->
 <div id="windSummary" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:8000;background:rgba(13,21,32,0.92);border:1px solid var(--border);border-radius:12px;padding:10px 14px;box-shadow:0 8px 32px rgba(0,0,0,0.6);backdrop-filter:blur(8px);cursor:grab;user-select:none;touch-action:none;min-width:240px">
-    <button onclick="document.getElementById('windSummary').style.display='none';['canopyBlock','freefallBlock'].forEach(function(id){var b=document.getElementById(id);if(b)b.style.display='none';});if(window._stopWindParticles)_stopWindParticles();" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
+    <button onclick="document.getElementById('windSummary').style.display='none';['canopyBlock','freefallBlock'].forEach(function(id){var b=document.getElementById(id);if(b)b.style.display='none';});" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
     <div style="display:flex;gap:16px;align-items:center;justify-content:center">
         <div style="text-align:center;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.15s;-webkit-tap-highlight-color:transparent" onclick="toggleDetailPopup('freefallBlock')" title="Tap for freefall detail">
             <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--freefall);margin-bottom:3px">Freefall</div>
@@ -393,7 +393,7 @@ select:focus { border-color: var(--accent); }
             <div id="wsCanopyVal" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text);margin-top:2px">—</div>
         </div>
         <div style="width:1px;height:40px;background:var(--border)"></div>
-        <div style="text-align:center;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.15s;-webkit-tap-highlight-color:transparent" onclick="toggleDetailPopup('surfaceBlock')" title="Tap for surface wind animation">
+        <div style="text-align:center;padding:4px 8px">
             <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);margin-bottom:3px">Surface</div>
             <div id="wsSurfaceArrow" style="font-size:1.4rem;line-height:1">—</div>
             <div id="wsSurfaceVal" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text);margin-top:2px">—</div>
@@ -488,7 +488,7 @@ select:focus { border-color: var(--accent); }
             <!-- Detail popups — triggered by tapping arrows on the wind summary widget -->
             <div id="canopyBlock" style="display:none;position:fixed;bottom:172px;left:50%;transform:translateX(-50%);z-index:8010;background:rgba(13,21,32,0.97);border:1px solid var(--canopy);border-radius:12px;padding:12px 16px 10px;box-shadow:0 8px 32px rgba(0,0,0,0.7);backdrop-filter:blur(10px);white-space:nowrap"></div>
             <div id="freefallBlock" style="display:none;position:fixed;bottom:172px;left:50%;transform:translateX(-50%);z-index:8010;background:rgba(13,21,32,0.97);border:1px solid var(--freefall);border-radius:12px;padding:12px 16px 10px;box-shadow:0 8px 32px rgba(0,0,0,0.7);backdrop-filter:blur(10px);white-space:nowrap"></div>
-            <div id="surfaceBlock" style="display:none"></div>
+
             <div id="cards-header" style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px 0">
                 <span style="font-size:0.64rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)">Winds by Altitude</span>
                 <button id="toggleCardsBtn" onclick="toggleCards()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:2px 8px;font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;letter-spacing:0.08em;cursor:pointer;-webkit-tap-highlight-color:transparent">Hide</button>
@@ -1162,12 +1162,7 @@ function updateWindSummary(d){
         document.getElementById("wsSurfaceArrow").innerHTML = dirArrowSvg(sfc.direction, "var(--accent)");
         document.getElementById("wsSurfaceVal").textContent = sfc.speed.toFixed(1) + " kt";
     }
-    if (window._setWindState) {
-        const ffBlowTo = (d.freefall.direction + 180) % 360;
-        window._setWindState('freefallBlock', d.freefall.speed, ffBlowTo);
-        window._setWindState('canopyBlock', d.canopy.speed, d.canopy.direction);
-        if (sfc) window._setWindState('surfaceBlock', sfc.speed, sfc.direction);
-    }
+
 }
 
 // ── WIND SUMMARY DRAG ──
@@ -1202,179 +1197,17 @@ function updateWindSummary(d){
     window.addEventListener("touchend", onEnd);
 })();
 
-// ── WIND PARTICLE SYSTEM ──
-// Safe stubs — overwritten by initParticles once DOM is ready
-window._setWindState = function(){};
-window._windParticleToggle = function(){};
-window._stopWindParticles = function(){};
-(function(){
-    function initParticles(){
-        const canvas = document.getElementById('windCanvas');
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
 
-        const LAYERS = {
-            freefallBlock: { color: '#ffaa00', count: 600 },
-            canopyBlock:   { color: '#39ff89', count: 500 },
-            surfaceBlock:  { color: '#00d4ff', count: 400 }
-        };
-
-        let activeLayer = null;
-        let particles = [];
-        let animId = null;
-        const windState = { freefallBlock: null, canopyBlock: null, surfaceBlock: null };
-
-        // Match canvas pixel buffer to actual screen size — no CSS sizing conflicts
-        function resize(){
-            canvas.style.width  = window.innerWidth  + 'px';
-            canvas.style.height = window.innerHeight + 'px';
-            canvas.width  = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        window.addEventListener('resize', () => { resize(); if (activeLayer) respawn(); });
-        resize();
-
-        // DZ center and map bounds in true viewport px
-        function mapInfo(){
-            try {
-                const mapEl = map.getContainer();
-                const r = mapEl.getBoundingClientRect();
-                if (r.width < 10 || r.height < 10) throw new Error('map not ready');
-                const pt = map.latLngToContainerPoint(L.latLng(lat, lon));
-                const cx = r.left + pt.x;
-                const cy = r.top  + pt.y;
-                const ptN = map.latLngToContainerPoint(L.latLng(lat + 0.027, lon));
-                const radiusPx = Math.max(Math.abs(pt.y - ptN.y) * 1.8, 80);
-                return { cx, cy, radiusPx, left: r.left, top: r.top, right: r.right, bottom: r.bottom };
-            } catch(e) {
-                const W = canvas.width, H = canvas.height;
-                return { cx: W * 0.4, cy: H * 0.4,
-                         radiusPx: Math.min(W, H) * 0.35,
-                         left: 0, top: 0, right: W, bottom: H };
-            }
-        }
-
-        function getVelocity(){
-            const state = windState[activeLayer];
-            if (!state) return { vx: 0, vy: 0, spd: 0 };
-            const spd = Math.max(state.speedKt * 1.0, 1.5);
-            return { vx: spd * Math.sin(state.dirRad), vy: -spd * Math.cos(state.dirRad), spd };
-        }
-
-        function randInCircle(cx, cy, r){
-            // uniform random point inside circle
-            const ang = Math.random() * Math.PI * 2;
-            const rad = r * Math.sqrt(Math.random());
-            return { x: cx + Math.cos(ang) * rad, y: cy + Math.sin(ang) * rad };
-        }
-
-        function makeParticle(info, vx, vy){
-            const p = randInCircle(info.cx, info.cy, info.radiusPx);
-            return { x: p.x, y: p.y, age: Math.random(), vx, vy };
-        }
-
-        function respawn(){
-            if (!activeLayer) return;
-            const { vx, vy } = getVelocity();
-            const info = mapInfo();
-            const n = LAYERS[activeLayer].count;
-            particles = Array.from({ length: n }, () => makeParticle(info, vx, vy));
-        }
-
-        function startLayer(id){
-            if (!windState[id]) return;
-            activeLayer = id;
-            respawn();
-            if (animId) cancelAnimationFrame(animId);
-            loop();
-        }
-
-        function stopLayer(){
-            activeLayer = null;
-            particles = [];
-            if (animId) { cancelAnimationFrame(animId); animId = null; }
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-        }
-
-        function loop(){
-            if (!activeLayer) return;
-            const cfg = LAYERS[activeLayer];
-            const W = canvas.width, H = canvas.height;
-            const { vx, vy, spd } = getVelocity();
-            const info = mapInfo();
-            ctx.clearRect(0, 0, W, H);
-
-            // clip all drawing to the map area so particles never appear over the panel
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(info.left, info.top, info.right - info.left, info.bottom - info.top);
-            ctx.clip();
-
-            for (const p of particles){
-                p.age += 0.004;
-                p.x += p.vx;
-                p.y += p.vy;
-
-                // if particle drifts outside the circle, respawn inside it
-                const dx = p.x - info.cx, dy = p.y - info.cy;
-                const distSq = dx*dx + dy*dy;
-                if (p.age > 1 || distSq > info.radiusPx * info.radiusPx * 1.5){
-                    const np = randInCircle(info.cx, info.cy, info.radiusPx);
-                    p.x = np.x; p.y = np.y; p.age = 0; p.vx = vx; p.vy = vy;
-                }
-
-                const alpha = p.age < 0.15 ? p.age/0.15 : p.age > 0.75 ? (1 - p.age)/0.25 : 1;
-                if (alpha <= 0) continue;
-
-                const tailLen = Math.max(spd * 6, 8);
-                const nx = spd > 0 ? vx / spd : 0;
-                const ny = spd > 0 ? vy / spd : 0;
-                const tx = p.x - nx * tailLen;
-                const ty = p.y - ny * tailLen;
-
-                const a = Math.round(alpha * 220).toString(16).padStart(2, '0');
-                const grad = ctx.createLinearGradient(tx, ty, p.x, p.y);
-                grad.addColorStop(0, 'transparent');
-                grad.addColorStop(1, cfg.color + a);
-                ctx.beginPath();
-                ctx.moveTo(tx, ty);
-                ctx.lineTo(p.x, p.y);
-                ctx.strokeStyle = grad;
-                ctx.lineWidth = 1.8;
-                ctx.stroke();
-            }
-            ctx.restore();
-            animId = requestAnimationFrame(loop);
-        }
-
-        window._setWindState = function(id, speedKt, dirDeg){
-            windState[id] = { speedKt, dirRad: dirDeg * Math.PI / 180 };
-        };
-        window._windParticleToggle = function(id){
-            if (activeLayer === id) stopLayer(); else { stopLayer(); startLayer(id); }
-        };
-        window._stopWindParticles = function(){ stopLayer(); };
-    }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initParticles);
-    } else {
-        initParticles();
-    }
-})();
 
 function toggleDetailPopup(id){
-    try {
-        const el = document.getElementById(id);
-        if (!el) return;
-        const visible = el.style.display !== 'none';
-        ['canopyBlock','freefallBlock','surfaceBlock'].forEach(function(bid){
-            const b = document.getElementById(bid);
-            if (b && bid !== 'surfaceBlock') b.style.display = 'none';
-        });
-        if (window._windParticleToggle) window._windParticleToggle(id);
-        if (!visible && id !== 'surfaceBlock') el.style.display = 'block';
-    } catch(e) { console.warn('toggleDetailPopup error:', e); }
+    const el = document.getElementById(id);
+    if (!el) return;
+    const visible = el.style.display !== 'none';
+    ['canopyBlock','freefallBlock'].forEach(function(bid){
+        const b = document.getElementById(bid);
+        if (b) b.style.display = 'none';
+    });
+    if (!visible && id !== 'surfaceBlock') el.style.display = 'block';
 }
 
 function toggleCards(){ const wrap=document.getElementById("cards-wrap"),btn=document.getElementById("toggleCardsBtn"),hidden=wrap.style.display==="none"; wrap.style.display=hidden?"":"none"; btn.textContent=hidden?"Hide":"Show"; }
@@ -2717,6 +2550,5 @@ document.addEventListener("visibilitychange", function(){
     }
 });
 </script>
-<canvas id="windCanvas" style="position:fixed;top:0;left:0;pointer-events:none;z-index:11"></canvas>
 </body>
 </html>

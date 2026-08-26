@@ -1226,6 +1226,7 @@ window._windParticleToggle = function(){};
 window._stopWindParticles = function(){};
 (function(){
     function initParticles(){
+        try {
         const canvas = document.getElementById('windCanvas');
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
@@ -1238,10 +1239,10 @@ window._stopWindParticles = function(){};
         const windState = {};
 
         function resize(){
-            canvas.style.width  = window.innerWidth  + 'px';
-            canvas.style.height = window.innerHeight + 'px';
             canvas.width  = window.innerWidth;
             canvas.height = window.innerHeight;
+            canvas.style.width  = window.innerWidth  + 'px';
+            canvas.style.height = window.innerHeight + 'px';
         }
         window.addEventListener('resize', function(){ resize(); if(active) respawn(); });
         resize();
@@ -1263,7 +1264,7 @@ window._stopWindParticles = function(){};
         function getVel(id){
             const s = windState[id];
             if (!s) return { vx:0, vy:0, spd:0 };
-            const spd = Math.max(s.speedKt * 0.45, 0.6);
+            const spd = Math.max(s.speedKt * 0.28, 0.4);
             return { vx: spd*Math.sin(s.dirRad), vy: -spd*Math.cos(s.dirRad), spd };
         }
 
@@ -1335,6 +1336,7 @@ window._stopWindParticles = function(){};
             if (active===id) stopLayer(); else { stopLayer(); startLayer(id); }
         };
         window._stopWindParticles = function(){ stopLayer(); };
+        } catch(err) { console.error('Particle init error:', err); }
     }
     if (document.readyState==='loading'){
         document.addEventListener('DOMContentLoaded', initParticles);

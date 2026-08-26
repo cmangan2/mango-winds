@@ -1255,9 +1255,12 @@ window._stopWindParticles = function(){};
                 const pt = map.latLngToContainerPoint(L.latLng(lat, lon));
                 const ptN = map.latLngToContainerPoint(L.latLng(lat + 0.027, lon));
                 const radiusPx = Math.max(Math.abs(pt.y - ptN.y) * 1.6, 80);
-                return { cx: r.left + pt.x, cy: r.top + pt.y, r: radiusPx };
+                return { cx: r.left + pt.x, cy: r.top + pt.y, r: radiusPx,
+                         mapLeft: r.left, mapTop: r.top, mapW: r.width, mapH: r.height };
             } catch(e) {
-                return { cx: canvas.width*0.4, cy: canvas.height*0.4, r: Math.min(canvas.width, canvas.height)*0.3 };
+                const W=canvas.width, H=canvas.height;
+                return { cx: W*0.4, cy: H*0.4, r: Math.min(W,H)*0.3,
+                         mapLeft:0, mapTop:0, mapW:W, mapH:H };
             }
         }
 
@@ -1303,14 +1306,16 @@ window._stopWindParticles = function(){};
             const dz = getDZCenter();
             const { vx, vy, spd } = getVel(active);
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // clip to map container — particles never bleed into the panel
             ctx.save();
             ctx.beginPath();
-            ctx.arc(dz.cx, dz.cy, dz.r, 0, Math.PI*2);
+            ctx.rect(dz.mapLeft, dz.mapTop, dz.mapW, dz.mapH);
             ctx.clip();
             for (const p of particles){
                 p.age += 0.005; p.x += p.vx; p.y += p.vy;
-                const dx=p.x-dz.cx, dy=p.y-dz.cy;
-                if (p.age > 1 || dx*dx+dy*dy > dz.r*dz.r*1.1){
+                const outOfMap = p.x < dz.mapLeft || p.x > dz.mapLeft+dz.mapW ||
+                                 p.y < dz.mapTop  || p.y > dz.mapTop+dz.mapH;
+                if (p.age > 1 || outOfMap){
                     const np = randInCircle(dz.cx, dz.cy, dz.r);
                     p.x=np.x; p.y=np.y; p.age=0; p.vx=vx; p.vy=vy;
                 }

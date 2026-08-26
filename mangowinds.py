@@ -1494,12 +1494,13 @@ def data():
     current_hour_index = now_utc.hour
     hour = current_hour_index + hour_offset
 
-    # Get ICAO for this DZ if available
-    icao = None
-    for dz_vals in DROPZONES.values():
-        if len(dz_vals) > 2 and abs(dz_vals[0]-lat) < 0.01 and abs(dz_vals[1]-lon) < 0.01:
-            icao = dz_vals[2]
-            break
+    # Get ICAO for this DZ if available — frontend can override with ?icao= for custom DZs
+    icao = request.args.get("icao", "").strip() or None
+    if not icao:
+        for dz_vals in DROPZONES.values():
+            if len(dz_vals) > 2 and abs(dz_vals[0]-lat) < 0.01 and abs(dz_vals[1]-lon) < 0.01:
+                icao = dz_vals[2]
+                break
 
     # Record visit — find DZ name from coords
     dz_name = "Unknown"

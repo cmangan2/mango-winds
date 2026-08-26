@@ -402,7 +402,6 @@ select:focus { border-color: var(--accent); }
 
 <div id="wrap">
     <div id="map"></div>
-    <canvas id="windCanvas" style="position:absolute;inset:0;pointer-events:none;z-index:5;width:100%;height:100%"></canvas>
     <div id="panel">
         <div id="panel-handle">
             <div id="panel-handle-inner">
@@ -1207,41 +1206,65 @@ function updateWindSummary(d){
     const canvas = document.getElementById('windCanvas');
     const ctx = canvas.getContext('2d');
     const LAYERS = {
-        freefallBlock: { color: '#ffaa00', count: 120, speedScale: 1.4 },
-        canopyBlock:   { color: '#39ff89', count: 100, speedScale: 1.0 },
-        surfaceBlock:  { color: '#00d4ff', count:  80, speedScale: 0.7 }
+        freefallBlock: { color: '#ffaa00', count: 350 },
+        canopyBlock:   { color: '#39ff89', count: 300 },
+        surfaceBlock:  { color: '#00d4ff', count: 250 }
     };
     let activeLayer = null;
     let particles = [];
     let animId = null;
-    // wind state per layer, populated when data loads
     const windState = { freefallBlock: null, canopyBlock: null, surfaceBlock: null };
 
     function resize(){
-        canvas.width = canvas.offsetWidth;
-        canvas.height = canvas.offsetHeight;
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
     }
-    window.addEventListener('resize', resize);
+    window.addEventListener('resize', () => { resize(); if (activeLayer) respawn(); });
     resize();
 
-    function makeParticle(w, h, speedPx){
+    // Get DZ screen position — falls back to canvas center if map not ready
+    function dzCenter(){
+        try {
+            const pt = map.latLngToContainerPoint(L.latLng(lat, lon));
+            return { x: pt.x, y: pt.y };
+        } catch(e) {
+            return { x: canvas.width / 2, y: canvas.height / 2 };
+        }
+    }
+
+    function makeParticle(vx, vy){
+        const c = dzCenter();
+        const spread = Math.max(canvas.width, canvas.height) * 1.2;
         return {
-            x: Math.random() * w,
-            y: Math.random() * h,
-            age: Math.random(),   // 0-1, random start phase
-            vx: speedPx * Math.sin(windState[activeLayer].dirRad),
-            vy: -speedPx * Math.cos(windState[activeLayer].dirRad)
+            x: c.x + (Math.random() - 0.5) * spread,
+            y: c.y + (Math.random() - 0.5) * spread,
+            age: Math.random(),
+            vx, vy
         };
+    }
+
+    function getVelocity(id){
+        const state = windState[id];
+        if (!state) return { vx: 0, vy: 0 };
+        // kt → px/frame at ~60fps. Scale so faster winds move noticeably faster.
+        const speedPx = Math.max(state.speedKt * 0.55, 0.8);
+        return {
+            vx: speedPx * Math.sin(state.dirRad),
+            vy: -speedPx * Math.cos(state.dirRad)
+        };
+    }
+
+    function respawn(){
+        if (!activeLayer) return;
+        const { vx, vy } = getVelocity(activeLayer);
+        const count = LAYERS[activeLayer].count;
+        particles = Array.from({length: count}, () => makeParticle(vx, vy));
     }
 
     function startLayer(id){
         if (!windState[id]) return;
         activeLayer = id;
-        const cfg = LAYERS[id];
-        const w = canvas.width, h = canvas.height;
-        // speed: kt → approx px/frame (60fps). ~2px per kt feels right on screen.
-        const speedPx = windState[id].speedKt * 0.5;
-        particles = Array.from({length: cfg.count}, () => makeParticle(w, h, speedPx));
+        respawn();
         if (animId) cancelAnimationFrame(animId);
         loop();
     }
@@ -1257,53 +1280,67 @@ function updateWindSummary(d){
         if (!activeLayer) return;
         const cfg = LAYERS[activeLayer];
         const w = canvas.width, h = canvas.height;
+        const { vx, vy } = getVelocity(activeLayer);
+        const speedPx = Math.sqrt(vx*vx + vy*vy);
         ctx.clearRect(0, 0, w, h);
-        const speedPx = windState[activeLayer].speedKt * 0.5;
+
+        const c = dzCenter();
+        const spread = Math.max(w, h) * 1.2;
+        const halfSpread = spread / 2;
+
         for (const p of particles){
-            p.age += 0.004;
-            if (p.age > 1){ Object.assign(p, makeParticle(w, h, speedPx)); p.age = 0; }
+            p.age += 0.005;
+            if (p.age > 1){
+                // respawn near DZ center with spread
+                p.x = c.x + (Math.random() - 0.5) * spread;
+                p.y = c.y + (Math.random() - 0.5) * spread;
+                p.age = 0;
+                p.vx = vx; p.vy = vy;
+            }
             p.x += p.vx;
             p.y += p.vy;
-            // wrap edges
-            if (p.x < 0) p.x += w; if (p.x > w) p.x -= w;
-            if (p.y < 0) p.y += h; if (p.y > h) p.y -= h;
-            // fade in/out
-            const alpha = p.age < 0.15 ? p.age/0.15 : p.age > 0.75 ? (1-p.age)/0.25 : 1;
-            // tail line
-            const tailLen = speedPx * 4;
-            const tx = p.x - p.vx/speedPx * tailLen;
-            const ty = p.y - p.vy/speedPx * tailLen;
+
+            // soft-wrap: if too far from DZ center, reset
+            if (Math.abs(p.x - c.x) > halfSpread || Math.abs(p.y - c.y) > halfSpread){
+                p.x = c.x + (Math.random() - 0.5) * spread;
+                p.y = c.y + (Math.random() - 0.5) * spread;
+                p.age = 0;
+            }
+
+            // fade in/out over lifetime
+            const alpha = p.age < 0.15 ? p.age/0.15 : p.age > 0.75 ? (1 - p.age)/0.25 : 1;
+            if (alpha <= 0) continue;
+
+            // tail
+            const tailLen = Math.max(speedPx * 5, 6);
+            const nx = speedPx > 0 ? p.vx / speedPx : 0;
+            const ny = speedPx > 0 ? p.vy / speedPx : 0;
+            const tx = p.x - nx * tailLen;
+            const ty = p.y - ny * tailLen;
+
+            const hexAlpha = Math.round(alpha * 210).toString(16).padStart(2,'0');
             const grad = ctx.createLinearGradient(tx, ty, p.x, p.y);
             grad.addColorStop(0, 'transparent');
-            grad.addColorStop(1, cfg.color + Math.round(alpha * 200).toString(16).padStart(2,'0'));
+            grad.addColorStop(1, cfg.color + hexAlpha);
             ctx.beginPath();
             ctx.moveTo(tx, ty);
             ctx.lineTo(p.x, p.y);
             ctx.strokeStyle = grad;
-            ctx.lineWidth = 1.5;
+            ctx.lineWidth = 1.8;
             ctx.stroke();
         }
         animId = requestAnimationFrame(loop);
     }
 
-    // expose so data loader can populate wind state
     window._setWindState = function(id, speedKt, dirDeg){
-        // dirDeg = direction wind is blowing TO (from is +180)
         windState[id] = { speedKt, dirRad: dirDeg * Math.PI / 180 };
     };
 
     window._windParticleToggle = function(id){
-        if (activeLayer === id){
-            stopLayer();
-        } else {
-            stopLayer();
-            startLayer(id);
-        }
+        if (activeLayer === id){ stopLayer(); } else { stopLayer(); startLayer(id); }
     };
 
-    window._stopWindParticles = function(){
-        stopLayer();
-    };
+    window._stopWindParticles = function(){ stopLayer(); };
 })();
 
 function toggleDetailPopup(id){
@@ -2661,5 +2698,6 @@ document.addEventListener("visibilitychange", function(){
     }
 });
 </script>
+<canvas id="windCanvas" style="position:fixed;inset:0;pointer-events:none;z-index:500;width:100%;height:100%"></canvas>
 </body>
 </html>

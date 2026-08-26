@@ -15,6 +15,7 @@ app = Flask(__name__)
 _forecast_cache = {}
 CACHE_TTL = timedelta(minutes=120)  # 2 hour cache to reduce API calls
 CACHE_FILE  = os.environ.get("CACHE_FILE", os.path.join(os.path.dirname(__file__), "winds_cache.json"))
+USER_DZ_FILE = os.environ.get("USER_DZ_FILE", os.path.join(os.path.dirname(CACHE_FILE), "user_dropzones.txt"))
 VISITS_FILE   = os.environ.get("VISITS_FILE",   os.path.join(os.path.dirname(__file__), "visits.json"))
 JUMPRUN_FILE  = os.environ.get("JUMPRUN_FILE",  os.path.join(os.path.dirname(__file__), "jumprun.json"))
 TAILS_FILE    = os.environ.get("TAILS_FILE",    os.path.join(os.path.dirname(__file__), "tails.json"))
@@ -205,22 +206,53 @@ load_cache_from_disk()
 # 🪂 DROPZONES
 # =====================================================
 
+def parse_dz_line(line):
+    """Parse a single dropzone line. Returns (name, lat, lon, icao) or None."""
+    line = line.strip()
+    if ":" not in line:
+        return None
+    name, rest = line.split(":", 1)
+    parts = [p.strip() for p in rest.split(",")]
+    try:
+        lat = float(parts[0])
+        lon = float(parts[1])
+        icao = parts[2] if len(parts) > 2 else None
+        return (name.strip(), lat, lon, icao)
+    except (ValueError, IndexError):
+        return None
+
+def haversine_miles(lat1, lon1, lat2, lon2):
+    """Distance in miles between two lat/lon points."""
+    import math
+    R = 3958.8  # Earth radius in miles
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon/2)**2
+    return R * 2 * math.asin(math.sqrt(a))
+
 def load_dropzones(path="Dropzone list.txt"):
     dz = {}
     try:
         with open(path, "r", encoding="utf-8") as f:
             for line in f:
-                line = line.strip()
-                if ":" not in line:
-                    continue
-                name, rest = line.split(":", 1)
-                parts = [p.strip() for p in rest.split(",")]
-                lat = float(parts[0])
-                lon = float(parts[1])
-                icao = parts[2] if len(parts) > 2 else None
-                dz[name.strip()] = (lat, lon, icao)
+                parsed = parse_dz_line(line)
+                if parsed:
+                    name, lat, lon, icao = parsed
+                    dz[name] = (lat, lon, icao)
     except Exception:
         dz = {"default DZ": (43.3712, -70.9259, "KLEB")}
+    # Merge user-submitted DZs
+    try:
+        if os.path.exists(USER_DZ_FILE):
+            with open(USER_DZ_FILE, "r", encoding="utf-8") as f:
+                for line in f:
+                    parsed = parse_dz_line(line)
+                    if parsed:
+                        name, lat, lon, icao = parsed
+                        if name not in dz:
+                            dz[name] = (lat, lon, icao)
+    except Exception:
+        pass
     return dz
 
 
@@ -1163,6 +1195,45 @@ def plane():
     except Exception as e:
         print(f"Plane tracker error: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+
+@app.route("/add_dropzone", methods=["POST"])
+def add_dropzone():
+    """Accept a user-submitted dropzone, validate proximity, append to user_dropzones.txt."""
+    data = request.get_json(force=True) or {}
+    name = str(data.get("name", "")).strip()
+    try:
+        lat = float(data.get("lat"))
+        lon = float(data.get("lon"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid latitude or longitude."}), 400
+    icao = str(data.get("icao", "")).strip().upper() or None
+
+    if not name:
+        return jsonify({"error": "Dropzone name is required."}), 400
+    if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+        return jsonify({"error": "Coordinates out of range."}), 400
+
+    # Proximity check — 10 mile radius
+    for existing_name, vals in DROPZONES.items():
+        dist = haversine_miles(lat, lon, vals[0], vals[1])
+        if dist <= 10:
+            return jsonify({"error": f"Too close to an existing dropzone: {existing_name} ({dist:.1f} mi away). Please check if it's already listed."}), 409
+
+    # Append to user DZ file
+    try:
+        os.makedirs(os.path.dirname(USER_DZ_FILE), exist_ok=True)
+        line = f"{name}: {lat},{lon},{icao or ''}\n"
+        with open(USER_DZ_FILE, "a", encoding="utf-8") as f:
+            f.write(line)
+    except Exception as e:
+        return jsonify({"error": f"Could not save dropzone: {e}"}), 500
+
+    # Add to runtime DROPZONES so it's immediately available
+    DROPZONES[name] = (lat, lon, icao)
+
+    return jsonify({"ok": True, "name": name, "lat": lat, "lon": lon, "icao": icao})
 
 
 @app.route("/plane/trace")

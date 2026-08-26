@@ -1030,7 +1030,7 @@ async function load(){
             if (proj>maxDownwind) maxDownwind=proj;
         }
         document.getElementById("canopyBlock").innerHTML =
-            `<button onclick="document.getElementById('canopyBlock').style.display='none'" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
+            `<button onclick="document.getElementById('canopyBlock').style.display='none';if(window._stopWindParticles)_stopWindParticles();" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
             <div style="font-size:0.62rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--canopy);margin-bottom:10px">Canopy &nbsp;•&nbsp; SFC – 3 000 ft</div>
             <div style="display:grid;grid-template-columns:auto auto;align-items:center;gap:2px 16px;font-family:'Share Tech Mono',monospace;font-size:0.78rem">
                 <span style="color:var(--muted);font-size:0.62rem;letter-spacing:0.1em">SPD</span>
@@ -1044,7 +1044,7 @@ async function load(){
             </div>`;
         const ffFromDir=(d.freefall.direction+180)%360;
         document.getElementById("freefallBlock").innerHTML =
-            `<button onclick="document.getElementById('freefallBlock').style.display='none'" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
+            `<button onclick="document.getElementById('freefallBlock').style.display='none';if(window._stopWindParticles)_stopWindParticles();" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
             <div style="font-size:0.62rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--freefall);margin-bottom:10px">Freefall &nbsp;•&nbsp; 4 000 – 14 000 ft</div>
             <div style="display:grid;grid-template-columns:auto auto;align-items:center;gap:2px 16px;font-family:'Share Tech Mono',monospace;font-size:0.78rem">
                 <span style="color:var(--muted);font-size:0.62rem;letter-spacing:0.1em">SPD</span>

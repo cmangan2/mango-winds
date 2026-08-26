@@ -380,7 +380,7 @@ select:focus { border-color: var(--accent); }
 <!-- ── WIND SUMMARY BOX ── -->
 <div id="windSummary" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:8000;background:rgba(13,21,32,0.92);border:1px solid var(--border);border-radius:12px;padding:10px 14px;box-shadow:0 8px 32px rgba(0,0,0,0.6);backdrop-filter:blur(8px);cursor:grab;user-select:none;min-width:240px">
     <button onclick="document.getElementById('windSummary').style.display='none';['canopyBlock','freefallBlock'].forEach(function(id){var b=document.getElementById(id);if(b)b.style.display='none';});" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
-    <div style="display:flex;gap:16px;align-items:center;justify-content:center">
+    <div style="display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:nowrap">
         <div style="text-align:center;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.15s;-webkit-tap-highlight-color:transparent;touch-action:auto" onclick="toggleDetailPopup('freefallBlock')" title="Tap for freefall detail">
             <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--freefall);margin-bottom:3px">Freefall</div>
             <div id="wsBalloonArrow" style="font-size:1.4rem;line-height:1">—</div>
@@ -1171,34 +1171,42 @@ function updateWindSummary(d){
 (function(){
     const box = document.getElementById("windSummary");
     if (!box) return;
-    let dragging=false, startX=0, startY=0, origX=0, origY=0;
+    const DRAG_THRESHOLD = 6; // px moved before we consider it a drag, not a tap
+    let pending=false, dragging=false, startX=0, startY=0, origX=0, origY=0;
     function getPos(e){ return e.touches ? e.touches[0] : e; }
     function onStart(e){
-        if (e.target.tagName==="BUTTON") return;
-        dragging=true;
+        if (e.target.tagName==="BUTTON" || e.target.tagName==="DIV" && e.target.getAttribute("onclick")) return;
         const p=getPos(e); startX=p.clientX; startY=p.clientY;
         const rect=box.getBoundingClientRect(); origX=rect.left; origY=rect.top;
-        box.style.cursor="grabbing"; box.style.transition="none"; box.style.touchAction="none";
-        box.style.left=origX+"px"; box.style.top=origY+"px";
-        box.style.bottom="auto"; box.style.transform="none";
-        e.preventDefault();
+        pending=true; dragging=false;
     }
     function onMove(e){
-        if (!dragging) return;
+        if (!pending) return;
         const p=getPos(e);
-        box.style.left=(origX+p.clientX-startX)+"px";
-        box.style.top=(origY+p.clientY-startY)+"px";
-        e.preventDefault();
+        const dx=p.clientX-startX, dy=p.clientY-startY;
+        if (!dragging && Math.sqrt(dx*dx+dy*dy) > DRAG_THRESHOLD){
+            dragging=true;
+            box.style.cursor="grabbing"; box.style.transition="none";
+            box.style.left=origX+"px"; box.style.top=origY+"px";
+            box.style.bottom="auto"; box.style.transform="none";
+        }
+        if (dragging){
+            box.style.left=(origX+dx)+"px";
+            box.style.top=(origY+dy)+"px";
+            e.preventDefault();
+        }
     }
     function onEnd(){
-        dragging=false; box.style.cursor="grab"; box.style.touchAction="";
-        ['canopyBlock','freefallBlock'].forEach(function(id){
-            const el=document.getElementById(id);
-            if(el && el.style.display!=='none') positionPopup(el);
-        });
+        if (dragging){
+            ['canopyBlock','freefallBlock'].forEach(function(id){
+                const el=document.getElementById(id);
+                if(el && el.style.display!=='none') positionPopup(el);
+            });
+        }
+        pending=false; dragging=false; box.style.cursor="grab";
     }
     box.addEventListener("mousedown", onStart);
-    box.addEventListener("touchstart", onStart, {passive:false});
+    box.addEventListener("touchstart", onStart, {passive:true});
     window.addEventListener("mousemove", onMove);
     window.addEventListener("touchmove", onMove, {passive:false});
     window.addEventListener("mouseup", onEnd);
@@ -1365,6 +1373,31 @@ function toggleDetailPopup(id){
         if (window._stopWindParticles) window._stopWindParticles();
     }
 }
+
+// Wire touchend on wind widget tappable sections for reliable mobile taps
+(function(){
+    function wireTap(selector, id){
+        var el = document.querySelector(selector);
+        if (!el) return;
+        var touched = false;
+        el.addEventListener('touchstart', function(){ touched = true; }, {passive:true});
+        el.addEventListener('touchend', function(e){
+            if (!touched) return;
+            touched = false;
+            e.preventDefault();
+            toggleDetailPopup(id);
+        }, {passive:false});
+    }
+    if (document.readyState === 'loading'){
+        document.addEventListener('DOMContentLoaded', function(){
+            wireTap('[title="Tap for freefall detail"]', 'freefallBlock');
+            wireTap('[title="Tap for canopy detail"]', 'canopyBlock');
+        });
+    } else {
+        wireTap('[title="Tap for freefall detail"]', 'freefallBlock');
+        wireTap('[title="Tap for canopy detail"]', 'canopyBlock');
+    }
+})();
 
 function toggleCards(){ const wrap=document.getElementById("cards-wrap"),btn=document.getElementById("toggleCardsBtn"),hidden=wrap.style.display==="none"; wrap.style.display=hidden?"":"none"; btn.textContent=hidden?"Hide":"Show"; }
 function closeWelcome(){

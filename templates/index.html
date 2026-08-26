@@ -485,8 +485,8 @@ select:focus { border-color: var(--accent); }
                 </div><!-- end btn-scroll -->
             </div><!-- end controls -->
             <!-- Detail popups — triggered by tapping arrows on the wind summary widget -->
-            <div id="canopyBlock" style="display:none;position:fixed;bottom:148px;left:50%;transform:translateX(-50%);z-index:8010;background:rgba(13,21,32,0.97);border:1px solid var(--canopy);border-radius:12px;padding:12px 16px 10px;box-shadow:0 8px 32px rgba(0,0,0,0.7);backdrop-filter:blur(10px);min-width:240px;max-width:90vw"></div>
-            <div id="freefallBlock" style="display:none;position:fixed;bottom:148px;left:50%;transform:translateX(-50%);z-index:8010;background:rgba(13,21,32,0.97);border:1px solid var(--freefall);border-radius:12px;padding:12px 16px 10px;box-shadow:0 8px 32px rgba(0,0,0,0.7);backdrop-filter:blur(10px);min-width:240px;max-width:90vw"></div>
+            <div id="canopyBlock" style="display:none;position:fixed;bottom:172px;left:50%;transform:translateX(-50%);z-index:8010;background:rgba(13,21,32,0.97);border:1px solid var(--canopy);border-radius:12px;padding:12px 16px 10px;box-shadow:0 8px 32px rgba(0,0,0,0.7);backdrop-filter:blur(10px);min-width:220px;max-width:90vw"></div>
+            <div id="freefallBlock" style="display:none;position:fixed;bottom:172px;left:50%;transform:translateX(-50%);z-index:8010;background:rgba(13,21,32,0.97);border:1px solid var(--freefall);border-radius:12px;padding:12px 16px 10px;box-shadow:0 8px 32px rgba(0,0,0,0.7);backdrop-filter:blur(10px);min-width:220px;max-width:90vw"></div>
             <div id="cards-header" style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px 0">
                 <span style="font-size:0.64rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)">Winds by Altitude</span>
                 <button id="toggleCardsBtn" onclick="toggleCards()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:2px 8px;font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;letter-spacing:0.08em;cursor:pointer;-webkit-tap-highlight-color:transparent">Hide</button>
@@ -1032,33 +1032,26 @@ async function load(){
         document.getElementById("canopyBlock").innerHTML =
             `<button onclick="document.getElementById('canopyBlock').style.display='none'" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
             <div style="font-size:0.62rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--canopy);margin-bottom:10px">Canopy &nbsp;•&nbsp; SFC – 3 000 ft</div>
-            <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:4px 12px;font-family:'Share Tech Mono',monospace;font-size:0.78rem">
+            <div style="display:grid;grid-template-columns:auto auto;align-items:center;gap:2px 16px;font-family:'Share Tech Mono',monospace;font-size:0.78rem">
                 <span style="color:var(--muted);font-size:0.62rem;letter-spacing:0.1em">SPD</span>
-                <span></span>
                 <span style="color:var(--text);font-weight:bold;text-align:right">${d.canopy.speed.toFixed(1)} kt</span>
                 <span style="color:var(--muted);font-size:0.62rem;letter-spacing:0.1em">DIR</span>
-                <span style="text-align:center">${arrow(d.canopy.direction, 'var(--canopy)')}</span>
                 <span style="color:var(--text);text-align:right">${d.canopy.direction.toFixed(0)}°</span>
-                <span style="color:var(--muted);font-size:0.62rem;letter-spacing:0.1em;white-space:nowrap">UPWIND</span>
-                <span></span>
+                <span style="color:var(--muted);font-size:0.62rem;letter-spacing:0.1em">UPWIND</span>
                 <span style="color:var(--text);text-align:right">${(maxUpwind/1609.344).toFixed(2)} mi</span>
-                <span style="color:var(--muted);font-size:0.62rem;letter-spacing:0.1em;white-space:nowrap">DWNWIND</span>
-                <span></span>
+                <span style="color:var(--muted);font-size:0.62rem;letter-spacing:0.1em">DWNWIND</span>
                 <span style="color:var(--text);text-align:right">${(maxDownwind/1609.344).toFixed(2)} mi</span>
             </div>`;
         const ffFromDir=(d.freefall.direction+180)%360;
         document.getElementById("freefallBlock").innerHTML =
             `<button onclick="document.getElementById('freefallBlock').style.display='none'" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
             <div style="font-size:0.62rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--freefall);margin-bottom:10px">Freefall &nbsp;•&nbsp; 4 000 – 14 000 ft</div>
-            <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:4px 12px;font-family:'Share Tech Mono',monospace;font-size:0.78rem">
+            <div style="display:grid;grid-template-columns:auto auto;align-items:center;gap:2px 16px;font-family:'Share Tech Mono',monospace;font-size:0.78rem">
                 <span style="color:var(--muted);font-size:0.62rem;letter-spacing:0.1em">SPD</span>
-                <span></span>
                 <span style="color:var(--text);font-weight:bold;text-align:right">${d.freefall.speed.toFixed(1)} kt</span>
                 <span style="color:var(--muted);font-size:0.62rem;letter-spacing:0.1em">DIR</span>
-                <span style="text-align:center">${arrow(ffFromDir,'var(--freefall)')}</span>
                 <span style="color:var(--text);text-align:right">${ffFromDir.toFixed(0)}°</span>
                 <span style="color:var(--muted);font-size:0.62rem;letter-spacing:0.1em">DRIFT</span>
-                <span></span>
                 <span style="color:var(--text);text-align:right">${(d.freefall.distance/1609.344).toFixed(2)} mi</span>
             </div>`;
         const MODEL_LABELS={"gfs_seamless":"GFS","icon_seamless":"ICON","hrrr_conus":"HRRR","nam_conus":"NAM","ecmwf_ifs025":"ECMWF"};

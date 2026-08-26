@@ -1031,25 +1031,35 @@ async function load(){
         }
         document.getElementById("canopyBlock").innerHTML =
             `<button onclick="document.getElementById('canopyBlock').style.display='none'" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
-            <div style="font-size:0.68rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--canopy);margin-bottom:8px">Canopy &nbsp;•&nbsp; SFC – 3 000 ft</div>
-            <div class="sc-data">
-                <div><span>SPD</span>${d.canopy.speed.toFixed(1)} kt</div>
-                <div><span>DIR</span>${d.canopy.direction.toFixed(0)}°</div>
-                <div>${arrow(d.canopy.direction, 'var(--canopy)')}</div>
-            </div>
-            <div class="sc-data" style="margin-top:6px">
-                <div><span>MAX UPWIND DIST</span>${(maxUpwind/1609.344).toFixed(2)} mi</div>
-                <div><span>MAX DWNWIND DIST</span>${(maxDownwind/1609.344).toFixed(2)} mi</div>
+            <div style="font-size:0.62rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--canopy);margin-bottom:10px">Canopy &nbsp;•&nbsp; SFC – 3 000 ft</div>
+            <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:4px 12px;font-family:'Share Tech Mono',monospace;font-size:0.78rem">
+                <span style="color:var(--muted);font-size:0.62rem;letter-spacing:0.1em">SPD</span>
+                <span></span>
+                <span style="color:var(--text);font-weight:bold;text-align:right">${d.canopy.speed.toFixed(1)} kt</span>
+                <span style="color:var(--muted);font-size:0.62rem;letter-spacing:0.1em">DIR</span>
+                <span style="text-align:center">${arrow(d.canopy.direction, 'var(--canopy)')}</span>
+                <span style="color:var(--text);text-align:right">${d.canopy.direction.toFixed(0)}°</span>
+                <span style="color:var(--muted);font-size:0.62rem;letter-spacing:0.1em;white-space:nowrap">UPWIND</span>
+                <span></span>
+                <span style="color:var(--text);text-align:right">${(maxUpwind/1609.344).toFixed(2)} mi</span>
+                <span style="color:var(--muted);font-size:0.62rem;letter-spacing:0.1em;white-space:nowrap">DWNWIND</span>
+                <span></span>
+                <span style="color:var(--text);text-align:right">${(maxDownwind/1609.344).toFixed(2)} mi</span>
             </div>`;
         const ffFromDir=(d.freefall.direction+180)%360;
         document.getElementById("freefallBlock").innerHTML =
             `<button onclick="document.getElementById('freefallBlock').style.display='none'" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
-            <div style="font-size:0.68rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--freefall);margin-bottom:8px">Freefall &nbsp;•&nbsp; 4 000 – 14 000 ft</div>
-            <div class="sc-data">
-                <div><span>SPD</span>${d.freefall.speed.toFixed(1)} kt</div>
-                <div><span>DIR</span>${ffFromDir.toFixed(0)}°</div>
-                <div><span>DRIFT</span>${(d.freefall.distance/1609.344).toFixed(2)} mi</div>
-                <div>${arrow(ffFromDir,'var(--freefall)')}</div>
+            <div style="font-size:0.62rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--freefall);margin-bottom:10px">Freefall &nbsp;•&nbsp; 4 000 – 14 000 ft</div>
+            <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:4px 12px;font-family:'Share Tech Mono',monospace;font-size:0.78rem">
+                <span style="color:var(--muted);font-size:0.62rem;letter-spacing:0.1em">SPD</span>
+                <span></span>
+                <span style="color:var(--text);font-weight:bold;text-align:right">${d.freefall.speed.toFixed(1)} kt</span>
+                <span style="color:var(--muted);font-size:0.62rem;letter-spacing:0.1em">DIR</span>
+                <span style="text-align:center">${arrow(ffFromDir,'var(--freefall)')}</span>
+                <span style="color:var(--text);text-align:right">${ffFromDir.toFixed(0)}°</span>
+                <span style="color:var(--muted);font-size:0.62rem;letter-spacing:0.1em">DRIFT</span>
+                <span></span>
+                <span style="color:var(--text);text-align:right">${(d.freefall.distance/1609.344).toFixed(2)} mi</span>
             </div>`;
         const MODEL_LABELS={"gfs_seamless":"GFS","icon_seamless":"ICON","hrrr_conus":"HRRR","nam_conus":"NAM","ecmwf_ifs025":"ECMWF"};
         const ml=d.models_loaded||{};

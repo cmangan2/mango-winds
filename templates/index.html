@@ -236,7 +236,7 @@ select:focus { border-color: var(--accent); }
 </div>
 {% endif %}
 
-<div id="welcomeModal" style="display:none">
+<div id="welcomeModal">
     <div id="welcomeBox">
         <div id="welcomeHeader">
             <span>Mango Wind Hub</span>
@@ -2639,18 +2639,13 @@ function initDZ(){
     let savedDz=null; try{ savedDz=localStorage.getItem("mwh-dz"); }catch(e){}
     const defaultDz=(savedDz && dz[savedDz]) ? savedDz : sneDz;
     const wSel = document.getElementById("welcomeDzSelect");
-    const placeholder=document.createElement("option"); placeholder.value=""; placeholder.text="— Select a dropzone —"; placeholder.disabled=true; wSel.appendChild(placeholder);
     for (const k of keys){
         const o=document.createElement("option"); o.value=k; o.text=k; sel.appendChild(o);
         const o2=o.cloneNode(true); wSel.appendChild(o2);
     }
-    sel.value=defaultDz;
-    wSel.value=defaultDz;
-    if (!wSel.value) wSel.value=keys[0];
+    sel.value=defaultDz; wSel.value=defaultDz;
     lat=dz[defaultDz][0]; lon=dz[defaultDz][1];
     initMap(); load();
-    // Show welcome modal only after dropdown is fully populated
-    document.getElementById("welcomeModal").style.display="flex";
     document.getElementById("hour").oninput=()=>{
         renderTime();
         if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}

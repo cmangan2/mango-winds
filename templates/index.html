@@ -1230,18 +1230,22 @@ function updateWindSummary(d){
         window.addEventListener('resize', () => { resize(); if (activeLayer) respawn(); });
         resize();
 
-        // DZ center in true viewport px
-        function dzCenter(){
+        // DZ center and map bounds in true viewport px
+        function mapInfo(){
             try {
                 const mapEl = map.getContainer();
                 const r = mapEl.getBoundingClientRect();
                 const pt = map.latLngToContainerPoint(L.latLng(lat, lon));
-                const x = r.left + pt.x;
-                const y = r.top  + pt.y;
-                // clamp to visible map area (top 55% on mobile where panel covers bottom)
-                return { x: Math.min(Math.max(x, 0), canvas.width), y: Math.min(y, canvas.height * 0.55) };
+                const cx = r.left + pt.x;
+                const cy = r.top  + pt.y;
+                // pixel radius — use Leaflet to project a point ~3km north and measure distance
+                const ptN = map.latLngToContainerPoint(L.latLng(lat + 0.027, lon));
+                const radiusPx = Math.abs(pt.y - ptN.y) * 1.8; // ~1.8x the 3km radius
+                return { cx, cy, radiusPx, left: r.left, top: r.top, right: r.right, bottom: r.bottom };
             } catch(e) {
-                return { x: canvas.width * 0.4, y: canvas.height * 0.4 };
+                const cx = canvas.width * 0.4, cy = canvas.height * 0.4;
+                return { cx, cy, radiusPx: Math.min(canvas.width, canvas.height) * 0.35,
+                         left: 0, top: 0, right: canvas.width, bottom: canvas.height };
             }
         }
 
@@ -1252,23 +1256,24 @@ function updateWindSummary(d){
             return { vx: spd * Math.sin(state.dirRad), vy: -spd * Math.cos(state.dirRad), spd };
         }
 
-        function makeParticle(c, vx, vy){
-            const W = canvas.width, H = canvas.height;
-            // spawn randomly across full canvas so it feels like wind filling the whole sky
-            return {
-                x: Math.random() * W,
-                y: Math.random() * H,
-                age: Math.random(), // stagger so they don't all appear at once
-                vx, vy
-            };
+        function randInCircle(cx, cy, r){
+            // uniform random point inside circle
+            const ang = Math.random() * Math.PI * 2;
+            const rad = r * Math.sqrt(Math.random());
+            return { x: cx + Math.cos(ang) * rad, y: cy + Math.sin(ang) * rad };
+        }
+
+        function makeParticle(info, vx, vy){
+            const p = randInCircle(info.cx, info.cy, info.radiusPx);
+            return { x: p.x, y: p.y, age: Math.random(), vx, vy };
         }
 
         function respawn(){
             if (!activeLayer) return;
             const { vx, vy } = getVelocity();
-            const c = dzCenter();
+            const info = mapInfo();
             const n = LAYERS[activeLayer].count;
-            particles = Array.from({ length: n }, () => makeParticle(c, vx, vy));
+            particles = Array.from({ length: n }, () => makeParticle(info, vx, vy));
         }
 
         function startLayer(id){
@@ -1291,25 +1296,26 @@ function updateWindSummary(d){
             const cfg = LAYERS[activeLayer];
             const W = canvas.width, H = canvas.height;
             const { vx, vy, spd } = getVelocity();
+            const info = mapInfo();
             ctx.clearRect(0, 0, W, H);
+
+            // clip all drawing to the map area so particles never appear over the panel
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(info.left, info.top, info.right - info.left, info.bottom - info.top);
+            ctx.clip();
 
             for (const p of particles){
                 p.age += 0.004;
                 p.x += p.vx;
                 p.y += p.vy;
 
-                // wrap around edges so the field is continuous
-                if (p.x < -20)  p.x += W + 40;
-                if (p.x > W+20) p.x -= W + 40;
-                if (p.y < -20)  p.y += H + 40;
-                if (p.y > H+20) p.y -= H + 40;
-
-                // reset age when wrapping (handled by age > 1)
-                if (p.age > 1){
-                    p.x = Math.random() * W;
-                    p.y = Math.random() * H;
-                    p.age = 0;
-                    p.vx = vx; p.vy = vy;
+                // if particle drifts outside the circle, respawn inside it
+                const dx = p.x - info.cx, dy = p.y - info.cy;
+                const distSq = dx*dx + dy*dy;
+                if (p.age > 1 || distSq > info.radiusPx * info.radiusPx * 1.5){
+                    const np = randInCircle(info.cx, info.cy, info.radiusPx);
+                    p.x = np.x; p.y = np.y; p.age = 0; p.vx = vx; p.vy = vy;
                 }
 
                 const alpha = p.age < 0.15 ? p.age/0.15 : p.age > 0.75 ? (1 - p.age)/0.25 : 1;
@@ -1332,6 +1338,7 @@ function updateWindSummary(d){
                 ctx.lineWidth = 1.8;
                 ctx.stroke();
             }
+            ctx.restore();
             animId = requestAnimationFrame(loop);
         }
 

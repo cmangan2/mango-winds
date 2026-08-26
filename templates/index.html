@@ -1231,9 +1231,14 @@ function updateWindSummary(d){
             const mapEl = map.getContainer();
             const mapRect = mapEl.getBoundingClientRect();
             const pt = map.latLngToContainerPoint(L.latLng(lat, lon));
-            return { x: mapRect.left + pt.x, y: mapRect.top + pt.y };
+            let x = mapRect.left + pt.x;
+            let y = mapRect.top + pt.y;
+            // On mobile the panel covers the bottom portion — clamp y to top 55% of screen
+            const maxY = canvas.height * 0.55;
+            if (y > maxY) y = maxY;
+            return { x, y };
         } catch(e) {
-            return { x: canvas.width / 2, y: canvas.height / 2 };
+            return { x: canvas.width / 2, y: canvas.height * 0.4 };
         }
     }
 
@@ -2709,6 +2714,6 @@ document.addEventListener("visibilitychange", function(){
     }
 });
 </script>
-<canvas id="windCanvas" style="position:fixed;inset:0;pointer-events:none;z-index:4;width:100%;height:100%"></canvas>
+<canvas id="windCanvas" style="position:fixed;inset:0;pointer-events:none;z-index:11;width:100%;height:100%"></canvas>
 </body>
 </html>

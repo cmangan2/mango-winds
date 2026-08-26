@@ -1204,7 +1204,9 @@ function updateWindSummary(d){
 
 // ── WIND PARTICLE SYSTEM ──
 (function(){
+    function initParticles(){
     const canvas = document.getElementById('windCanvas');
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const LAYERS = {
         freefallBlock: { color: '#ffaa00', count: 350 },
@@ -1342,6 +1344,12 @@ function updateWindSummary(d){
     };
 
     window._stopWindParticles = function(){ stopLayer(); };
+    } // end initParticles
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initParticles);
+    } else {
+        initParticles();
+    }
 })();
 
 function toggleDetailPopup(id){

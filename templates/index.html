@@ -1390,6 +1390,11 @@ function positionPopup(el){
 }
 
 function toggleDetailPopup(id){
+    // surfaceBlock has no popup — just toggle particles
+    if (id === 'surfaceBlock') {
+        if (window._windParticleToggle) window._windParticleToggle(id);
+        return;
+    }
     const el = document.getElementById(id);
     if (!el) return;
     const visible = el.style.display !== 'none';
@@ -1397,12 +1402,11 @@ function toggleDetailPopup(id){
         const b = document.getElementById(bid);
         if (b) b.style.display = 'none';
     });
+    if (window._stopWindParticles) window._stopWindParticles();
     if (!visible) {
         el.style.display = 'block';
         requestAnimationFrame(function(){ positionPopup(el); });
         if (window._windParticleToggle) window._windParticleToggle(id);
-    } else {
-        if (window._stopWindParticles) window._stopWindParticles();
     }
 }
 

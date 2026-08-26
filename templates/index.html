@@ -1390,8 +1390,12 @@ function positionPopup(el){
 }
 
 function toggleDetailPopup(id){
-    // surfaceBlock has no popup — just toggle particles
+    // surfaceBlock has no popup — close any open popup then toggle particles
     if (id === 'surfaceBlock') {
+        ['canopyBlock','freefallBlock'].forEach(function(bid){
+            const b = document.getElementById(bid);
+            if (b) b.style.display = 'none';
+        });
         if (window._windParticleToggle) window._windParticleToggle(id);
         return;
     }

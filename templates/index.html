@@ -378,16 +378,16 @@ select:focus { border-color: var(--accent); }
 <div id="loader"><div class="spinner"></div></div>
 
 <!-- ── WIND SUMMARY BOX ── -->
-<div id="windSummary" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:8000;background:rgba(13,21,32,0.92);border:1px solid var(--border);border-radius:12px;padding:10px 14px;box-shadow:0 8px 32px rgba(0,0,0,0.6);backdrop-filter:blur(8px);cursor:grab;user-select:none;touch-action:none;min-width:240px">
+<div id="windSummary" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:8000;background:rgba(13,21,32,0.92);border:1px solid var(--border);border-radius:12px;padding:10px 14px;box-shadow:0 8px 32px rgba(0,0,0,0.6);backdrop-filter:blur(8px);cursor:grab;user-select:none;min-width:240px">
     <button onclick="document.getElementById('windSummary').style.display='none';['canopyBlock','freefallBlock'].forEach(function(id){var b=document.getElementById(id);if(b)b.style.display='none';});" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
     <div style="display:flex;gap:16px;align-items:center;justify-content:center">
-        <div style="text-align:center;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.15s;-webkit-tap-highlight-color:transparent" onclick="toggleDetailPopup('freefallBlock')" title="Tap for freefall detail">
+        <div style="text-align:center;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.15s;-webkit-tap-highlight-color:transparent;touch-action:auto" onclick="toggleDetailPopup('freefallBlock')" title="Tap for freefall detail">
             <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--freefall);margin-bottom:3px">Freefall</div>
             <div id="wsBalloonArrow" style="font-size:1.4rem;line-height:1">—</div>
             <div id="wsBalloonVal" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text);margin-top:2px">—</div>
         </div>
         <div style="width:1px;height:40px;background:var(--border)"></div>
-        <div style="text-align:center;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.15s;-webkit-tap-highlight-color:transparent" onclick="toggleDetailPopup('canopyBlock')" title="Tap for canopy detail">
+        <div style="text-align:center;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.15s;-webkit-tap-highlight-color:transparent;touch-action:auto" onclick="toggleDetailPopup('canopyBlock')" title="Tap for canopy detail">
             <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--canopy);margin-bottom:3px">Canopy</div>
             <div id="wsCanopyArrow" style="font-size:1.4rem;line-height:1">—</div>
             <div id="wsCanopyVal" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text);margin-top:2px">—</div>
@@ -1178,7 +1178,7 @@ function updateWindSummary(d){
         dragging=true;
         const p=getPos(e); startX=p.clientX; startY=p.clientY;
         const rect=box.getBoundingClientRect(); origX=rect.left; origY=rect.top;
-        box.style.cursor="grabbing"; box.style.transition="none";
+        box.style.cursor="grabbing"; box.style.transition="none"; box.style.touchAction="none";
         box.style.left=origX+"px"; box.style.top=origY+"px";
         box.style.bottom="auto"; box.style.transform="none";
         e.preventDefault();
@@ -1191,7 +1191,7 @@ function updateWindSummary(d){
         e.preventDefault();
     }
     function onEnd(){
-        dragging=false; box.style.cursor="grab";
+        dragging=false; box.style.cursor="grab"; box.style.touchAction="";
         ['canopyBlock','freefallBlock'].forEach(function(id){
             const el=document.getElementById(id);
             if(el && el.style.display!=='none') positionPopup(el);

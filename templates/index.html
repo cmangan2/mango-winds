@@ -2725,15 +2725,8 @@ const CUSTOM_DZ_KEY = 'mwh-custom-dzs';
 let customDzIcao = {}; // name → icao for custom DZs
 
 function loadCustomDZs(){
-    try {
-        const saved = JSON.parse(localStorage.getItem(CUSTOM_DZ_KEY) || '{}');
-        for (const [name, vals] of Object.entries(saved)){
-            if (vals && vals.lat && vals.lon){
-                dz[name] = [vals.lat, vals.lon, vals.icao || ''];
-                customDzIcao[name] = vals.icao || '';
-            }
-        }
-    } catch(e){}
+    // Custom DZs are now persisted server-side in user_dropzones.txt
+    // and injected into the dz object by Flask at page load — nothing to do here
 }
 
 function addDZOptionToSelects(name){
@@ -2772,40 +2765,57 @@ function closeCustomDzModal(){
     });
 }
 
-function saveCustomDz(){
+async function saveCustomDz(){
     const name = document.getElementById('cdName').value.trim();
     const latV = parseFloat(document.getElementById('cdLat').value);
     const lonV = parseFloat(document.getElementById('cdLon').value);
     const icaoV = document.getElementById('cdIcao').value.trim().toUpperCase();
     const errEl = document.getElementById('cdError');
+    const saveBtn = document.querySelector('#customDzModal button:last-child');
 
     if (!name){ errEl.textContent = 'Dropzone name is required.'; errEl.style.display='block'; return; }
     if (isNaN(latV) || latV < -90 || latV > 90){ errEl.textContent = 'Enter a valid latitude (e.g. 43.1234).'; errEl.style.display='block'; return; }
     if (isNaN(lonV) || lonV < -180 || lonV > 180){ errEl.textContent = 'Enter a valid longitude (e.g. -70.9876).'; errEl.style.display='block'; return; }
 
     errEl.style.display = 'none';
+    saveBtn.textContent = 'Saving...'; saveBtn.disabled = true;
 
-    // Save to localStorage
     try {
-        const saved = JSON.parse(localStorage.getItem(CUSTOM_DZ_KEY) || '{}');
-        saved[name] = { lat: latV, lon: lonV, icao: icaoV };
-        localStorage.setItem(CUSTOM_DZ_KEY, JSON.stringify(saved));
-    } catch(e){}
+        const resp = await fetch('/add_dropzone', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, lat: latV, lon: lonV, icao: icaoV })
+        });
+        const result = await resp.json();
 
-    // Add to runtime dz object
-    dz[name] = [latV, lonV, icaoV];
-    customDzIcao[name] = icaoV;
-    addDZOptionToSelects(name);
+        if (!resp.ok) {
+            errEl.textContent = result.error || 'Could not save dropzone.';
+            errEl.style.display = 'block';
+            saveBtn.textContent = 'Add Dropzone'; saveBtn.disabled = false;
+            return;
+        }
 
-    document.getElementById('customDzModal').style.display = 'none';
+        // Add to runtime dz object and selects
+        dz[name] = [latV, lonV, icaoV];
+        customDzIcao[name] = icaoV;
+        addDZOptionToSelects(name);
 
-    // Select the new DZ
-    [document.getElementById('dz'), document.getElementById('welcomeDzSelect')].forEach(function(sel){
-        if (sel) sel.value = name;
-    });
-    lat = latV; lon = lonV;
-    try { localStorage.setItem('mwh-dz', name); } catch(e){}
-    firstLoad = true; load();
+        document.getElementById('customDzModal').style.display = 'none';
+        saveBtn.textContent = 'Add Dropzone'; saveBtn.disabled = false;
+
+        // Select the new DZ
+        [document.getElementById('dz'), document.getElementById('welcomeDzSelect')].forEach(function(sel){
+            if (sel) sel.value = name;
+        });
+        lat = latV; lon = lonV;
+        try { localStorage.setItem('mwh-dz', name); } catch(e){}
+        firstLoad = true; load();
+
+    } catch(e) {
+        errEl.textContent = 'Network error — please try again.';
+        errEl.style.display = 'block';
+        saveBtn.textContent = 'Add Dropzone'; saveBtn.disabled = false;
+    }
 }
 
 function initDZ(){

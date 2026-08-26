@@ -2795,21 +2795,19 @@ async function saveCustomDz(){
             return;
         }
 
-        // Add to runtime dz object and selects
-        dz[name] = [latV, lonV, icaoV];
-        customDzIcao[name] = icaoV;
-        addDZOptionToSelects(name);
-
         document.getElementById('customDzModal').style.display = 'none';
         saveBtn.textContent = 'Add Dropzone'; saveBtn.disabled = false;
-
-        // Select the new DZ
+        // Show success message — DZ is pending review, not live yet
+        errEl.style.color = '#39ff89';
+        errEl.textContent = result.message || 'Submitted! Your dropzone will appear once reviewed.';
+        errEl.style.display = 'block';
+        // Reset selects away from __add__
         [document.getElementById('dz'), document.getElementById('welcomeDzSelect')].forEach(function(sel){
-            if (sel) sel.value = name;
+            if (sel && sel.value === '__add__') sel.value = Object.keys(dz)[0];
         });
-        lat = latV; lon = lonV;
-        try { localStorage.setItem('mwh-dz', name); } catch(e){}
-        firstLoad = true; load();
+        // Re-show modal briefly with success then close
+        document.getElementById('customDzModal').style.display = 'flex';
+        setTimeout(function(){ document.getElementById('customDzModal').style.display = 'none'; }, 3000);
 
     } catch(e) {
         errEl.textContent = 'Network error — please try again.';

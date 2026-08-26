@@ -1285,7 +1285,7 @@ window._stopWindParticles = function(){};
             const s = windState[id];
             if (!s) return { vx:0, vy:0, spd:0, tailLen:8 };
             const baseSpd = 0.4; // constant slow movement regardless of wind
-            const tailLen = Math.max(s.speedKt * 18, 60); // tail length encodes speed
+            const tailLen = Math.max(s.speedKt * 3.6, 12); // tail length encodes speed
             return { vx: baseSpd*Math.sin(s.dirRad), vy: -baseSpd*Math.cos(s.dirRad),
                      spd: baseSpd, tailLen };
         }
@@ -1341,7 +1341,7 @@ window._stopWindParticles = function(){};
                 const alpha = p.age<0.15 ? p.age/0.15 : p.age>0.75 ? (1-p.age)/0.25 : 1;
                 if (alpha<=0) continue;
                 const nx=spd>0?vx/spd:0, ny=spd>0?vy/spd:0;
-                const tail = Math.max(tailLen, 100); // tail length from getVel, encodes wind speed
+                const tail = Math.max(tailLen, 20); // tail length from getVel, encodes wind speed
                 const tx=p.x-nx*tail, ty=p.y-ny*tail;
                 // skip zero-length gradients which error on some browsers
                 if (Math.abs(p.x-tx) < 0.5 && Math.abs(p.y-ty) < 0.5) continue;
@@ -1350,7 +1350,7 @@ window._stopWindParticles = function(){};
                 g.addColorStop(0,'transparent');
                 g.addColorStop(1,layer.color+a);
                 ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(p.x,p.y);
-                ctx.strokeStyle=g; ctx.lineWidth=30; ctx.stroke();
+                ctx.strokeStyle=g; ctx.lineWidth=6; ctx.stroke();
             }
             ctx.restore();
             animId = requestAnimationFrame(loop);

@@ -236,7 +236,7 @@ select:focus { border-color: var(--accent); }
 </div>
 {% endif %}
 
-<div id="welcomeModal">
+<div id="welcomeModal" style="display:none">
     <div id="welcomeBox">
         <div id="welcomeHeader">
             <span>Mango Wind Hub</span>
@@ -2649,6 +2649,8 @@ function initDZ(){
     if (!wSel.value) wSel.value=keys[0];
     lat=dz[defaultDz][0]; lon=dz[defaultDz][1];
     initMap(); load();
+    // Show welcome modal only after dropdown is fully populated
+    document.getElementById("welcomeModal").style.display="flex";
     document.getElementById("hour").oninput=()=>{
         renderTime();
         if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}

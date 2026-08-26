@@ -1203,6 +1203,10 @@ function updateWindSummary(d){
 })();
 
 // ── WIND PARTICLE SYSTEM ──
+// Safe stubs — overwritten by initParticles once DOM is ready
+window._setWindState = function(){};
+window._windParticleToggle = function(){};
+window._stopWindParticles = function(){};
 (function(){
     function initParticles(){
         const canvas = document.getElementById('windCanvas');
@@ -1235,17 +1239,18 @@ function updateWindSummary(d){
             try {
                 const mapEl = map.getContainer();
                 const r = mapEl.getBoundingClientRect();
+                if (r.width < 10 || r.height < 10) throw new Error('map not ready');
                 const pt = map.latLngToContainerPoint(L.latLng(lat, lon));
                 const cx = r.left + pt.x;
                 const cy = r.top  + pt.y;
-                // pixel radius — use Leaflet to project a point ~3km north and measure distance
                 const ptN = map.latLngToContainerPoint(L.latLng(lat + 0.027, lon));
-                const radiusPx = Math.abs(pt.y - ptN.y) * 1.8; // ~1.8x the 3km radius
+                const radiusPx = Math.max(Math.abs(pt.y - ptN.y) * 1.8, 80);
                 return { cx, cy, radiusPx, left: r.left, top: r.top, right: r.right, bottom: r.bottom };
             } catch(e) {
-                const cx = canvas.width * 0.4, cy = canvas.height * 0.4;
-                return { cx, cy, radiusPx: Math.min(canvas.width, canvas.height) * 0.35,
-                         left: 0, top: 0, right: canvas.width, bottom: canvas.height };
+                const W = canvas.width, H = canvas.height;
+                return { cx: W * 0.4, cy: H * 0.4,
+                         radiusPx: Math.min(W, H) * 0.35,
+                         left: 0, top: 0, right: W, bottom: H };
             }
         }
 
@@ -1359,18 +1364,17 @@ function updateWindSummary(d){
 })();
 
 function toggleDetailPopup(id){
-    const el = document.getElementById(id);
-    if (!el) return;
-    const visible = el.style.display !== 'none';
-    // close all popups
-    ['canopyBlock','freefallBlock','surfaceBlock'].forEach(function(bid){
-        const b = document.getElementById(bid);
-        if (b && bid !== 'surfaceBlock') b.style.display = 'none';
-    });
-    // toggle particles
-    window._windParticleToggle(id);
-    // show popup (non-surface ones only)
-    if (!visible && id !== 'surfaceBlock') el.style.display = 'block';
+    try {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const visible = el.style.display !== 'none';
+        ['canopyBlock','freefallBlock','surfaceBlock'].forEach(function(bid){
+            const b = document.getElementById(bid);
+            if (b && bid !== 'surfaceBlock') b.style.display = 'none';
+        });
+        if (window._windParticleToggle) window._windParticleToggle(id);
+        if (!visible && id !== 'surfaceBlock') el.style.display = 'block';
+    } catch(e) { console.warn('toggleDetailPopup error:', e); }
 }
 
 function toggleCards(){ const wrap=document.getElementById("cards-wrap"),btn=document.getElementById("toggleCardsBtn"),hidden=wrap.style.display==="none"; wrap.style.display=hidden?"":"none"; btn.textContent=hidden?"Hide":"Show"; }

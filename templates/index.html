@@ -486,8 +486,8 @@ select:focus { border-color: var(--accent); }
                 </div><!-- end btn-scroll -->
             </div><!-- end controls -->
             <!-- Detail popups — triggered by tapping arrows on the wind summary widget -->
-            <div id="canopyBlock" style="display:none;position:fixed;bottom:172px;left:50%;transform:translateX(-50%);z-index:8010;background:rgba(13,21,32,0.97);border:1px solid var(--canopy);border-radius:12px;padding:12px 16px 10px;box-shadow:0 8px 32px rgba(0,0,0,0.7);backdrop-filter:blur(10px);white-space:nowrap"></div>
-            <div id="freefallBlock" style="display:none;position:fixed;bottom:172px;left:50%;transform:translateX(-50%);z-index:8010;background:rgba(13,21,32,0.97);border:1px solid var(--freefall);border-radius:12px;padding:12px 16px 10px;box-shadow:0 8px 32px rgba(0,0,0,0.7);backdrop-filter:blur(10px);white-space:nowrap"></div>
+            <div id="canopyBlock" style="display:none;position:fixed;z-index:8010;background:rgba(13,21,32,0.97);border:1px solid var(--canopy);border-radius:12px;padding:12px 16px 10px;box-shadow:0 8px 32px rgba(0,0,0,0.7);backdrop-filter:blur(10px);white-space:nowrap"></div>
+            <div id="freefallBlock" style="display:none;position:fixed;z-index:8010;background:rgba(13,21,32,0.97);border:1px solid var(--freefall);border-radius:12px;padding:12px 16px 10px;box-shadow:0 8px 32px rgba(0,0,0,0.7);backdrop-filter:blur(10px);white-space:nowrap"></div>
 
             <div id="cards-header" style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px 0">
                 <span style="font-size:0.64rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)">Winds by Altitude</span>
@@ -1162,7 +1162,11 @@ function updateWindSummary(d){
         document.getElementById("wsSurfaceArrow").innerHTML = dirArrowSvg(sfc.direction, "var(--accent)");
         document.getElementById("wsSurfaceVal").textContent = sfc.speed.toFixed(1) + " kt";
     }
-
+    if (window._setWindState) {
+        window._setWindState('freefallBlock', d.freefall.speed, (d.freefall.direction+180)%360);
+        window._setWindState('canopyBlock', d.canopy.speed, d.canopy.direction);
+        if (sfc) window._setWindState('surfaceBlock', sfc.speed, sfc.direction);
+    }
 }
 
 // ── WIND SUMMARY DRAG ──
@@ -1188,7 +1192,13 @@ function updateWindSummary(d){
         box.style.top=(origY+p.clientY-startY)+"px";
         e.preventDefault();
     }
-    function onEnd(){ dragging=false; box.style.cursor="grab"; }
+    function onEnd(){
+        dragging=false; box.style.cursor="grab";
+        ['canopyBlock','freefallBlock'].forEach(function(id){
+            const el=document.getElementById(id);
+            if(el && el.style.display!=='none') positionPopup(el);
+        });
+    }
     box.addEventListener("mousedown", onStart);
     box.addEventListener("touchstart", onStart, {passive:false});
     window.addEventListener("mousemove", onMove);
@@ -1199,6 +1209,148 @@ function updateWindSummary(d){
 
 
 
+// ── WIND PARTICLE SYSTEM ──
+window._setWindState = function(){};
+window._windParticleToggle = function(){};
+window._stopWindParticles = function(){};
+(function(){
+    function initParticles(){
+        const canvas = document.getElementById('windCanvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const LAYERS = {
+            freefallBlock: { color: '#ffaa00', count: 300 },
+            canopyBlock:   { color: '#39ff89', count: 250 },
+            surfaceBlock:  { color: '#00d4ff', count: 200 }
+        };
+        let active = null, particles = [], animId = null;
+        const windState = {};
+
+        function resize(){
+            canvas.style.width  = window.innerWidth  + 'px';
+            canvas.style.height = window.innerHeight + 'px';
+            canvas.width  = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', function(){ resize(); if(active) respawn(); });
+        resize();
+
+        function getDZCenter(){
+            try {
+                const mapEl = map.getContainer();
+                const r = mapEl.getBoundingClientRect();
+                if (r.width < 10) throw '';
+                const pt = map.latLngToContainerPoint(L.latLng(lat, lon));
+                const ptN = map.latLngToContainerPoint(L.latLng(lat + 0.027, lon));
+                const radiusPx = Math.max(Math.abs(pt.y - ptN.y) * 1.6, 80);
+                return { cx: r.left + pt.x, cy: r.top + pt.y, r: radiusPx };
+            } catch(e) {
+                return { cx: canvas.width*0.4, cy: canvas.height*0.4, r: Math.min(canvas.width, canvas.height)*0.3 };
+            }
+        }
+
+        function getVel(id){
+            const s = windState[id];
+            if (!s) return { vx:0, vy:0, spd:0 };
+            const spd = Math.max(s.speedKt * 0.9, 1.2);
+            return { vx: spd*Math.sin(s.dirRad), vy: -spd*Math.cos(s.dirRad), spd };
+        }
+
+        function randInCircle(cx, cy, r){
+            const a = Math.random()*Math.PI*2, d = r*Math.sqrt(Math.random());
+            return { x: cx+Math.cos(a)*d, y: cy+Math.sin(a)*d };
+        }
+
+        function respawn(){
+            if (!active) return;
+            const dz = getDZCenter();
+            const { vx, vy } = getVel(active);
+            particles = Array.from({length: LAYERS[active].count}, function(){
+                const p = randInCircle(dz.cx, dz.cy, dz.r);
+                return { x:p.x, y:p.y, age:Math.random(), vx, vy };
+            });
+        }
+
+        function startLayer(id){
+            if (!windState[id]) return;
+            active = id; respawn();
+            if (animId) cancelAnimationFrame(animId);
+            loop();
+        }
+
+        function stopLayer(){
+            active = null; particles = [];
+            if (animId) { cancelAnimationFrame(animId); animId = null; }
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function loop(){
+            if (!active) return;
+            const layer = LAYERS[active];
+            const dz = getDZCenter();
+            const { vx, vy, spd } = getVel(active);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(dz.cx, dz.cy, dz.r, 0, Math.PI*2);
+            ctx.clip();
+            for (const p of particles){
+                p.age += 0.005; p.x += p.vx; p.y += p.vy;
+                const dx=p.x-dz.cx, dy=p.y-dz.cy;
+                if (p.age > 1 || dx*dx+dy*dy > dz.r*dz.r*1.1){
+                    const np = randInCircle(dz.cx, dz.cy, dz.r);
+                    p.x=np.x; p.y=np.y; p.age=0; p.vx=vx; p.vy=vy;
+                }
+                const alpha = p.age<0.15 ? p.age/0.15 : p.age>0.75 ? (1-p.age)/0.25 : 1;
+                if (alpha<=0) continue;
+                const tail=Math.max(spd*5,6), nx=spd>0?vx/spd:0, ny=spd>0?vy/spd:0;
+                const tx=p.x-nx*tail, ty=p.y-ny*tail;
+                const a=Math.round(alpha*220).toString(16).padStart(2,'0');
+                const g=ctx.createLinearGradient(tx,ty,p.x,p.y);
+                g.addColorStop(0,'transparent');
+                g.addColorStop(1,layer.color+a);
+                ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(p.x,p.y);
+                ctx.strokeStyle=g; ctx.lineWidth=1.8; ctx.stroke();
+            }
+            ctx.restore();
+            animId = requestAnimationFrame(loop);
+        }
+
+        window._setWindState = function(id, speedKt, dirDeg){
+            windState[id] = { speedKt, dirRad: dirDeg*Math.PI/180 };
+        };
+        window._windParticleToggle = function(id){
+            if (active===id) stopLayer(); else { stopLayer(); startLayer(id); }
+        };
+        window._stopWindParticles = function(){ stopLayer(); };
+    }
+    if (document.readyState==='loading'){
+        document.addEventListener('DOMContentLoaded', initParticles);
+    } else { initParticles(); }
+})();
+
+function positionPopup(el){
+    if (!el || el.style.display === 'none') return;
+    const ws = document.getElementById('windSummary');
+    if (!ws) return;
+    const wr = ws.getBoundingClientRect();
+    const er = el.getBoundingClientRect();
+    const gap = 8;
+    const midScreen = window.innerHeight / 2;
+    // if widget is in bottom half of screen, show popup above it; else show below
+    if (wr.top > midScreen) {
+        el.style.top = 'auto';
+        el.style.bottom = (window.innerHeight - wr.top + gap) + 'px';
+    } else {
+        el.style.bottom = 'auto';
+        el.style.top = (wr.bottom + gap) + 'px';
+    }
+    // center horizontally on the widget
+    const wsCenter = wr.left + wr.width / 2;
+    el.style.left = Math.max(8, Math.min(window.innerWidth - er.width - 8, wsCenter - er.width / 2)) + 'px';
+    el.style.transform = 'none';
+}
+
 function toggleDetailPopup(id){
     const el = document.getElementById(id);
     if (!el) return;
@@ -1207,7 +1359,13 @@ function toggleDetailPopup(id){
         const b = document.getElementById(bid);
         if (b) b.style.display = 'none';
     });
-    if (!visible && id !== 'surfaceBlock') el.style.display = 'block';
+    if (!visible) {
+        el.style.display = 'block';
+        requestAnimationFrame(function(){ positionPopup(el); });
+        if (window._windParticleToggle) window._windParticleToggle(id);
+    } else {
+        if (window._stopWindParticles) window._stopWindParticles();
+    }
 }
 
 function toggleCards(){ const wrap=document.getElementById("cards-wrap"),btn=document.getElementById("toggleCardsBtn"),hidden=wrap.style.display==="none"; wrap.style.display=hidden?"":"none"; btn.textContent=hidden?"Hide":"Show"; }
@@ -2550,5 +2708,6 @@ document.addEventListener("visibilitychange", function(){
     }
 });
 </script>
+<canvas id="windCanvas" style="position:fixed;top:0;left:0;pointer-events:none;z-index:11"></canvas>
 </body>
 </html>

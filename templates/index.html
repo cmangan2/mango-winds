@@ -1151,7 +1151,7 @@ async function load(){
 }
 
 let panelOpen=false;
-function togglePanel(){ panelOpen=!panelOpen; document.getElementById("panel").classList.toggle("open",panelOpen); setTimeout(()=>map.invalidateSize(),350); }
+function togglePanel(){ panelOpen=!panelOpen; document.getElementById("panel").classList.toggle("open",panelOpen); setTimeout(()=>map.invalidateSize(),350); if(panelOpen && window._stopWindParticles) _stopWindParticles(); }
 function updateHandleSummary(canopySpd,canopyDir,timeStr){ const el=document.getElementById("handleSummary"); if(el) el.textContent=`${timeStr}  •  ${canopySpd.toFixed(0)}kt ${canopyDir.toFixed(0)}°`; }
 function dirArrowSvg(deg, color){
     const blowTo = (deg + 180) % 360;
@@ -1338,7 +1338,7 @@ window._stopWindParticles = function(){};
                 const alpha = p.age<0.15 ? p.age/0.15 : p.age>0.75 ? (1-p.age)/0.25 : 1;
                 if (alpha<=0) continue;
                 const nx=spd>0?vx/spd:0, ny=spd>0?vy/spd:0;
-                const tail = tailLen; // tail length from getVel, encodes wind speed
+                const tail = Math.max(tailLen, 10); // tail length from getVel, encodes wind speed
                 const tx=p.x-nx*tail, ty=p.y-ny*tail;
                 // skip zero-length gradients which error on some browsers
                 if (Math.abs(p.x-tx) < 0.5 && Math.abs(p.y-ty) < 0.5) continue;
@@ -1347,7 +1347,7 @@ window._stopWindParticles = function(){};
                 g.addColorStop(0,'transparent');
                 g.addColorStop(1,layer.color+a);
                 ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(p.x,p.y);
-                ctx.strokeStyle=g; ctx.lineWidth=1.8; ctx.stroke();
+                ctx.strokeStyle=g; ctx.lineWidth=3; ctx.stroke();
             }
             ctx.restore();
             animId = requestAnimationFrame(loop);
@@ -1596,7 +1596,7 @@ function initMap(){
     const SNAP=40;
     function onStart(e){ if(window.innerWidth>=600)return; const touch=e.touches?e.touches[0]:e; startY=touch.clientY; startOpen=panelOpen; dragging=true; moved=false; panel.style.transition="none"; }
     function onMove(e){ if(!dragging||window.innerWidth>=600)return; e.preventDefault(); const touch=e.touches?e.touches[0]:e; const dy=touch.clientY-startY; if(Math.abs(dy)>5)moved=true; if(startOpen){ panel.style.transform=`translateY(${Math.max(0,dy)}px)`; } else { const maxUp=panel.offsetHeight-parseInt(getComputedStyle(document.documentElement).getPropertyValue("--drawer-h")); panel.style.transform=`translateY(calc(100% - var(--drawer-h) + ${Math.max(-maxUp,Math.min(0,dy))}px))`; } }
-    function onEnd(e){ if(!dragging||window.innerWidth>=600)return; dragging=false; panel.style.transition=""; panel.style.transform=""; if(!moved){togglePanel();return;} const touch=e.changedTouches?e.changedTouches[0]:e; const dy=touch.clientY-startY; if(startOpen&&dy>SNAP){panelOpen=true;togglePanel();} else if(!startOpen&&dy<-SNAP){panelOpen=false;togglePanel();} }
+    function onEnd(e){ if(!dragging||window.innerWidth>=600)return; dragging=false; panel.style.transition=""; panel.style.transform=""; if(!moved){ if(e.target && e.target.tagName==="BUTTON") return; togglePanel(); return; } const touch=e.changedTouches?e.changedTouches[0]:e; const dy=touch.clientY-startY; if(startOpen&&dy>SNAP){panelOpen=true;togglePanel();} else if(!startOpen&&dy<-SNAP){panelOpen=false;togglePanel();} }
     handle.addEventListener("touchstart",onStart,{passive:true});
     handle.addEventListener("touchmove",onMove,{passive:false});
     handle.addEventListener("touchend",onEnd,{passive:true});

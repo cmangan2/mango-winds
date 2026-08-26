@@ -2639,11 +2639,14 @@ function initDZ(){
     let savedDz=null; try{ savedDz=localStorage.getItem("mwh-dz"); }catch(e){}
     const defaultDz=(savedDz && dz[savedDz]) ? savedDz : sneDz;
     const wSel = document.getElementById("welcomeDzSelect");
+    const placeholder=document.createElement("option"); placeholder.value=""; placeholder.text="— Select a dropzone —"; placeholder.disabled=true; wSel.appendChild(placeholder);
     for (const k of keys){
         const o=document.createElement("option"); o.value=k; o.text=k; sel.appendChild(o);
         const o2=o.cloneNode(true); wSel.appendChild(o2);
     }
-    sel.value=defaultDz; wSel.value=defaultDz;
+    sel.value=defaultDz;
+    wSel.value=defaultDz;
+    if (!wSel.value) wSel.value=keys[0];
     lat=dz[defaultDz][0]; lon=dz[defaultDz][1];
     initMap(); load();
     document.getElementById("hour").oninput=()=>{

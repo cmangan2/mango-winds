@@ -176,7 +176,7 @@ select:focus { border-color: var(--accent); }
 #loader.hidden { opacity: 0; pointer-events: none; }
 .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-#welcomeModal { position: fixed; inset: 0; background: rgba(7,11,16,0.88); z-index: 99999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); padding: 16px; }
+#welcomeModal { position: fixed; inset: 0; background: rgba(7,11,16,0.88); z-index: 99999; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); padding: 16px; }
 #welcomeBox { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 16px; max-width: 480px; width: 100%; max-height: 90dvh; display: flex; flex-direction: column; box-shadow: 0 24px 64px rgba(0,0,0,0.6); overflow: hidden; }
 #welcomeHeader { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px 12px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 1.1rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); flex-shrink: 0; }
 #welcomeVersion { font-size: 0.65rem; color: var(--muted); letter-spacing: 0.1em; font-weight: 400; }
@@ -2671,10 +2671,14 @@ function initDZ(){
         firstLoad=true; load();
     };
 }
-if (document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", initDZ);
-} else {
+function initDZandShow(){
     initDZ();
+    document.getElementById("welcomeModal").style.display="flex";
+}
+if (document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", initDZandShow);
+} else {
+    initDZandShow();
 }
 
 // Register service worker for PWA

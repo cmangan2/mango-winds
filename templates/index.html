@@ -1205,153 +1205,145 @@ function updateWindSummary(d){
 // ── WIND PARTICLE SYSTEM ──
 (function(){
     function initParticles(){
-    const canvas = document.getElementById('windCanvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const LAYERS = {
-        freefallBlock: { color: '#ffaa00', count: 600 },
-        canopyBlock:   { color: '#39ff89', count: 500 },
-        surfaceBlock:  { color: '#00d4ff', count: 400 }
-    };
-    let activeLayer = null;
-    let particles = [];
-    let animId = null;
-    const windState = { freefallBlock: null, canopyBlock: null, surfaceBlock: null };
+        const canvas = document.getElementById('windCanvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
 
-    function resize(){
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    }
-    window.addEventListener('resize', () => { resize(); if (activeLayer) respawn(); });
-    resize();
-
-    // Get DZ screen position in viewport coords — falls back to canvas center if map not ready
-    function dzCenter(){
-        try {
-            const mapEl = map.getContainer();
-            const mapRect = mapEl.getBoundingClientRect();
-            const pt = map.latLngToContainerPoint(L.latLng(lat, lon));
-            let x = mapRect.left + pt.x;
-            let y = mapRect.top + pt.y;
-            // On mobile the panel covers the bottom portion — clamp y to top 55% of screen
-            const maxY = canvas.height * 0.55;
-            if (y > maxY) y = maxY;
-            return { x, y };
-        } catch(e) {
-            return { x: canvas.width / 2, y: canvas.height * 0.4 };
-        }
-    }
-
-    function makeParticle(vx, vy){
-        const c = dzCenter();
-        const spread = Math.max(canvas.width, canvas.height) * 1.2;
-        return {
-            x: c.x + (Math.random() - 0.5) * spread,
-            y: c.y + (Math.random() - 0.5) * spread,
-            age: Math.random(),
-            vx, vy
+        const LAYERS = {
+            freefallBlock: { color: '#ffaa00', count: 600 },
+            canopyBlock:   { color: '#39ff89', count: 500 },
+            surfaceBlock:  { color: '#00d4ff', count: 400 }
         };
-    }
 
-    function getVelocity(id){
-        const state = windState[id];
-        if (!state) return { vx: 0, vy: 0 };
-        // kt → px/frame at ~60fps. Scale so faster winds move noticeably faster.
-        const speedPx = Math.max(state.speedKt * 0.9, 1.2);
-        return {
-            vx: speedPx * Math.sin(state.dirRad),
-            vy: -speedPx * Math.cos(state.dirRad)
-        };
-    }
+        let activeLayer = null;
+        let particles = [];
+        let animId = null;
+        const windState = { freefallBlock: null, canopyBlock: null, surfaceBlock: null };
 
-    function respawn(){
-        if (!activeLayer) return;
-        const { vx, vy } = getVelocity(activeLayer);
-        const count = LAYERS[activeLayer].count;
-        particles = Array.from({length: count}, () => makeParticle(vx, vy));
-    }
-
-    function startLayer(id){
-        if (!windState[id]) return;
-        activeLayer = id;
-        respawn();
-        if (animId) cancelAnimationFrame(animId);
-        loop();
-    }
-
-    function stopLayer(){
-        activeLayer = null;
-        particles = [];
-        if (animId) { cancelAnimationFrame(animId); animId = null; }
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-
-    function loop(){
-        if (!activeLayer) return;
-        const cfg = LAYERS[activeLayer];
-        const w = canvas.width, h = canvas.height;
-        const { vx, vy } = getVelocity(activeLayer);
-        const speedPx = Math.sqrt(vx*vx + vy*vy);
-        ctx.clearRect(0, 0, w, h);
-
-        const c = dzCenter();
-        const spread = Math.max(w, h) * 1.2;
-        const halfSpread = spread / 2;
-
-        for (const p of particles){
-            p.age += 0.005;
-            if (p.age > 1){
-                // respawn near DZ center with spread
-                p.x = c.x + (Math.random() - 0.5) * spread;
-                p.y = c.y + (Math.random() - 0.5) * spread;
-                p.age = 0;
-                p.vx = vx; p.vy = vy;
-            }
-            p.x += p.vx;
-            p.y += p.vy;
-
-            // soft-wrap: if too far from DZ center, reset
-            if (Math.abs(p.x - c.x) > halfSpread || Math.abs(p.y - c.y) > halfSpread){
-                p.x = c.x + (Math.random() - 0.5) * spread;
-                p.y = c.y + (Math.random() - 0.5) * spread;
-                p.age = 0;
-            }
-
-            // fade in/out over lifetime
-            const alpha = p.age < 0.15 ? p.age/0.15 : p.age > 0.75 ? (1 - p.age)/0.25 : 1;
-            if (alpha <= 0) continue;
-
-            // tail
-            const tailLen = Math.max(speedPx * 5, 6);
-            const nx = speedPx > 0 ? p.vx / speedPx : 0;
-            const ny = speedPx > 0 ? p.vy / speedPx : 0;
-            const tx = p.x - nx * tailLen;
-            const ty = p.y - ny * tailLen;
-
-            const hexAlpha = Math.round(alpha * 210).toString(16).padStart(2,'0');
-            const grad = ctx.createLinearGradient(tx, ty, p.x, p.y);
-            grad.addColorStop(0, 'transparent');
-            grad.addColorStop(1, cfg.color + hexAlpha);
-            ctx.beginPath();
-            ctx.moveTo(tx, ty);
-            ctx.lineTo(p.x, p.y);
-            ctx.strokeStyle = grad;
-            ctx.lineWidth = 1.8;
-            ctx.stroke();
+        // Match canvas pixel buffer to actual screen size — no CSS sizing conflicts
+        function resize(){
+            canvas.style.width  = window.innerWidth  + 'px';
+            canvas.style.height = window.innerHeight + 'px';
+            canvas.width  = window.innerWidth;
+            canvas.height = window.innerHeight;
         }
-        animId = requestAnimationFrame(loop);
+        window.addEventListener('resize', () => { resize(); if (activeLayer) respawn(); });
+        resize();
+
+        // DZ center in true viewport px
+        function dzCenter(){
+            try {
+                const mapEl = map.getContainer();
+                const r = mapEl.getBoundingClientRect();
+                const pt = map.latLngToContainerPoint(L.latLng(lat, lon));
+                const x = r.left + pt.x;
+                const y = r.top  + pt.y;
+                // clamp to visible map area (top 55% on mobile where panel covers bottom)
+                return { x: Math.min(Math.max(x, 0), canvas.width), y: Math.min(y, canvas.height * 0.55) };
+            } catch(e) {
+                return { x: canvas.width * 0.4, y: canvas.height * 0.4 };
+            }
+        }
+
+        function getVelocity(){
+            const state = windState[activeLayer];
+            if (!state) return { vx: 0, vy: 0, spd: 0 };
+            const spd = Math.max(state.speedKt * 1.0, 1.5);
+            return { vx: spd * Math.sin(state.dirRad), vy: -spd * Math.cos(state.dirRad), spd };
+        }
+
+        function makeParticle(c, vx, vy){
+            const W = canvas.width, H = canvas.height;
+            // spawn randomly across full canvas so it feels like wind filling the whole sky
+            return {
+                x: Math.random() * W,
+                y: Math.random() * H,
+                age: Math.random(), // stagger so they don't all appear at once
+                vx, vy
+            };
+        }
+
+        function respawn(){
+            if (!activeLayer) return;
+            const { vx, vy } = getVelocity();
+            const c = dzCenter();
+            const n = LAYERS[activeLayer].count;
+            particles = Array.from({ length: n }, () => makeParticle(c, vx, vy));
+        }
+
+        function startLayer(id){
+            if (!windState[id]) return;
+            activeLayer = id;
+            respawn();
+            if (animId) cancelAnimationFrame(animId);
+            loop();
+        }
+
+        function stopLayer(){
+            activeLayer = null;
+            particles = [];
+            if (animId) { cancelAnimationFrame(animId); animId = null; }
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function loop(){
+            if (!activeLayer) return;
+            const cfg = LAYERS[activeLayer];
+            const W = canvas.width, H = canvas.height;
+            const { vx, vy, spd } = getVelocity();
+            ctx.clearRect(0, 0, W, H);
+
+            for (const p of particles){
+                p.age += 0.004;
+                p.x += p.vx;
+                p.y += p.vy;
+
+                // wrap around edges so the field is continuous
+                if (p.x < -20)  p.x += W + 40;
+                if (p.x > W+20) p.x -= W + 40;
+                if (p.y < -20)  p.y += H + 40;
+                if (p.y > H+20) p.y -= H + 40;
+
+                // reset age when wrapping (handled by age > 1)
+                if (p.age > 1){
+                    p.x = Math.random() * W;
+                    p.y = Math.random() * H;
+                    p.age = 0;
+                    p.vx = vx; p.vy = vy;
+                }
+
+                const alpha = p.age < 0.15 ? p.age/0.15 : p.age > 0.75 ? (1 - p.age)/0.25 : 1;
+                if (alpha <= 0) continue;
+
+                const tailLen = Math.max(spd * 6, 8);
+                const nx = spd > 0 ? vx / spd : 0;
+                const ny = spd > 0 ? vy / spd : 0;
+                const tx = p.x - nx * tailLen;
+                const ty = p.y - ny * tailLen;
+
+                const a = Math.round(alpha * 220).toString(16).padStart(2, '0');
+                const grad = ctx.createLinearGradient(tx, ty, p.x, p.y);
+                grad.addColorStop(0, 'transparent');
+                grad.addColorStop(1, cfg.color + a);
+                ctx.beginPath();
+                ctx.moveTo(tx, ty);
+                ctx.lineTo(p.x, p.y);
+                ctx.strokeStyle = grad;
+                ctx.lineWidth = 1.8;
+                ctx.stroke();
+            }
+            animId = requestAnimationFrame(loop);
+        }
+
+        window._setWindState = function(id, speedKt, dirDeg){
+            windState[id] = { speedKt, dirRad: dirDeg * Math.PI / 180 };
+        };
+        window._windParticleToggle = function(id){
+            if (activeLayer === id) stopLayer(); else { stopLayer(); startLayer(id); }
+        };
+        window._stopWindParticles = function(){ stopLayer(); };
     }
 
-    window._setWindState = function(id, speedKt, dirDeg){
-        windState[id] = { speedKt, dirRad: dirDeg * Math.PI / 180 };
-    };
-
-    window._windParticleToggle = function(id){
-        if (activeLayer === id){ stopLayer(); } else { stopLayer(); startLayer(id); }
-    };
-
-    window._stopWindParticles = function(){ stopLayer(); };
-    } // end initParticles
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initParticles);
     } else {
@@ -2714,6 +2706,6 @@ document.addEventListener("visibilitychange", function(){
     }
 });
 </script>
-<canvas id="windCanvas" style="position:fixed;inset:0;pointer-events:none;z-index:11;width:100%;height:100%"></canvas>
+<canvas id="windCanvas" style="position:fixed;top:0;left:0;pointer-events:none;z-index:11"></canvas>
 </body>
 </html>

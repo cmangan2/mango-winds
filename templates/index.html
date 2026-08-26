@@ -393,7 +393,7 @@ select:focus { border-color: var(--accent); }
             <div id="wsCanopyVal" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text);margin-top:2px">—</div>
         </div>
         <div style="width:1px;height:40px;background:var(--border)"></div>
-        <div style="text-align:center;padding:4px 8px">
+        <div style="text-align:center;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.15s;-webkit-tap-highlight-color:transparent;touch-action:auto" onclick="toggleDetailPopup('surfaceBlock')" title="Tap for surface wind animation">
             <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);margin-bottom:3px">Surface</div>
             <div id="wsSurfaceArrow" style="font-size:1.4rem;line-height:1">—</div>
             <div id="wsSurfaceVal" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text);margin-top:2px">—</div>
@@ -1161,9 +1161,11 @@ function updateWindSummary(d){
         document.getElementById("wsSurfaceVal").textContent = sfc.speed.toFixed(1) + " kt";
     }
     if (window._setWindState) {
-        window._setWindState('freefallBlock', d.freefall.speed, (d.freefall.direction+180)%360);
-        window._setWindState('canopyBlock', d.canopy.speed, d.canopy.direction);
-        if (sfc) window._setWindState('surfaceBlock', sfc.speed, sfc.direction);
+        // freefall.direction is drift-to, already a TO direction
+        window._setWindState('freefallBlock', d.freefall.speed, d.freefall.direction);
+        // canopy and surface directions are FROM — add 180 to get the blow-TO direction for particle movement
+        window._setWindState('canopyBlock', d.canopy.speed, (d.canopy.direction+180)%360);
+        if (sfc) window._setWindState('surfaceBlock', sfc.speed, (sfc.direction+180)%360);
     }
 }
 
@@ -1410,10 +1412,12 @@ function toggleDetailPopup(id){
         document.addEventListener('DOMContentLoaded', function(){
             wireTap('[title="Tap for freefall detail"]', 'freefallBlock');
             wireTap('[title="Tap for canopy detail"]', 'canopyBlock');
+            wireTap('[title="Tap for surface wind animation"]', 'surfaceBlock');
         });
     } else {
         wireTap('[title="Tap for freefall detail"]', 'freefallBlock');
         wireTap('[title="Tap for canopy detail"]', 'canopyBlock');
+        wireTap('[title="Tap for surface wind animation"]', 'surfaceBlock');
     }
 })();
 

@@ -378,7 +378,7 @@ select:focus { border-color: var(--accent); }
 
 <!-- ── WIND SUMMARY BOX ── -->
 <div id="windSummary" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:8000;background:rgba(13,21,32,0.92);border:1px solid var(--border);border-radius:12px;padding:10px 14px;box-shadow:0 8px 32px rgba(0,0,0,0.6);backdrop-filter:blur(8px);cursor:grab;user-select:none;touch-action:none;min-width:240px">
-    <button onclick="document.getElementById('windSummary').style.display='none'" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
+    <button onclick="document.getElementById('windSummary').style.display='none';['canopyBlock','freefallBlock'].forEach(function(id){var b=document.getElementById(id);if(b)b.style.display='none';});if(window._stopWindParticles)_stopWindParticles();" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
     <div style="display:flex;gap:16px;align-items:center;justify-content:center">
         <div style="text-align:center;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.15s;-webkit-tap-highlight-color:transparent" onclick="toggleDetailPopup('freefallBlock')" title="Tap for freefall detail">
             <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--freefall);margin-bottom:3px">Freefall</div>
@@ -392,7 +392,7 @@ select:focus { border-color: var(--accent); }
             <div id="wsCanopyVal" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text);margin-top:2px">—</div>
         </div>
         <div style="width:1px;height:40px;background:var(--border)"></div>
-        <div style="text-align:center;padding:4px 8px">
+        <div style="text-align:center;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.15s;-webkit-tap-highlight-color:transparent" onclick="toggleDetailPopup('surfaceBlock')" title="Tap for surface wind animation">
             <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);margin-bottom:3px">Surface</div>
             <div id="wsSurfaceArrow" style="font-size:1.4rem;line-height:1">—</div>
             <div id="wsSurfaceVal" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text);margin-top:2px">—</div>
@@ -402,6 +402,7 @@ select:focus { border-color: var(--accent); }
 
 <div id="wrap">
     <div id="map"></div>
+    <canvas id="windCanvas" style="position:absolute;inset:0;pointer-events:none;z-index:5;width:100%;height:100%"></canvas>
     <div id="panel">
         <div id="panel-handle">
             <div id="panel-handle-inner">
@@ -487,6 +488,7 @@ select:focus { border-color: var(--accent); }
             <!-- Detail popups — triggered by tapping arrows on the wind summary widget -->
             <div id="canopyBlock" style="display:none;position:fixed;bottom:172px;left:50%;transform:translateX(-50%);z-index:8010;background:rgba(13,21,32,0.97);border:1px solid var(--canopy);border-radius:12px;padding:12px 16px 10px;box-shadow:0 8px 32px rgba(0,0,0,0.7);backdrop-filter:blur(10px);white-space:nowrap"></div>
             <div id="freefallBlock" style="display:none;position:fixed;bottom:172px;left:50%;transform:translateX(-50%);z-index:8010;background:rgba(13,21,32,0.97);border:1px solid var(--freefall);border-radius:12px;padding:12px 16px 10px;box-shadow:0 8px 32px rgba(0,0,0,0.7);backdrop-filter:blur(10px);white-space:nowrap"></div>
+            <div id="surfaceBlock" style="display:none"></div>
             <div id="cards-header" style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px 0">
                 <span style="font-size:0.64rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)">Winds by Altitude</span>
                 <button id="toggleCardsBtn" onclick="toggleCards()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:2px 8px;font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;letter-spacing:0.08em;cursor:pointer;-webkit-tap-highlight-color:transparent">Hide</button>
@@ -1160,6 +1162,12 @@ function updateWindSummary(d){
         document.getElementById("wsSurfaceArrow").innerHTML = dirArrowSvg(sfc.direction, "var(--accent)");
         document.getElementById("wsSurfaceVal").textContent = sfc.speed.toFixed(1) + " kt";
     }
+    if (window._setWindState) {
+        const ffBlowTo = (d.freefall.direction + 180) % 360;
+        window._setWindState('freefallBlock', d.freefall.speed, ffBlowTo);
+        window._setWindState('canopyBlock', d.canopy.speed, d.canopy.direction);
+        if (sfc) window._setWindState('surfaceBlock', sfc.speed, sfc.direction);
+    }
 }
 
 // ── WIND SUMMARY DRAG ──
@@ -1194,15 +1202,123 @@ function updateWindSummary(d){
     window.addEventListener("touchend", onEnd);
 })();
 
+// ── WIND PARTICLE SYSTEM ──
+(function(){
+    const canvas = document.getElementById('windCanvas');
+    const ctx = canvas.getContext('2d');
+    const LAYERS = {
+        freefallBlock: { color: '#ffaa00', count: 120, speedScale: 1.4 },
+        canopyBlock:   { color: '#39ff89', count: 100, speedScale: 1.0 },
+        surfaceBlock:  { color: '#00d4ff', count:  80, speedScale: 0.7 }
+    };
+    let activeLayer = null;
+    let particles = [];
+    let animId = null;
+    // wind state per layer, populated when data loads
+    const windState = { freefallBlock: null, canopyBlock: null, surfaceBlock: null };
+
+    function resize(){
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function makeParticle(w, h, speedPx){
+        return {
+            x: Math.random() * w,
+            y: Math.random() * h,
+            age: Math.random(),   // 0-1, random start phase
+            vx: speedPx * Math.sin(windState[activeLayer].dirRad),
+            vy: -speedPx * Math.cos(windState[activeLayer].dirRad)
+        };
+    }
+
+    function startLayer(id){
+        if (!windState[id]) return;
+        activeLayer = id;
+        const cfg = LAYERS[id];
+        const w = canvas.width, h = canvas.height;
+        // speed: kt → approx px/frame (60fps). ~2px per kt feels right on screen.
+        const speedPx = windState[id].speedKt * 0.5;
+        particles = Array.from({length: cfg.count}, () => makeParticle(w, h, speedPx));
+        if (animId) cancelAnimationFrame(animId);
+        loop();
+    }
+
+    function stopLayer(){
+        activeLayer = null;
+        particles = [];
+        if (animId) { cancelAnimationFrame(animId); animId = null; }
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function loop(){
+        if (!activeLayer) return;
+        const cfg = LAYERS[activeLayer];
+        const w = canvas.width, h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+        const speedPx = windState[activeLayer].speedKt * 0.5;
+        for (const p of particles){
+            p.age += 0.004;
+            if (p.age > 1){ Object.assign(p, makeParticle(w, h, speedPx)); p.age = 0; }
+            p.x += p.vx;
+            p.y += p.vy;
+            // wrap edges
+            if (p.x < 0) p.x += w; if (p.x > w) p.x -= w;
+            if (p.y < 0) p.y += h; if (p.y > h) p.y -= h;
+            // fade in/out
+            const alpha = p.age < 0.15 ? p.age/0.15 : p.age > 0.75 ? (1-p.age)/0.25 : 1;
+            // tail line
+            const tailLen = speedPx * 4;
+            const tx = p.x - p.vx/speedPx * tailLen;
+            const ty = p.y - p.vy/speedPx * tailLen;
+            const grad = ctx.createLinearGradient(tx, ty, p.x, p.y);
+            grad.addColorStop(0, 'transparent');
+            grad.addColorStop(1, cfg.color + Math.round(alpha * 200).toString(16).padStart(2,'0'));
+            ctx.beginPath();
+            ctx.moveTo(tx, ty);
+            ctx.lineTo(p.x, p.y);
+            ctx.strokeStyle = grad;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+        }
+        animId = requestAnimationFrame(loop);
+    }
+
+    // expose so data loader can populate wind state
+    window._setWindState = function(id, speedKt, dirDeg){
+        // dirDeg = direction wind is blowing TO (from is +180)
+        windState[id] = { speedKt, dirRad: dirDeg * Math.PI / 180 };
+    };
+
+    window._windParticleToggle = function(id){
+        if (activeLayer === id){
+            stopLayer();
+        } else {
+            stopLayer();
+            startLayer(id);
+        }
+    };
+
+    window._stopWindParticles = function(){
+        stopLayer();
+    };
+})();
+
 function toggleDetailPopup(id){
     const el = document.getElementById(id);
     if (!el) return;
     const visible = el.style.display !== 'none';
-    ['canopyBlock','freefallBlock'].forEach(function(bid){
+    // close all popups
+    ['canopyBlock','freefallBlock','surfaceBlock'].forEach(function(bid){
         const b = document.getElementById(bid);
-        if (b) b.style.display = 'none';
+        if (b && bid !== 'surfaceBlock') b.style.display = 'none';
     });
-    if (!visible) el.style.display = 'block';
+    // toggle particles
+    window._windParticleToggle(id);
+    // show popup (non-surface ones only)
+    if (!visible && id !== 'surfaceBlock') el.style.display = 'block';
 }
 
 function toggleCards(){ const wrap=document.getElementById("cards-wrap"),btn=document.getElementById("toggleCardsBtn"),hidden=wrap.style.display==="none"; wrap.style.display=hidden?"":"none"; btn.textContent=hidden?"Hide":"Show"; }

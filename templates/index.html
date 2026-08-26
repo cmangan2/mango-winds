@@ -378,7 +378,7 @@ select:focus { border-color: var(--accent); }
 <div id="loader"><div class="spinner"></div></div>
 
 <!-- ── WIND SUMMARY BOX ── -->
-<div id="windSummary" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:8000;background:rgba(13,21,32,0.92);border:1px solid var(--border);border-radius:12px;padding:10px 14px;box-shadow:0 8px 32px rgba(0,0,0,0.6);backdrop-filter:blur(8px);cursor:grab;user-select:none;min-width:240px">
+<div id="windSummary" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:8000;background:rgba(13,21,32,0.92);border:1px solid var(--border);border-radius:12px;padding:10px 14px;box-shadow:0 8px 32px rgba(0,0,0,0.6);backdrop-filter:blur(8px);cursor:grab;user-select:none;min-width:280px;white-space:nowrap">
     <button onclick="document.getElementById('windSummary').style.display='none';['canopyBlock','freefallBlock'].forEach(function(id){var b=document.getElementById(id);if(b)b.style.display='none';});" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
     <div style="display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:nowrap">
         <div style="text-align:center;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.15s;-webkit-tap-highlight-color:transparent;touch-action:auto" onclick="toggleDetailPopup('freefallBlock')" title="Tap for freefall detail">
@@ -1175,7 +1175,12 @@ function updateWindSummary(d){
     let pending=false, dragging=false, startX=0, startY=0, origX=0, origY=0;
     function getPos(e){ return e.touches ? e.touches[0] : e; }
     function onStart(e){
-        if (e.target.tagName==="BUTTON" || e.target.tagName==="DIV" && e.target.getAttribute("onclick")) return;
+        // don't start drag if tap is on a clickable section
+        let t = e.target;
+        while (t && t !== box) {
+            if (t.tagName==="BUTTON" || t.getAttribute("onclick") || t.getAttribute("title")) return;
+            t = t.parentElement;
+        }
         const p=getPos(e); startX=p.clientX; startY=p.clientY;
         const rect=box.getBoundingClientRect(); origX=rect.left; origY=rect.top;
         pending=true; dragging=false;
@@ -1258,7 +1263,7 @@ window._stopWindParticles = function(){};
         function getVel(id){
             const s = windState[id];
             if (!s) return { vx:0, vy:0, spd:0 };
-            const spd = Math.max(s.speedKt * 0.9, 1.2);
+            const spd = Math.max(s.speedKt * 0.45, 0.6);
             return { vx: spd*Math.sin(s.dirRad), vy: -spd*Math.cos(s.dirRad), spd };
         }
 
@@ -1278,7 +1283,8 @@ window._stopWindParticles = function(){};
         }
 
         function startLayer(id){
-            if (!windState[id]) return;
+            // use fallback wind state if data hasn't loaded yet
+            if (!windState[id]) windState[id] = { speedKt: 8, dirRad: 0 };
             active = id; respawn();
             if (animId) cancelAnimationFrame(animId);
             loop();

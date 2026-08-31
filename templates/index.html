@@ -457,6 +457,7 @@ select:focus { border-color: var(--accent); }
                 <button id="drawBtn" onclick="toggleDrawMode()">✏️ Draw Jump Run</button>
                 <button id="defineBtn" onclick="openDefineModal()">📐 Define Jump Run</button>
                 <button id="patternBtn" onclick="togglePatternMode()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid #ff4f4f;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🎯 Place Landing Spot</button>
+                <button id="freeDrawBtn" onclick="freeDrawLayers.length && !freeDrawMode ? clearFreeDrawings() : toggleFreeDrawMode()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#a78bfa;border:1px solid #a78bfa;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🖊️ Free Draw</button>
                 <button id="trackBtn" onclick="openTrackModal()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#00d4ff;border:1px solid #00d4ff;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">✈️ Track Plane</button>
                 <div id="planeInfo" style="display:none;margin-top:6px;background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--muted);line-height:1.8"></div>
                 <div id="patternControls" style="display:none;margin-top:6px;background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px">
@@ -525,6 +526,7 @@ let map, marker, canopyCircle, canopyCircleShifted, highLine;
 let loadTimeout = null;
 let firstLoad = true;
 let drawMode = false;
+let freeDrawMode = false, freeDrawing = false, freeDrawLayer = null, freeDrawLayers = [], freeDrawPoints = [];
 let jumpRunLine = null, freefallLine = null;
 let jrStart = null, jrEnd = null;
 let lastFreefall = null, lastWind14k = null, lastGndSpeedKts = null;
@@ -916,13 +918,98 @@ function endDraw(ll){
     }
 }
 
-function onMapMouseDown(e){ if (!drawMode) return; startDraw(e.latlng); }
-function onMapMouseMove(e){ if (!drawMode) return; moveDraw(e.latlng); }
-function onMapMouseUp(e){ if (!drawMode) return; endDraw(e.latlng); }
+function onMapMouseDown(e){ 
+    if (drawMode){ startDraw(e.latlng); return; }
+    if (freeDrawMode){ fdStart(e.latlng); }
+}
+function onMapMouseMove(e){
+    if (drawMode) moveDraw(e.latlng);
+    if (freeDrawMode && freeDrawing) fdMove(e.latlng);
+}
+function onMapMouseUp(e){
+    if (drawMode) endDraw(e.latlng);
+    if (freeDrawMode && freeDrawing) fdEnd();
+}
 function onMapClick(e){ if (!drawMode || isDragging) return; }
-function onTouchStart(e){ if (!drawMode) return; e.preventDefault(); startDraw(touchToLatLng(e.touches[0])); }
-function onTouchMove(e){ if (!drawMode || !isDragging) return; e.preventDefault(); moveDraw(touchToLatLng(e.touches[0])); }
-function onTouchEnd(e){ if (!drawMode || !isDragging) return; e.preventDefault(); endDraw(touchToLatLng(e.changedTouches[0])); }
+function onTouchStart(e){
+    if (drawMode){ e.preventDefault(); startDraw(touchToLatLng(e.touches[0])); return; }
+    if (freeDrawMode){ e.preventDefault(); fdStart(touchToLatLng(e.touches[0])); }
+}
+function onTouchMove(e){
+    if (drawMode && isDragging){ e.preventDefault(); moveDraw(touchToLatLng(e.touches[0])); return; }
+    if (freeDrawMode && freeDrawing){ e.preventDefault(); fdMove(touchToLatLng(e.touches[0])); }
+}
+function onTouchEnd(e){
+    if (drawMode && isDragging){ e.preventDefault(); endDraw(touchToLatLng(e.changedTouches[0])); return; }
+    if (freeDrawMode && freeDrawing){ e.preventDefault(); fdEnd(); }
+}
+
+// ── FREE DRAW ──
+function toggleFreeDrawMode(){
+    freeDrawMode = !freeDrawMode;
+    const btn = document.getElementById('freeDrawBtn');
+    if (freeDrawMode){
+        // exit other modes
+        if (drawMode) toggleDrawMode();
+        if (patternMode) togglePatternMode();
+        map.dragging.disable();
+        map.getContainer().style.cursor = 'crosshair';
+        btn.style.background = '#a78bfa';
+        btn.style.color = '#070b10';
+        btn.textContent = '🖊️ Drawing... (release to stop)';
+    } else {
+        fdEnd();
+        map.dragging.enable();
+        map.getContainer().style.cursor = '';
+        btn.style.background = 'var(--card-bg)';
+        btn.style.color = '#a78bfa';
+        btn.textContent = freeDrawLayers.length ? '🖊️ Free Draw  ✕ Clear' : '🖊️ Free Draw';
+    }
+}
+
+function fdStart(ll){
+    freeDrawing = true;
+    freeDrawPoints = [[ll.lat, ll.lng]];
+    freeDrawLayer = L.polyline(freeDrawPoints, { color:'#a78bfa', weight:3, opacity:0.9 }).addTo(map);
+}
+
+function fdMove(ll){
+    if (!freeDrawing || !freeDrawLayer) return;
+    freeDrawPoints.push([ll.lat, ll.lng]);
+    freeDrawLayer.setLatLngs(freeDrawPoints);
+}
+
+function fdEnd(){
+    if (!freeDrawing) return;
+    freeDrawing = false;
+    if (freeDrawLayer && freeDrawPoints.length > 1){
+        freeDrawLayers.push(freeDrawLayer);
+        freeDrawLayer = null;
+        freeDrawPoints = [];
+        // Update button to show clear option when not in active draw mode
+        if (!freeDrawMode){
+            const btn = document.getElementById('freeDrawBtn');
+            if (btn) btn.textContent = '🖊️ Free Draw  ✕ Clear';
+        }
+    } else {
+        // Too short — discard
+        if (freeDrawLayer){ freeDrawLayer.remove(); freeDrawLayer = null; }
+    }
+}
+
+function clearFreeDrawings(){
+    freeDrawLayers.forEach(function(l){ l.remove(); });
+    freeDrawLayers = [];
+    if (freeDrawLayer){ freeDrawLayer.remove(); freeDrawLayer = null; }
+    freeDrawPoints = [];
+    freeDrawing = false;
+    const btn = document.getElementById('freeDrawBtn');
+    if (btn){
+        btn.style.background = freeDrawMode ? '#a78bfa' : 'var(--card-bg)';
+        btn.style.color = freeDrawMode ? '#070b10' : '#a78bfa';
+        btn.textContent = freeDrawMode ? '🖊️ Drawing... (release to stop)' : '🖊️ Free Draw';
+    }
+}
 
 function fitToCanopy(glideR, polyPoints){
     const er = 6378137, pad = 1.18;

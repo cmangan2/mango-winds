@@ -768,6 +768,7 @@ function clearJumpRun(){
 }
 
 function togglePatternMode(){
+    if (freeDrawMode) exitFreeDrawMode();
     patternMode = !patternMode;
     const btn = document.getElementById("patternBtn");
     if (patternMode){
@@ -863,6 +864,7 @@ function clearAnimation(){
 }
 
 function toggleDrawMode(){
+    if (freeDrawMode) exitFreeDrawMode();
     drawMode = !drawMode;
     const btn = document.getElementById("drawBtn");
     if (drawMode){
@@ -946,21 +948,25 @@ function onTouchEnd(e){
 
 // ── FREE DRAW ──
 function toggleFreeDrawMode(){
-    freeDrawMode = !freeDrawMode;
+    freeDrawMode = true;
     const btn = document.getElementById('freeDrawBtn');
-    if (freeDrawMode){
-        // exit other modes
-        if (drawMode) toggleDrawMode();
-        if (patternMode) togglePatternMode();
-        map.dragging.disable();
-        map.getContainer().style.cursor = 'crosshair';
-        btn.style.background = '#a78bfa';
-        btn.style.color = '#070b10';
-        btn.textContent = '🖊️ Drawing... (release to stop)';
-    } else {
-        fdEnd();
-        map.dragging.enable();
-        map.getContainer().style.cursor = '';
+    // exit other modes
+    if (drawMode) toggleDrawMode();
+    if (patternMode) togglePatternMode();
+    map.dragging.disable();
+    map.getContainer().style.cursor = 'crosshair';
+    btn.style.background = '#a78bfa';
+    btn.style.color = '#070b10';
+    btn.textContent = '🖊️ Drawing...';
+}
+
+function exitFreeDrawMode(){
+    freeDrawMode = false;
+    fdEnd();
+    map.dragging.enable();
+    map.getContainer().style.cursor = '';
+    const btn = document.getElementById('freeDrawBtn');
+    if (btn){
         btn.style.background = 'var(--card-bg)';
         btn.style.color = '#a78bfa';
         btn.textContent = freeDrawLayers.length ? '🖊️ Free Draw  ✕ Clear' : '🖊️ Free Draw';
@@ -987,10 +993,7 @@ function fdEnd(){
         freeDrawLayer = null;
         freeDrawPoints = [];
         // Update button to show clear option when not in active draw mode
-        if (!freeDrawMode){
-            const btn = document.getElementById('freeDrawBtn');
-            if (btn) btn.textContent = '🖊️ Free Draw  ✕ Clear';
-        }
+        // Stay in draw mode — user can keep drawing
     } else {
         // Too short — discard
         if (freeDrawLayer){ freeDrawLayer.remove(); freeDrawLayer = null; }
@@ -1003,11 +1006,12 @@ function clearFreeDrawings(){
     if (freeDrawLayer){ freeDrawLayer.remove(); freeDrawLayer = null; }
     freeDrawPoints = [];
     freeDrawing = false;
+    if (freeDrawMode) exitFreeDrawMode();
     const btn = document.getElementById('freeDrawBtn');
     if (btn){
-        btn.style.background = freeDrawMode ? '#a78bfa' : 'var(--card-bg)';
-        btn.style.color = freeDrawMode ? '#070b10' : '#a78bfa';
-        btn.textContent = freeDrawMode ? '🖊️ Drawing... (release to stop)' : '🖊️ Free Draw';
+        btn.style.background = 'var(--card-bg)';
+        btn.style.color = '#a78bfa';
+        btn.textContent = '🖊️ Free Draw';
     }
 }
 

@@ -713,9 +713,9 @@ def interpolate_max(base, alt):
             ensemble_spreads[int(alt_ft)] = spread
 
         # Filter below-ground
-        ensemble_base = [(a,s,d) for a,s,d in ensemble_base if a > min_alt_ft]
+        ensemble_base = [r for r in ensemble_base if r[0] > min_alt_ft]
         if not ensemble_base:
-            ensemble_base = [(a,s,d) for a,s,d in ensemble_base if a > 0]
+            ensemble_base = [r for r in ensemble_base if r[0] > 0]
 
         # SFC: ensemble average of 10m+80m across models
         sfc_spds, sfc_dirs = [], []

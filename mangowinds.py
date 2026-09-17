@@ -780,6 +780,47 @@ def format_winds(data, hour, lat=0, lon=0):
                 "color":     color(speed),
                 "temp_f":    tc_to_f(temp_c),
             }
+
+        # Add max_speed per altitude — separate pass, models_h only, ensemble_base untouched
+        for alt in range(0, 15000, 1000):
+            model_spds = []
+            for mh in models_h.values():
+                # Find the two nearest pressure levels and interpolate speed for this model
+                pts = []
+                for lvl in LEVELS:
+                    spd_arr = mh.get(f"windspeed_{lvl}hPa", [])
+                    if hour < len(spd_arr) and spd_arr[hour] is not None:
+                        gh_arr = mh.get(f"geopotential_height_{lvl}hPa", [None]*200)
+                        gh = gh_arr[hour] if hour < len(gh_arr) else None
+                        alt_ft = gh * 3.28084 if gh is not None else float(STD_H.get(lvl, 0))
+                        pts.append((alt_ft, float(spd_arr[hour])))
+                if not pts:
+                    continue
+                pts.sort(key=lambda x: x[0])
+                # Interpolate this model's speed at the target altitude
+                if alt <= pts[0][0]:
+                    model_spds.append(pts[0][1])
+                elif alt >= pts[-1][0]:
+                    model_spds.append(pts[-1][1])
+                else:
+                    for i in range(len(pts)-1):
+                        a0, s0 = pts[i]; a1, s1 = pts[i+1]
+                        if a0 <= alt <= a1:
+                            t = (alt - a0) / (a1 - a0)
+                            model_spds.append(round(s0 + (s1 - s0) * t, 1))
+                            break
+            if alt in result and model_spds:
+                result[alt]["max_speed"] = round(max(model_spds), 1)
+            elif alt in result:
+                result[alt]["max_speed"] = result[alt]["speed"]
+        # SFC max_speed
+        if 0 in result:
+            sfc_max_spds = []
+            for mh in models_h.values():
+                s10_arr = mh.get("windspeed_10m", [])
+                if hour < len(s10_arr) and s10_arr[hour] is not None:
+                    sfc_max_spds.append(float(s10_arr[hour]))
+            result[0]["max_speed"] = round(max(sfc_max_spds), 1) if sfc_max_spds else result[0]["speed"]
         # Build per-altitude spread map keyed by display altitude (1000ft increments)
         per_alt_spread = {}
         for alt in range(0, 15000, 1000):

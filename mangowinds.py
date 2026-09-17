@@ -520,7 +520,7 @@ def color(s):
 
 
 def interpolate(base, alt):
-    base = [(a, s, d) for a, s, d in base if s is not None and d is not None]
+    base = [(r[0], r[1], r[2]) for r in base if r[1] is not None and r[2] is not None]
     if not base:
         return 0, 0
     if alt <= base[0][0]:

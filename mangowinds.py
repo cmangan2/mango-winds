@@ -701,7 +701,7 @@ def interpolate_max(base, alt):
                     alt_ft = v*3.28084 if v is not None else float(STD_H.get(lvl, 0))
             if not m_spds or alt_ft is None: continue
             avg_spd, avg_dir = weighted_avg_wind(m_spds, m_dirs)
-            max_spd = max(m_spds)
+            max_spd = max(m_spds) if m_spds else avg_spd
             ensemble_base.append((alt_ft, avg_spd, avg_dir, max_spd))
             # Spread = max pairwise angular difference
             if len(m_dirs) > 1:
@@ -748,6 +748,7 @@ def interpolate_max(base, alt):
                 break
         result[0] = {
             "speed":     round(surf_spd, 1),
+            "max_speed": round(max(sfc_spds) if sfc_spds else surf_spd, 1),
             "direction": round(surf_dir % 360, 0),
             "arrow":     wind_arrow(surf_dir),
             "color":     color(surf_spd),
@@ -810,7 +811,7 @@ def interpolate_max(base, alt):
         import traceback
         print(f"format_winds ERROR: {e}")
         traceback.print_exc()
-        return {}
+        return {}, None, None, {}
 
 
 # =====================================================

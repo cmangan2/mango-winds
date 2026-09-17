@@ -542,7 +542,20 @@ def interpolate(base, alt):
     return base[-1][1], base[-1][2]
 
 
-def format_winds(data, hour, lat=0, lon=0):
+def interpolate_max(base, alt):
+    """Interpolate max model speed from ensemble_base (4-tuples with max_spd at index 3)."""
+    b4 = [r for r in base if len(r) > 3]
+    if not b4: return 0
+    if alt <= b4[0][0]: return b4[0][3]
+    if alt >= b4[-1][0]: return b4[-1][3]
+    for i in range(len(b4)-1):
+        a0, a1 = b4[i][0], b4[i+1][0]
+        if a0 <= alt <= a1:
+            t = (alt-a0)/(a1-a0)
+            return round(b4[i][3] + (b4[i+1][3]-b4[i][3])*t, 1)
+    return b4[-1][3]
+
+
     if not data:
         print("format_winds: data is None")
         return {}
@@ -688,7 +701,8 @@ def format_winds(data, hour, lat=0, lon=0):
                     alt_ft = v*3.28084 if v is not None else float(STD_H.get(lvl, 0))
             if not m_spds or alt_ft is None: continue
             avg_spd, avg_dir = weighted_avg_wind(m_spds, m_dirs)
-            ensemble_base.append((alt_ft, avg_spd, avg_dir))
+            max_spd = max(m_spds)
+            ensemble_base.append((alt_ft, avg_spd, avg_dir, max_spd))
             # Spread = max pairwise angular difference
             if len(m_dirs) > 1:
                 spread = max(angle_diff(m_dirs[i], m_dirs[j])
@@ -773,8 +787,10 @@ def format_winds(data, hour, lat=0, lon=0):
                 if temp_c is not None: break
             if temp_c is None and pressure_levels:
                 temp_c = pressure_levels[0][3] if alt < pressure_levels[0][0] else pressure_levels[-1][3]
+            max_speed = interpolate_max(ensemble_base, alt)
             result[alt] = {
                 "speed":     round(speed, 1),
+                "max_speed": round(max_speed, 1),
                 "direction": round(direction % 360, 0),
                 "arrow":     wind_arrow(direction),
                 "color":     color(speed),

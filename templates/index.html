@@ -159,7 +159,7 @@ select:focus { border-color: var(--accent); }
 .alt-section-title { font-size: 0.64rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin: 10px 0 4px; }
 .alt-section-title.upper { color: var(--freefall); }
 .alt-section-title.lower { color: var(--canopy); }
-.wind-card { display: grid; grid-template-columns: 52px 20px 68px 38px 42px 42px; align-items: center; gap: 4px; padding: 6px 10px; margin: 2px 0; border-radius: 6px; background: var(--card-alt); border: 1px solid transparent; transition: border-color 0.15s; font-family: 'Share Tech Mono', monospace; font-size: 0.78rem; }
+.wind-card { display: grid; grid-template-columns: 52px 20px 58px 58px 38px 42px 42px; align-items: center; gap: 4px; padding: 6px 10px; margin: 2px 0; border-radius: 6px; background: var(--card-alt); border: 1px solid transparent; transition: border-color 0.15s; font-family: 'Share Tech Mono', monospace; font-size: 0.78rem; }
 .wind-card:hover { border-color: var(--border); }
 .wind-card.upper { background: rgba(255,170,0,0.06); }
 .wind-card.upper .alt { color: var(--freefall); opacity: 0.75; }
@@ -1191,7 +1191,8 @@ async function load(){
         html+=`<div class="wind-card" style="border-bottom:1px solid var(--border);padding:2px 10px;margin-bottom:2px">
             ${hdr('ALT','left')}
             ${hdr('DIR','left')}
-            ${hdr('SPD','right')}
+            ${hdr('AVG','right')}
+            ${hdr('MAX','right')}
             ${hdr('HDG','right')}
             ${hdr('TMP','right')}
             ${hdr('AGREE','center')}
@@ -1236,7 +1237,10 @@ async function load(){
                     else                   agreeHtml = `<span class="agree" style="color:#ff4f4f;text-align:center;display:block">Low</span>`;
                 }
             }
-            html+=`<div class="wind-card ${group==='high'?'upper':''}"><span class="alt">${altLabel}</span><span class="arrow">${svgArrow}</span><span class="speed ${cls}">${w.speed.toFixed(1)} kt</span><span class="dir">${w.direction.toFixed(0)}°</span><span class="temp" style="color:${tempColor};font-weight:bold">${tempStr}</span>${agreeHtml}</div>`;
+            const maxSpd = (w.max_speed != null) ? w.max_speed : w.speed;
+            const maxCls = colorClass(maxSpd);
+            const maxColor = maxCls==='dot-green'?'var(--green)':maxCls==='dot-orange'?'var(--orange)':'var(--red)';
+            html+=`<div class="wind-card ${group==='high'?'upper':''}"><span class="alt">${altLabel}</span><span class="arrow">${svgArrow}</span><span class="speed ${cls}">${w.speed.toFixed(1)} kt</span><span style="text-align:right;font-weight:bold;color:${maxColor};font-family:'Share Tech Mono',monospace;font-size:0.78rem">${maxSpd.toFixed(1)} kt</span><span class="dir">${w.direction.toFixed(0)}°</span><span class="temp" style="color:${tempColor};font-weight:bold">${tempStr}</span>${agreeHtml}</div>`;
         }
         document.getElementById("cards").innerHTML=html;
     } catch(e) {

@@ -520,7 +520,7 @@ def color(s):
 
 
 def interpolate(base, alt):
-    base = [(r[0], r[1], r[2]) for r in base if r[1] is not None and r[2] is not None]
+    base = [(a, s, d) for a, s, d in base if s is not None and d is not None]
     if not base:
         return 0, 0
     if alt <= base[0][0]:
@@ -542,20 +542,7 @@ def interpolate(base, alt):
     return base[-1][1], base[-1][2]
 
 
-def interpolate_max(base, alt):
-    """Interpolate max model speed from ensemble_base (4-tuples with max_spd at index 3)."""
-    b4 = [r for r in base if len(r) > 3]
-    if not b4: return 0
-    if alt <= b4[0][0]: return b4[0][3]
-    if alt >= b4[-1][0]: return b4[-1][3]
-    for i in range(len(b4)-1):
-        a0, a1 = b4[i][0], b4[i+1][0]
-        if a0 <= alt <= a1:
-            t = (alt-a0)/(a1-a0)
-            return round(b4[i][3] + (b4[i+1][3]-b4[i][3])*t, 1)
-    return b4[-1][3]
-
-
+def format_winds(data, hour, lat=0, lon=0):
     if not data:
         print("format_winds: data is None")
         return {}
@@ -701,8 +688,7 @@ def interpolate_max(base, alt):
                     alt_ft = v*3.28084 if v is not None else float(STD_H.get(lvl, 0))
             if not m_spds or alt_ft is None: continue
             avg_spd, avg_dir = weighted_avg_wind(m_spds, m_dirs)
-            max_spd = max(m_spds) if m_spds else avg_spd
-            ensemble_base.append((alt_ft, avg_spd, avg_dir, max_spd))
+            ensemble_base.append((alt_ft, avg_spd, avg_dir))
             # Spread = max pairwise angular difference
             if len(m_dirs) > 1:
                 spread = max(angle_diff(m_dirs[i], m_dirs[j])
@@ -713,9 +699,9 @@ def interpolate_max(base, alt):
             ensemble_spreads[int(alt_ft)] = spread
 
         # Filter below-ground
-        ensemble_base = [r for r in ensemble_base if r[0] > min_alt_ft]
+        ensemble_base = [(a,s,d) for a,s,d in ensemble_base if a > min_alt_ft]
         if not ensemble_base:
-            ensemble_base = [r for r in ensemble_base if r[0] > 0]
+            ensemble_base = [(a,s,d) for a,s,d in ensemble_base if a > 0]
 
         # SFC: ensemble average of 10m+80m across models
         sfc_spds, sfc_dirs = [], []
@@ -748,7 +734,6 @@ def interpolate_max(base, alt):
                 break
         result[0] = {
             "speed":     round(surf_spd, 1),
-            "max_speed": round(max(sfc_spds) if sfc_spds else surf_spd, 1),
             "direction": round(surf_dir % 360, 0),
             "arrow":     wind_arrow(surf_dir),
             "color":     color(surf_spd),
@@ -788,10 +773,8 @@ def interpolate_max(base, alt):
                 if temp_c is not None: break
             if temp_c is None and pressure_levels:
                 temp_c = pressure_levels[0][3] if alt < pressure_levels[0][0] else pressure_levels[-1][3]
-            max_speed = interpolate_max(ensemble_base, alt)
             result[alt] = {
                 "speed":     round(speed, 1),
-                "max_speed": round(max_speed, 1),
                 "direction": round(direction % 360, 0),
                 "arrow":     wind_arrow(direction),
                 "color":     color(speed),
@@ -811,7 +794,7 @@ def interpolate_max(base, alt):
         import traceback
         print(f"format_winds ERROR: {e}")
         traceback.print_exc()
-        return {}, None, None, {}
+        return {}
 
 
 # =====================================================

@@ -670,6 +670,7 @@ def format_winds(data, hour, lat=0, lon=0):
 
         # Build ensemble pressure level base
         ensemble_base = []
+        max_spd_pts = []  # (alt_ft, max_model_speed) at each pressure level
         ensemble_spreads = {}  # alt -> direction spread across models
         for lvl in LEVELS:
             m_spds, m_dirs = [], []
@@ -689,6 +690,8 @@ def format_winds(data, hour, lat=0, lon=0):
             if not m_spds or alt_ft is None: continue
             avg_spd, avg_dir = weighted_avg_wind(m_spds, m_dirs)
             ensemble_base.append((alt_ft, avg_spd, avg_dir))
+            # Track max model speed at this pressure level altitude
+            max_spd_pts.append((alt_ft, max(m_spds)))
             # Spread = max pairwise angular difference
             if len(m_dirs) > 1:
                 spread = max(angle_diff(m_dirs[i], m_dirs[j])
@@ -781,39 +784,29 @@ def format_winds(data, hour, lat=0, lon=0):
                 "temp_f":    tc_to_f(temp_c),
             }
 
-        # Add max_speed per altitude — separate pass, models_h only, ensemble_base untouched
+        # Add max_speed per altitude by interpolating max_spd_pts (same pressure levels as ensemble)
+        max_spd_pts_sorted = sorted(max_spd_pts, key=lambda x: x[0])
         for alt in range(0, 15000, 1000):
-            model_spds = []
-            for mh in models_h.values():
-                # Find the two nearest pressure levels and interpolate speed for this model
-                pts = []
-                for lvl in LEVELS:
-                    spd_arr = mh.get(f"windspeed_{lvl}hPa", [])
-                    if hour < len(spd_arr) and spd_arr[hour] is not None:
-                        gh_arr = mh.get(f"geopotential_height_{lvl}hPa", [None]*200)
-                        gh = gh_arr[hour] if hour < len(gh_arr) else None
-                        alt_ft = gh * 3.28084 if gh is not None else float(STD_H.get(lvl, 0))
-                        pts.append((alt_ft, float(spd_arr[hour])))
-                if not pts:
-                    continue
-                pts.sort(key=lambda x: x[0])
-                # Interpolate this model's speed at the target altitude
-                if alt <= pts[0][0]:
-                    model_spds.append(pts[0][1])
-                elif alt >= pts[-1][0]:
-                    model_spds.append(pts[-1][1])
-                else:
-                    for i in range(len(pts)-1):
-                        a0, s0 = pts[i]; a1, s1 = pts[i+1]
-                        if a0 <= alt <= a1:
-                            t = (alt - a0) / (a1 - a0)
-                            model_spds.append(round(s0 + (s1 - s0) * t, 1))
-                            break
-            if alt in result and model_spds:
-                result[alt]["max_speed"] = round(max(model_spds), 1)
-            elif alt in result:
+            if alt not in result:
+                continue
+            if not max_spd_pts_sorted:
                 result[alt]["max_speed"] = result[alt]["speed"]
-        # SFC max_speed
+                continue
+            if alt <= max_spd_pts_sorted[0][0]:
+                ms = max_spd_pts_sorted[0][1]
+            elif alt >= max_spd_pts_sorted[-1][0]:
+                ms = max_spd_pts_sorted[-1][1]
+            else:
+                ms = result[alt]["speed"]  # fallback
+                for i in range(len(max_spd_pts_sorted)-1):
+                    a0, s0 = max_spd_pts_sorted[i]
+                    a1, s1 = max_spd_pts_sorted[i+1]
+                    if a0 <= alt <= a1:
+                        t = (alt - a0) / (a1 - a0)
+                        ms = s0 + (s1 - s0) * t
+                        break
+            result[alt]["max_speed"] = round(max(ms, result[alt]["speed"]), 1)
+        # SFC max_speed from 10m model speeds
         if 0 in result:
             sfc_max_spds = []
             for mh in models_h.values():

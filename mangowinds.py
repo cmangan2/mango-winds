@@ -1815,11 +1815,16 @@ def data():
     if hour_offset == 0 and icao and winds:
         metar = fetch_metar(icao)
         if metar:
+            metar_spd = round(metar["wspd"], 1)
+            # max_speed = highest of METAR and any model surface speed
+            model_sfc_max = winds[0].get("max_speed", metar_spd)
+            sfc_max = round(max(metar_spd, model_sfc_max), 1)
             winds[0] = {
-                "speed":     round(metar["wspd"], 1),
+                "speed":     metar_spd,
+                "max_speed": sfc_max,
                 "direction": round(metar["wdir"] % 360, 0),
                 "arrow":     wind_arrow(metar["wdir"]),
-                "color":     color(metar["wspd"]),
+                "color":     color(metar_spd),
                 "temp_f":    round(metar["temp"] * 9/5 + 32) if metar["temp"] is not None else winds[0].get("temp_f"),
             }
             print(f"SFC: using METAR {icao} {metar['wspd']}kt/{metar['wdir']}° temp={metar.get('temp')}°C")

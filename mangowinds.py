@@ -1329,6 +1329,7 @@ def add_dropzone():
     import uuid
     data = request.get_json(force=True) or {}
     name = str(data.get("name", "")).strip()
+    city = str(data.get("city", "")).strip()
     try:
         lat = float(data.get("lat"))
         lon = float(data.get("lon"))
@@ -1338,8 +1339,13 @@ def add_dropzone():
 
     if not name:
         return jsonify({"error": "Dropzone name is required."}), 400
+    if not city:
+        return jsonify({"error": "City, State/Country is required."}), 400
     if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
         return jsonify({"error": "Coordinates out of range."}), 400
+
+    # Build the full display name with city, e.g. "Skydive Awesome (Pepperell, MA)"
+    full_name = f"{name} ({city})"
 
     for existing_name, vals in DROPZONES.items():
         dist = haversine_miles(lat, lon, vals[0], vals[1])
@@ -1352,11 +1358,11 @@ def add_dropzone():
     if GITHUB_TOKEN:
         try:
             content, sha = github_get_dz_file()
-            new_line = f"{name}: {lat},{lon},{icao or ''}\n"
+            new_line = f"{full_name}: {lat},{lon},{icao or ''}\n"
             new_content = content.rstrip("\n") + "\n" + new_line
             github_commit_dz_file(
                 new_content, sha,
-                f"Add dropzone: {name} (submitted via web form, id={submission_id})"
+                f"Add dropzone: {full_name} (submitted via web form, id={submission_id})"
             )
         except Exception as e:
             return jsonify({"error": f"Could not save dropzone to GitHub: {e}"}), 500
@@ -1366,23 +1372,23 @@ def add_dropzone():
             _ud = os.path.dirname(USER_DZ_FILE)
             if _ud: os.makedirs(_ud, exist_ok=True)
             with open(USER_DZ_FILE, "a", encoding="utf-8") as f:
-                f.write(f"{name}: {lat},{lon},{icao or ''}\n")
+                f.write(f"{full_name}: {lat},{lon},{icao or ''}\n")
         except Exception as e:
             return jsonify({"error": f"Could not save dropzone: {e}"}), 500
 
-    DROPZONES[name] = (lat, lon, icao)
+    DROPZONES[full_name] = (lat, lon, icao)
 
     # Also track in the review list so admin can edit/remove
-    entry = {"id": submission_id, "name": name, "lat": lat, "lon": lon, "icao": icao or ""}
+    entry = {"id": submission_id, "name": full_name, "lat": lat, "lon": lon, "icao": icao or ""}
     pending = load_pending_dzs()
     pending.append(entry)
     save_pending_dzs(pending)
 
     # Notify Discord
-    notify_discord(name, lat, lon, icao, submission_id)
+    notify_discord(full_name, lat, lon, icao, submission_id)
 
-    return jsonify({"ok": True, "name": name, "lat": lat, "lon": lon, "icao": icao,
-                    "message": f"{name} has been added! It\'s now available for everyone."})
+    return jsonify({"ok": True, "name": full_name, "lat": lat, "lon": lon, "icao": icao,
+                    "message": f"{full_name} has been added! It\'s now available for everyone."})
 
 
 @app.route("/admin/dropzones")

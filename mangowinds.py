@@ -19,6 +19,9 @@ USER_DZ_FILE    = os.environ.get("USER_DZ_FILE",    os.path.join(os.path.dirname
 PENDING_DZ_FILE = os.environ.get("PENDING_DZ_FILE", os.path.join(os.path.dirname(CACHE_FILE), "pending_dropzones.txt"))
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "")
 ADMIN_TOKEN     = os.environ.get("ADMIN_TOKEN", "mango-admin-2024")
+GITHUB_TOKEN    = os.environ.get("GITHUB_TOKEN", "")
+GITHUB_REPO     = os.environ.get("GITHUB_REPO", "cmangan2/mango-winds")
+GH_DZ_FILE      = "Dropzone list.txt"   # path inside the repo
 VISITS_FILE   = os.environ.get("VISITS_FILE",   os.path.join(os.path.dirname(__file__), "visits.json"))
 JUMPRUN_FILE  = os.environ.get("JUMPRUN_FILE",  os.path.join(os.path.dirname(__file__), "jumprun.json"))
 TAILS_FILE    = os.environ.get("TAILS_FILE",    os.path.join(os.path.dirname(__file__), "tails.json"))
@@ -1292,6 +1295,35 @@ def notify_discord(name, lat, lon, icao, submission_id):
     except Exception as e:
         print(f"Discord notify error: {e}")
 
+def github_get_dz_file():
+    """Fetch current Dropzone list.txt from GitHub. Returns (content_str, sha) or raises."""
+    import base64
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GH_DZ_FILE}"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github+json"}
+    r = requests.get(url, headers=headers, timeout=10)
+    r.raise_for_status()
+    data = r.json()
+    content = base64.b64decode(data["content"]).decode("utf-8")
+    return content, data["sha"]
+
+
+def github_commit_dz_file(new_content, sha, commit_message):
+    """Push updated Dropzone list.txt back to GitHub. Returns True on success."""
+    import base64
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GH_DZ_FILE}"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github+json",
+               "Content-Type": "application/json"}
+    payload = {
+        "message": commit_message,
+        "content": base64.b64encode(new_content.encode("utf-8")).decode("ascii"),
+        "sha": sha,
+        "branch": "main"
+    }
+    r = requests.put(url, headers=headers, json=payload, timeout=15)
+    r.raise_for_status()
+    return True
+
+
 @app.route("/add_dropzone", methods=["POST"])
 def add_dropzone():
     import uuid
@@ -1316,15 +1348,29 @@ def add_dropzone():
 
     submission_id = str(uuid.uuid4())[:8]
 
-    # Go live immediately — write to user_dropzones.txt and runtime dict
-    try:
-        _ud = os.path.dirname(USER_DZ_FILE)
-        if _ud: os.makedirs(_ud, exist_ok=True)
-        with open(USER_DZ_FILE, "a", encoding="utf-8") as f:
-            f.write(f"{name}: {lat},{lon},{icao or ''}\n")
-        DROPZONES[name] = (lat, lon, icao)
-    except Exception as e:
-        return jsonify({"error": f"Could not save dropzone: {e}"}), 500
+    # Persist to GitHub (survives redeploys) and update runtime dict
+    if GITHUB_TOKEN:
+        try:
+            content, sha = github_get_dz_file()
+            new_line = f"{name}: {lat},{lon},{icao or ''}\n"
+            new_content = content.rstrip("\n") + "\n" + new_line
+            github_commit_dz_file(
+                new_content, sha,
+                f"Add dropzone: {name} (submitted via web form, id={submission_id})"
+            )
+        except Exception as e:
+            return jsonify({"error": f"Could not save dropzone to GitHub: {e}"}), 500
+    else:
+        # Fallback: write to local file (ephemeral on Render free tier)
+        try:
+            _ud = os.path.dirname(USER_DZ_FILE)
+            if _ud: os.makedirs(_ud, exist_ok=True)
+            with open(USER_DZ_FILE, "a", encoding="utf-8") as f:
+                f.write(f"{name}: {lat},{lon},{icao or ''}\n")
+        except Exception as e:
+            return jsonify({"error": f"Could not save dropzone: {e}"}), 500
+
+    DROPZONES[name] = (lat, lon, icao)
 
     # Also track in the review list so admin can edit/remove
     entry = {"id": submission_id, "name": name, "lat": lat, "lon": lon, "icao": icao or ""}
@@ -1400,24 +1446,44 @@ def admin_dropzone_action():
     original_name = original["name"] if original else name
 
     if action == "approve":
-        # Save edits — rewrite user_dropzones.txt replacing the original entry
+        # Save edits — update GitHub Dropzone list.txt replacing the original entry
         try:
-            existing = load_user_dz_lines()
-            new_lines = []
-            replaced = False
-            for line in existing:
-                parsed = parse_dz_line(line)
-                if parsed and parsed[0] == original_name:
+            if GITHUB_TOKEN:
+                content, sha = github_get_dz_file()
+                lines = content.splitlines(keepends=True)
+                new_lines = []
+                replaced = False
+                for line in lines:
+                    parsed = parse_dz_line(line)
+                    if parsed and parsed[0] == original_name:
+                        new_lines.append(f"{name}: {lat},{lon},{icao or ''}\n")
+                        replaced = True
+                    else:
+                        new_lines.append(line)
+                if not replaced:
                     new_lines.append(f"{name}: {lat},{lon},{icao or ''}\n")
-                    replaced = True
-                else:
-                    new_lines.append(line)
-            if not replaced:
-                new_lines.append(f"{name}: {lat},{lon},{icao or ''}\n")
-            _ud2 = os.path.dirname(USER_DZ_FILE)
-            if _ud2: os.makedirs(_ud2, exist_ok=True)
-            with open(USER_DZ_FILE, "w", encoding="utf-8") as f:
-                f.writelines(new_lines)
+                github_commit_dz_file(
+                    "".join(new_lines), sha,
+                    f"Admin edit dropzone: {original_name} → {name} (id={sub_id})"
+                )
+            else:
+                # Fallback: local file
+                existing = load_user_dz_lines()
+                new_lines = []
+                replaced = False
+                for line in existing:
+                    parsed = parse_dz_line(line)
+                    if parsed and parsed[0] == original_name:
+                        new_lines.append(f"{name}: {lat},{lon},{icao or ''}\n")
+                        replaced = True
+                    else:
+                        new_lines.append(line)
+                if not replaced:
+                    new_lines.append(f"{name}: {lat},{lon},{icao or ''}\n")
+                _ud2 = os.path.dirname(USER_DZ_FILE)
+                if _ud2: os.makedirs(_ud2, exist_ok=True)
+                with open(USER_DZ_FILE, "w", encoding="utf-8") as f:
+                    f.writelines(new_lines)
             if original_name in DROPZONES and original_name != name:
                 del DROPZONES[original_name]
             DROPZONES[name] = (lat, lon, icao)
@@ -1431,12 +1497,21 @@ def admin_dropzone_action():
         save_pending_dzs(new_pending_with_updated)
         return redirect(f"/admin/dropzones?token={ADMIN_TOKEN}&msg={quote(name + ' updated!')}")
     else:
-        # Remove — delete from user_dropzones.txt and runtime
+        # Remove — delete from GitHub Dropzone list.txt and runtime
         try:
-            existing = load_user_dz_lines()
-            new_lines = [l for l in existing if not (parse_dz_line(l) and parse_dz_line(l)[0] == original_name)]
-            with open(USER_DZ_FILE, "w", encoding="utf-8") as f:
-                f.writelines(new_lines)
+            if GITHUB_TOKEN:
+                content, sha = github_get_dz_file()
+                lines = content.splitlines(keepends=True)
+                new_lines = [l for l in lines if not (parse_dz_line(l) and parse_dz_line(l)[0] == original_name)]
+                github_commit_dz_file(
+                    "".join(new_lines), sha,
+                    f"Admin remove dropzone: {original_name} (id={sub_id})"
+                )
+            else:
+                existing = load_user_dz_lines()
+                new_lines = [l for l in existing if not (parse_dz_line(l) and parse_dz_line(l)[0] == original_name)]
+                with open(USER_DZ_FILE, "w", encoding="utf-8") as f:
+                    f.writelines(new_lines)
             if original_name in DROPZONES:
                 del DROPZONES[original_name]
         except Exception as e:

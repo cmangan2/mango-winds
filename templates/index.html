@@ -2901,17 +2901,18 @@ async function saveCustomDz(){
         document.getElementById('customDzModal').style.display = 'none';
 
         // DZ is live — add to runtime and selects immediately
-        const name = result.name, latV = result.lat, lonV = result.lon, icaoV = result.icao || '';
-        dz[name] = [latV, lonV, icaoV];
-        customDzIcao[name] = icaoV;
-        addDZOptionToSelects(name);
+        // (name/latV/lonV already in scope from user input; use result.* for server-confirmed values)
+        const rName = result.name, rLat = result.lat, rLon = result.lon, rIcao = result.icao || '';
+        dz[rName] = [rLat, rLon, rIcao];
+        customDzIcao[rName] = rIcao;
+        addDZOptionToSelects(rName);
 
         // Select the new DZ and load it
         [document.getElementById('dz'), document.getElementById('welcomeDzSelect')].forEach(function(sel){
-            if (sel) sel.value = name;
+            if (sel) sel.value = rName;
         });
-        lat = latV; lon = lonV;
-        try { localStorage.setItem('mwh-dz', name); } catch(e){}
+        lat = rLat; lon = rLon;
+        try { localStorage.setItem('mwh-dz', rName); } catch(e){}
         firstLoad = true; load();
 
     } catch(e) {

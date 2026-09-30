@@ -1800,15 +1800,17 @@ async function openTrackModal(){
                     return age < 2 ? '🟢 Live now' : age < 60 ? `🟡 ${age}m ago` : '⚫ Stale';
                 })() : '⚫ No data';
                 const color = isActive ? '#00d4ff' : 'var(--muted)';
-                return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--card-alt);border:1px solid ${isActive ? 'rgba(0,212,255,0.3)' : 'var(--border)'};border-radius:8px">
+                const trackBtnStyle = isTracking
+                    ? `background:rgba(255,79,79,0.15);color:var(--red);border:1px solid var(--red)`
+                    : `background:rgba(0,212,255,0.1);color:#00d4ff;border:1px solid rgba(0,212,255,0.5)`;
+                const trackBtnLabel = isTracking ? '■ Stop' : '🔴 Track';
+                const trackBtnAction = isTracking ? `stopTrackingTail('${tail}')` : `startTrackingTail('${tail}')`;
+                return `<div data-tail="${tail}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--card-alt);border:1px solid ${isActive ? 'rgba(0,212,255,0.3)' : 'var(--border)'};border-radius:8px">
                     <div style="flex:1">
                         <div style="font-family:'Share Tech Mono',monospace;font-size:0.9rem;color:${color};font-weight:bold">${tail}</div>
                         <div style="font-size:0.72rem;color:var(--muted);margin-top:2px">${lastSeen}</div>
                     </div>
-                    ${isTracking
-                        ? `<button onclick="stopTrackingTail('${tail}')" style="padding:5px 10px;background:rgba(255,79,79,0.15);color:var(--red);border:1px solid var(--red);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">■ Stop</button>`
-                        : `<button onclick="startTrackingTail('${tail}')" style="padding:5px 10px;background:rgba(0,212,255,0.1);color:#00d4ff;border:1px solid rgba(0,212,255,0.5);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">🔴 Track</button>`
-                    }
+                    <button class="track-toggle" onclick="${trackBtnAction}" style="padding:5px 10px;${trackBtnStyle};border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">${trackBtnLabel}</button>
                     <button onclick="showLastLoadForTail('${tail}')" style="padding:5px 8px;background:var(--card-bg);color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">📋</button>
                 </div>`;
             }).join('');
@@ -2080,7 +2082,6 @@ async function toggleLastLoad(){
 
 // Show ADS-B trail for a single tail from cache
 async function showLastLoadForTail(tail){
-    closeTrackModal();
     const dzName = document.getElementById("dz").value;
     try {
         const r = await fetch(`/adsb_trails?tail=${encodeURIComponent(tail)}&dz=${encodeURIComponent(dzName)}`);
@@ -2120,8 +2121,7 @@ async function showLastLoadForTail(tail){
 async function startTrackingTail(tail){
     tail = (tail || "").trim().toUpperCase();
     if (!tail){ document.getElementById("trackError").textContent="Enter a tail number"; document.getElementById("trackError").style.display="block"; return; }
-    closeTrackModal();
-    if (trackedPlanes[tail]) return;
+    if (trackedPlanes[tail]){ refreshModalList(); return; }
 
     const dzName = document.getElementById("dz").value;
     fetch('/tails', { method:'POST', headers:{'Content-Type':'application/json'},
@@ -2139,6 +2139,7 @@ async function startTrackingTail(tail){
     trackedPlanes[tail] = state;
     planeTrail = state.trail;
     updateMultiPlaneInfoPanel();
+    refreshModalList();  // update button to "Stop" without closing
 
     await pollPlaneTail(tail);
     state.pollInterval = setInterval(() => pollPlaneTail(tail), 5000);
@@ -2157,6 +2158,7 @@ function stopTrackingTail(tail){
     if (state.label) state.label.remove();
     if (state.trailLine) state.trailLine.remove();
     delete trackedPlanes[tail];
+    refreshModalList();  // update button to "Track" without closing
     if (Object.keys(trackedPlanes).length === 0){
         stopAutoDetect();
         document.getElementById("planeInfo").style.display = "none";
@@ -2167,6 +2169,32 @@ function stopTrackingTail(tail){
     } else {
         updateMultiPlaneInfoPanel();
     }
+}
+
+// Refresh just the plane list rows inside the open modal (no full reload)
+function refreshModalList(){
+    const listEl = document.getElementById("tailListSection");
+    if (!listEl) return;
+    const rows = listEl.querySelectorAll("[data-tail]");
+    rows.forEach(row => {
+        const tail = row.getAttribute("data-tail");
+        const isTracking = !!trackedPlanes[tail];
+        const btn = row.querySelector("button.track-toggle");
+        if (!btn) return;
+        if (isTracking){
+            btn.textContent = "■ Stop";
+            btn.style.background = "rgba(255,79,79,0.15)";
+            btn.style.color = "var(--red)";
+            btn.style.borderColor = "var(--red)";
+            btn.onclick = () => stopTrackingTail(tail);
+        } else {
+            btn.textContent = "🔴 Track";
+            btn.style.background = "rgba(0,212,255,0.1)";
+            btn.style.color = "#00d4ff";
+            btn.style.borderColor = "rgba(0,212,255,0.5)";
+            btn.onclick = () => startTrackingTail(tail);
+        }
+    });
 }
 
 // Track all visible/active tails for DZ

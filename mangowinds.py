@@ -25,7 +25,8 @@ GH_DZ_FILE      = "Dropzone list.txt"   # path inside the repo
 VISITS_FILE   = os.environ.get("VISITS_FILE",   os.path.join(os.path.dirname(__file__), "visits.json"))
 JUMPRUN_FILE  = os.environ.get("JUMPRUN_FILE",  os.path.join(os.path.dirname(__file__), "jumprun.json"))
 TAILS_FILE    = os.environ.get("TAILS_FILE",    os.path.join(os.path.dirname(__file__), "tails.json"))
-LASTLOAD_FILE = os.environ.get("LASTLOAD_FILE", os.path.join(os.path.dirname(__file__), "lastload.json"))
+LASTLOAD_FILE    = os.environ.get("LASTLOAD_FILE",    os.path.join(os.path.dirname(__file__), "lastload.json"))
+ADSB_TRAILS_FILE = os.environ.get("ADSB_TRAILS_FILE", os.path.join(os.path.dirname(__file__), "adsb_trails.json"))
 
 # Last load storage: {dz_name: {trail, jumprun_start, jumprun_end, tail, timestamp}}
 _lastload_log = {}
@@ -47,6 +48,27 @@ def save_lastload():
         print(f"Lastload save error: {e}")
 
 load_lastload()
+
+# ADS-B trail storage: {tail: {dz, points: [[lat,lon,alt,ts], ...], fetched_at}}
+_adsb_trails = {}
+
+def load_adsb_trails():
+    global _adsb_trails
+    try:
+        if os.path.exists(ADSB_TRAILS_FILE):
+            with open(ADSB_TRAILS_FILE) as f:
+                _adsb_trails = json.load(f)
+    except Exception as e:
+        print(f"ADS-B trails load error: {e}")
+
+def save_adsb_trails():
+    try:
+        with open(ADSB_TRAILS_FILE, "w") as f:
+            json.dump(_adsb_trails, f)
+    except Exception as e:
+        print(f"ADS-B trails save error: {e}")
+
+load_adsb_trails()
 
 # Tail number storage: {dz_name: ["N123AB", "N456CD", ...]}
 _tails_log = {}
@@ -1990,6 +2012,117 @@ def data():
     })
     response.headers["Cache-Control"] = "no-store, max-age=0"
     return response
+
+
+# =====================================================
+# ✈️ ADS-B TRAIL FETCHER
+# =====================================================
+
+def fetch_adsb_trails_now():
+    """Fetch today's flight trail for every tail number registered across all DZs.
+    Hits /plane?tail=N12345 which returns lat/lon/alt/track history via the
+    adsb-proxy Vercel endpoint. Results are stored in _adsb_trails keyed by tail."""
+    # Build a flat list of (tail, dz_name) pairs across all DZs
+    pairs = []
+    for dz_name, tails_list in _tails_log.items():
+        for tail in tails_list:
+            if tail:
+                pairs.append((tail.upper(), dz_name))
+
+    if not pairs:
+        print("ADS-B poller: no tail numbers registered")
+        return
+
+    print(f"ADS-B poller: fetching {len(pairs)} tail(s): {[p[0] for p in pairs]}")
+    fetched_at = datetime.now(timezone.utc).isoformat()
+    new_trails = {}
+
+    for tail, dz_name in pairs:
+        if tail in new_trails:
+            continue  # already fetched (same tail on multiple DZs)
+        try:
+            url = f"https://adsb-proxy.vercel.app/api/plane?tail={tail}"
+            r = requests.get(url, timeout=12,
+                             headers={"User-Agent": "MangoWindHub/1.0 adsb-trail-poller"})
+            if not r.ok:
+                print(f"ADS-B poller: {tail} → HTTP {r.status_code}")
+                continue
+            data = r.json()
+            # Proxy returns: {tail, icao24, lat, lon, alt, track, timestamp, trail: [{lat,lon,alt,ts}, ...]}
+            trail_pts = data.get("trail", [])
+            if not trail_pts and data.get("lat") is not None:
+                # No trail but live position — wrap it
+                trail_pts = [{"lat": data.get("lat"), "lon": data.get("lon"),
+                               "alt": data.get("alt"), "ts": data.get("timestamp")}]
+            if trail_pts:
+                new_trails[tail] = {
+                    "dz": dz_name,
+                    "icao24": data.get("icao24", ""),
+                    "points": trail_pts,   # [{lat, lon, alt, ts}, ...]
+                    "fetched_at": fetched_at,
+                }
+                print(f"ADS-B poller: {tail} → {len(trail_pts)} points")
+            else:
+                print(f"ADS-B poller: {tail} → no position data")
+        except Exception as e:
+            print(f"ADS-B poller: {tail} error: {e}")
+
+    if new_trails:
+        _adsb_trails.update(new_trails)
+        save_adsb_trails()
+        print(f"ADS-B poller: saved {len(new_trails)} trail(s)")
+
+
+def _adsb_poll_loop():
+    """Background thread: poll ADS-B data every 60 minutes."""
+    import time
+    # Initial fetch after a short delay so app is fully up
+    time.sleep(30)
+    while True:
+        try:
+            fetch_adsb_trails_now()
+        except Exception as e:
+            print(f"ADS-B poll loop error: {e}")
+        time.sleep(3600)  # 1 hour
+
+
+# Start background ADS-B poller (only in gunicorn/production, not pytest)
+import threading as _threading
+_adsb_thread = _threading.Thread(target=_adsb_poll_loop, daemon=True, name="adsb-poller")
+_adsb_thread.start()
+print("ADS-B background poller started")
+
+
+@app.route("/adsb_trails")
+def adsb_trails_endpoint():
+    """Return cached ADS-B trail data for all registered planes.
+    Optional ?dz=<name> to filter by dropzone, ?tail=<tail> to filter by tail."""
+    dz_filter   = request.args.get("dz", "").strip()
+    tail_filter = request.args.get("tail", "").strip().upper()
+
+    result = {}
+    for tail, entry in _adsb_trails.items():
+        if tail_filter and tail != tail_filter:
+            continue
+        if dz_filter and entry.get("dz") != dz_filter:
+            continue
+        result[tail] = entry
+
+    return jsonify(result)
+
+
+@app.route("/adsb_trails/refresh")
+def adsb_trails_refresh():
+    """Admin endpoint to manually trigger an ADS-B poll immediately."""
+    token = request.args.get("token", "")
+    expected = os.environ.get("CACHE_TOKEN", "mango")
+    if token != expected:
+        return jsonify({"error": "unauthorized"}), 403
+    try:
+        fetch_adsb_trails_now()
+        return jsonify({"ok": True, "trails": len(_adsb_trails), "tails": list(_adsb_trails.keys())})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # =====================================================

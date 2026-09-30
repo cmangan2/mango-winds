@@ -1936,10 +1936,11 @@ async function toggleLastLoad(){
         if (d.jumprun_coords && d.jumprun_coords.length >= 2){
             lastLoadJrLine = L.polyline(d.jumprun_coords, { color:'#ff4f4f', weight:4, opacity:0.85 }).addTo(map);
             const ts = new Date(d.timestamp);
+            const dateStr = ts.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
             const timeStr = ts.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', timeZoneName:'short'});
             lastLoadJrLabel = L.marker(d.jumprun_coords[0], {
                 icon: L.divIcon({
-                    html: `<div style="display:inline-block;background:rgba(7,11,16,0.95);border:1.5px solid #ff4f4f;border-radius:6px;padding:4px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.85rem;font-weight:700;color:#ff4f4f;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.7);white-space:nowrap">Jump Run<br><span style="font-size:0.72rem;font-weight:600;letter-spacing:0.06em">${timeStr}${d.tail ? ' · '+d.tail : ''}</span></div>`,
+                    html: `<div style="display:inline-block;background:rgba(7,11,16,0.95);border:1.5px solid #ff4f4f;border-radius:6px;padding:4px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.85rem;font-weight:700;color:#ff4f4f;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.7);white-space:nowrap">Jump Run<br><span style="font-size:0.72rem;font-weight:600;letter-spacing:0.06em">${dateStr} · ${timeStr}${d.tail ? ' · '+d.tail : ''}</span></div>`,
                     className:"", iconAnchor:[0,24]
                 }), interactive:false
             }).addTo(map);

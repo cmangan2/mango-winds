@@ -222,7 +222,7 @@ def parse_dz_line(line):
     try:
         lat = float(parts[0])
         lon = float(parts[1])
-        icao = parts[2] if len(parts) > 2 else None
+        icao = parts[2].strip() if len(parts) > 2 else None
         return (name.strip(), lat, lon, icao)
     except (ValueError, IndexError):
         return None

@@ -364,25 +364,31 @@ select:focus { border-color: var(--accent); }
 
 <!-- ── TRACK PLANE MODAL ── -->
 <div id="trackModal" style="display:none;position:fixed;inset:0;background:rgba(7,11,16,0.88);z-index:99999;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px">
-    <div style="background:var(--panel-bg);border:1px solid var(--border);border-radius:16px;max-width:340px;width:100%;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.6);overflow:hidden">
+    <div style="background:var(--panel-bg);border:1px solid var(--border);border-radius:16px;max-width:380px;width:100%;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.6);overflow:hidden">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px 12px;border-bottom:1px solid var(--border);font-weight:700;font-size:1rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--accent)">
             <span>✈️ Track Jump Plane</span>
             <button onclick="closeTrackModal()" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:0 4px">✕</button>
         </div>
-        <div style="padding:14px 18px;display:flex;flex-direction:column;gap:10px">
-            <div class="df-row">
-                <label class="df-label">Tail Number (e.g. N123AB)</label>
-                <input type="text" id="planeTail" placeholder="N123AB" class="df-input"
-                    style="text-transform:uppercase" list="tailSuggestions"
-                    oninput="this.value=this.value.toUpperCase()">
-                <datalist id="tailSuggestions"></datalist>
-                <div id="tailSuggestionBtns" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
-            </div>
-            <div id="trackError" style="display:none;color:var(--red);font-size:0.8rem"></div>
+        <!-- Auto-detect banner -->
+        <div id="autoDetectBanner" style="display:none;padding:8px 18px;background:rgba(0,212,255,0.08);border-bottom:1px solid rgba(0,212,255,0.2);font-size:0.8rem;color:#00d4ff;font-family:'Share Tech Mono',monospace">
+            📡 <span id="autoDetectMsg">Active planes detected</span>
         </div>
-        <div style="display:flex;gap:8px;margin:6px 18px 16px">
-            <button onclick="startTracking()" style="flex:1;padding:11px;background:var(--accent);color:var(--bg);border:none;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">🔴 Live Track</button>
-            <button onclick="loadLastFlight()" style="flex:1;padding:11px;background:var(--card-bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">📋 Last Flight</button>
+        <!-- DZ Plane List -->
+        <div id="tailListSection" style="padding:12px 18px;display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto">
+            <div id="tailListLoading" style="color:var(--muted);font-size:0.8rem;font-family:'Share Tech Mono',monospace">Loading planes...</div>
+        </div>
+        <!-- Manual entry fallback -->
+        <div style="padding:8px 18px 4px;border-top:1px solid var(--border)">
+            <div style="font-size:0.7rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px">Or enter tail manually</div>
+            <div style="display:flex;gap:6px">
+                <input type="text" id="planeTail" placeholder="N123AB" class="df-input" style="text-transform:uppercase;flex:1" list="tailSuggestions" oninput="this.value=this.value.toUpperCase()">
+                <datalist id="tailSuggestions"></datalist>
+                <button onclick="startTrackingTail(document.getElementById('planeTail').value)" style="padding:8px 12px;background:var(--accent);color:var(--bg);border:none;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer">🔴</button>
+            </div>
+        </div>
+        <div id="trackError" style="display:none;color:var(--red);font-size:0.8rem;padding:0 18px 8px"></div>
+        <div style="padding:8px 18px 14px">
+            <button onclick="trackAllVisible()" id="trackAllBtn" style="display:none;width:100%;padding:10px;background:rgba(0,212,255,0.12);color:#00d4ff;border:1px solid #00d4ff;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">🔴 Track All Planes</button>
         </div>
     </div>
 </div>
@@ -1709,6 +1715,13 @@ function initMap(){
 })();
 
 // ── PLANE TRACKER ──
+// Multi-plane tracking state — keyed by tail string
+const trackedPlanes = {};   // tail -> { data, marker, label, animFrame, animStart, animFrom, animTo, trail, trailLine, trailMeta, history, divingConfirmed, pollInterval, autoSaveInterval }
+const TRAIL_COLORS = ['#00d4ff','#ffaa00','#00ff88','#ff66ff','#ffff00','#ff6633'];
+let _colorIdx = 0;
+function nextTrailColor(){ return TRAIL_COLORS[_colorIdx++ % TRAIL_COLORS.length]; }
+
+// Legacy single-plane vars kept for backward compat with functions not yet migrated
 let planeTrackInterval = null;
 let trackedPlane = null;
 let trackedPlaneMarker = null;
@@ -1718,48 +1731,106 @@ let planeAnimStart = null;
 let planeAnimFrom = null;
 let planeAnimTo = null;
 const PLANE_ANIM_DUR = 5000;
-let planeTrail = [];          // recent positions for trail line
-let planeTrailLine = null;    // Leaflet polyline
-let historyTrailLine = null;  // Historical flight path from trace
+let planeTrail = [];
+let planeTrailLine = null;
+let historyTrailLine = null;
 let lastLoadTrailLine = null;
 let lastLoadJrLine = null;
 let lastLoadJrLabel = null;
 let lastLoadPlane = null;
 let lastLoadVisible = false;
+const lastLoadLayers = [];   // array of {trailLine, jrLine, jrLabel, ghost} for multi-plane last load
 
 // Jump run detection history
-let planeHistory = [];          // rolling 5-min buffer of position snapshots
+let planeHistory = [];
 let lastJumpRunLine = null;
 let lastJumpRunLabel = null;
 let lastJumpRunArrow = null;
-let divingConfirmed = 0;        // consecutive dive polls
-const LEVEL_THRESHOLD = 600;   // fpm — within this = level flight
-const DIVE_THRESHOLD  = -1000; // fpm — below this = diving after drop
-const DIVE_CONFIRM    = 2;     // consecutive dive polls to confirm
+let divingConfirmed = 0;
+const LEVEL_THRESHOLD = 600;
+const DIVE_THRESHOLD  = -1000;
+const DIVE_CONFIRM    = 2;
+
+// Auto-detect check interval
+let _autoDetectInterval = null;
 
 async function openTrackModal(){
     const m = document.getElementById("trackModal");
     m.style.display = "flex"; m.style.alignItems = "center"; m.style.justifyContent = "center";
-    document.getElementById("planeTail").focus();
     document.getElementById("trackError").style.display = "none";
-    // Load tail suggestions for this DZ
+    document.getElementById("autoDetectBanner").style.display = "none";
+    document.getElementById("trackAllBtn").style.display = "none";
+
+    const dz = document.getElementById("dz").value;
+    const listEl = document.getElementById("tailListSection");
+    listEl.innerHTML = '<div id="tailListLoading" style="color:var(--muted);font-size:0.8rem;font-family:\'Share Tech Mono\',monospace">Loading planes...</div>';
+
+    // Fetch registered tails + ADS-B trail cache in parallel
     try {
-        const dz = document.getElementById("dz").value;
-        const r = await fetch(`/tails?dz=${encodeURIComponent(dz)}`);
-        const tails = await r.json();
-        // Populate datalist
+        const [tailsRes, trailsRes] = await Promise.all([
+            fetch(`/tails?dz=${encodeURIComponent(dz)}`).then(r=>r.json()).catch(()=>[]),
+            fetch(`/adsb_trails?dz=${encodeURIComponent(dz)}`).then(r=>r.json()).catch(()=>({}))
+        ]);
+        const tails = tailsRes || [];
+
+        // Populate datalist for manual entry
         const dl = document.getElementById("tailSuggestions");
         dl.innerHTML = tails.map(t => `<option value="${t}">`).join('');
-        // Populate quick-tap buttons
-        const btns = document.getElementById("tailSuggestionBtns");
-        if (tails.length > 0){
-            btns.innerHTML = tails.map(t =>
-                `<button onclick="document.getElementById('planeTail').value='${t}'" style="padding:3px 10px;background:var(--card-alt);border:1px solid var(--border);color:var(--accent);border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:0.75rem;cursor:pointer">${t}</button>`
-            ).join('');
-        } else {
-            btns.innerHTML = '';
+
+        // Check which tails have recent ADS-B data (within 10 minutes)
+        const nowMs = Date.now();
+        const activeTails = [];
+        for (const [tail, entry] of Object.entries(trailsRes)){
+            const age = nowMs - new Date(entry.fetched_at).getTime();
+            if (age < 10 * 60 * 1000) activeTails.push(tail);
         }
-    } catch(e){ console.warn("Could not load tail suggestions:", e); }
+
+        // Merge: registered tails + any unregistered active tails from cache
+        const allTails = [...new Set([...tails, ...Object.keys(trailsRes)])];
+
+        if (allTails.length === 0){
+            listEl.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:4px 0">No planes registered for this DZ yet.<br>Enter a tail number below to start.</div>';
+        } else {
+            listEl.innerHTML = allTails.map((tail, i) => {
+                const isTracking = !!trackedPlanes[tail];
+                const entry = trailsRes[tail];
+                const isActive = activeTails.includes(tail);
+                const lastSeen = entry ? (() => {
+                    const age = Math.round((nowMs - new Date(entry.fetched_at).getTime()) / 60000);
+                    return age < 2 ? '🟢 Live now' : age < 60 ? `🟡 ${age}m ago` : '⚫ Stale';
+                })() : '⚫ No data';
+                const color = isActive ? '#00d4ff' : 'var(--muted)';
+                return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--card-alt);border:1px solid ${isActive ? 'rgba(0,212,255,0.3)' : 'var(--border)'};border-radius:8px">
+                    <div style="flex:1">
+                        <div style="font-family:'Share Tech Mono',monospace;font-size:0.9rem;color:${color};font-weight:bold">${tail}</div>
+                        <div style="font-size:0.72rem;color:var(--muted);margin-top:2px">${lastSeen}</div>
+                    </div>
+                    ${isTracking
+                        ? `<button onclick="stopTrackingTail('${tail}')" style="padding:5px 10px;background:rgba(255,79,79,0.15);color:var(--red);border:1px solid var(--red);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">■ Stop</button>`
+                        : `<button onclick="startTrackingTail('${tail}')" style="padding:5px 10px;background:rgba(0,212,255,0.1);color:#00d4ff;border:1px solid rgba(0,212,255,0.5);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">🔴 Track</button>`
+                    }
+                    <button onclick="showLastLoadForTail('${tail}')" style="padding:5px 8px;background:var(--card-bg);color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">📋</button>
+                </div>`;
+            }).join('');
+
+            // Show Track All button if there are multiple untracked active tails
+            const untrackedActive = activeTails.filter(t => !trackedPlanes[t]);
+            if (allTails.length > 1){
+                const btn = document.getElementById("trackAllBtn");
+                btn.style.display = "block";
+                btn.textContent = untrackedActive.length > 0 ? `🔴 Track All Active (${untrackedActive.length})` : `🔴 Track All (${allTails.length})`;
+            }
+        }
+
+        // Auto-detect banner
+        if (activeTails.length > 0){
+            const newActive = activeTails.filter(t => !trackedPlanes[t]);
+            if (newActive.length > 0){
+                document.getElementById("autoDetectMsg").textContent = `📡 ${newActive.join(', ')} ${newActive.length===1?'is':'are'} transmitting ADS-B right now!`;
+                document.getElementById("autoDetectBanner").style.display = "block";
+            }
+        }
+    } catch(e){ console.warn("Could not load tail list:", e); listEl.innerHTML = ''; }
 }
 function closeTrackModal(){ document.getElementById("trackModal").style.display = "none"; }
 
@@ -1917,6 +1988,14 @@ function clearLastLoad(){
     if (lastLoadJrLine){ lastLoadJrLine.remove(); lastLoadJrLine = null; }
     if (lastLoadJrLabel){ lastLoadJrLabel.remove(); lastLoadJrLabel = null; }
     if (lastLoadPlane){ lastLoadPlane.remove(); lastLoadPlane = null; }
+    // Clear multi-plane last load layers
+    lastLoadLayers.forEach(l => {
+        if (l.trailLine) l.trailLine.remove();
+        if (l.jrLine) l.jrLine.remove();
+        if (l.jrLabel) l.jrLabel.remove();
+        if (l.ghost) l.ghost.remove();
+    });
+    lastLoadLayers.length = 0;
     lastLoadVisible = false;
     const btn = document.getElementById("lastLoadBtn");
     if (btn){ btn.textContent = "✈️ Show Last Load"; btn.style.color = "#00d4ff"; btn.style.borderColor = "var(--border)"; }
@@ -1926,13 +2005,45 @@ async function toggleLastLoad(){
     if (lastLoadVisible){ clearLastLoad(); return; }
     const dzName = document.getElementById("dz").value;
     try {
-        const r = await fetch(`/lastload?dz=${encodeURIComponent(dzName)}`);
-        const d = await r.json();
+        // Try ADS-B trails cache first (multi-plane)
+        const trailsRes = await fetch(`/adsb_trails?dz=${encodeURIComponent(dzName)}`).then(r=>r.json()).catch(()=>({}));
+        const tailEntries = Object.entries(trailsRes).filter(([,e]) => e.points && e.points.length >= 2);
+
+        if (tailEntries.length > 0){
+            clearLastLoad();
+            let allBounds = [];
+            tailEntries.forEach(([tail, entry], idx) => {
+                const color = TRAIL_COLORS[idx % TRAIL_COLORS.length];
+                const pts = entry.points.map(p => [p.lat, p.lon]);
+                const trailLine = L.polyline(pts, { color, weight:3, opacity:0.5, dashArray:'4,4' }).addTo(map);
+                trailLine.bindTooltip(tail, {permanent:false, direction:'top', className:'plane-tip'});
+                allBounds.push(...pts);
+
+                // Ghost plane marker at last known position
+                const lastPt = pts[pts.length-1];
+                const ghost = L.marker(lastPt, {
+                    icon: L.divIcon({
+                        html: `<div style="background:rgba(7,11,16,0.85);border:1px solid ${color};border-radius:4px;padding:2px 6px;font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:${color};white-space:nowrap">${tail}</div>`,
+                        className:"", iconAnchor:[0,0]
+                    }), zIndexOffset:900, interactive:false
+                }).addTo(map);
+
+                lastLoadLayers.push({ trailLine, jrLine:null, jrLabel:null, ghost });
+            });
+
+            lastLoadVisible = true;
+            const btn = document.getElementById("lastLoadBtn");
+            btn.textContent = "✈️ Hide Last Load"; btn.style.color = "#00d4ff"; btn.style.borderColor = "#00d4ff";
+            if (allBounds.length > 0) map.fitBounds(L.latLngBounds(allBounds), {padding:[40,40], maxZoom:13});
+            showJumpRunStatus(null);
+            return;
+        }
+
+        // Fallback: try legacy /lastload endpoint
+        const d = await fetch(`/lastload?dz=${encodeURIComponent(dzName)}`).then(r=>r.json()).catch(()=>({}));
         if (!d.trail || d.trail.length < 2){ showJumpRunStatus("No load data saved for this DZ yet"); return; }
         clearLastLoad();
-        // Draw dimmer trail
         lastLoadTrailLine = L.polyline(d.trail, { color:'#00d4ff', weight:3, opacity:0.45, dashArray:'4,4' }).addTo(map);
-        // Draw jump run
         if (d.jumprun_coords && d.jumprun_coords.length >= 2){
             lastLoadJrLine = L.polyline(d.jumprun_coords, { color:'#ff4f4f', weight:4, opacity:0.85 }).addTo(map);
             const ts = new Date(d.timestamp);
@@ -1945,7 +2056,6 @@ async function toggleLastLoad(){
                 }), interactive:false
             }).addTo(map);
         }
-        // Ghost plane at last position
         const lastPt = d.trail[d.trail.length-1];
         lastLoadPlane = L.marker(lastPt, {
             icon: L.divIcon({
@@ -1966,6 +2076,281 @@ async function toggleLastLoad(){
         btn.textContent = "✈️ Hide Last Load"; btn.style.color = "#00d4ff"; btn.style.borderColor = "#00d4ff";
         map.fitBounds(lastLoadTrailLine.getBounds(), {padding:[40,40], maxZoom:13});
     } catch(e){ showJumpRunStatus("⚠️ Could not load last load data"); console.error(e); }
+}
+
+// Show ADS-B trail for a single tail from cache
+async function showLastLoadForTail(tail){
+    closeTrackModal();
+    const dzName = document.getElementById("dz").value;
+    try {
+        const r = await fetch(`/adsb_trails?tail=${encodeURIComponent(tail)}&dz=${encodeURIComponent(dzName)}`);
+        const data = await r.json();
+        const entry = data[tail];
+        if (!entry || !entry.points || entry.points.length < 2){
+            showJumpRunStatus(`No ADS-B trail cached for ${tail} yet`); return;
+        }
+        const existingIdx = lastLoadLayers.findIndex(l => l._tail === tail);
+        if (existingIdx >= 0){
+            const old = lastLoadLayers.splice(existingIdx, 1)[0];
+            if (old.trailLine) old.trailLine.remove();
+            if (old.ghost) old.ghost.remove();
+        }
+        const colorIdx = lastLoadLayers.length;
+        const color = TRAIL_COLORS[colorIdx % TRAIL_COLORS.length];
+        const pts = entry.points.map(p => [p.lat, p.lon]);
+        const trailLine = L.polyline(pts, { color, weight:3, opacity:0.5, dashArray:'4,4' }).addTo(map);
+        trailLine.bindTooltip(tail, {permanent:false, direction:'top'});
+        const lastPt = pts[pts.length-1];
+        const ghost = L.marker(lastPt, {
+            icon: L.divIcon({
+                html: `<div style="background:rgba(7,11,16,0.85);border:1px solid ${color};border-radius:4px;padding:2px 6px;font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:${color};white-space:nowrap">${tail}</div>`,
+                className:"", iconAnchor:[0,0]
+            }), zIndexOffset:900, interactive:false
+        }).addTo(map);
+        const layer = { _tail: tail, trailLine, jrLine:null, jrLabel:null, ghost };
+        lastLoadLayers.push(layer);
+        lastLoadVisible = true;
+        map.fitBounds(trailLine.getBounds(), {padding:[40,40], maxZoom:13});
+        const btn = document.getElementById("lastLoadBtn");
+        if (btn){ btn.textContent = "✈️ Hide Last Load"; btn.style.color = "#00d4ff"; btn.style.borderColor = "#00d4ff"; }
+    } catch(e){ showJumpRunStatus(`⚠️ Could not load trail for ${tail}`); }
+}
+
+// Start tracking a specific tail (multi-plane aware)
+async function startTrackingTail(tail){
+    tail = (tail || "").trim().toUpperCase();
+    if (!tail){ document.getElementById("trackError").textContent="Enter a tail number"; document.getElementById("trackError").style.display="block"; return; }
+    closeTrackModal();
+    if (trackedPlanes[tail]) return;
+
+    const dzName = document.getElementById("dz").value;
+    fetch('/tails', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ dz: dzName, tail }) }).catch(()=>{});
+
+    const color = nextTrailColor();
+    const state = {
+        data: null, marker: null, label: null,
+        animFrame: null, animStart: null, animFrom: null, animTo: null,
+        trail: [], trailLine: null, trailMeta: [],
+        history: [], divingConfirmed: 0,
+        pollInterval: null, autoSaveInterval: null,
+        color
+    };
+    trackedPlanes[tail] = state;
+    planeTrail = state.trail;
+    updateMultiPlaneInfoPanel();
+
+    await pollPlaneTail(tail);
+    state.pollInterval = setInterval(() => pollPlaneTail(tail), 5000);
+    state.autoSaveInterval = setInterval(() => { if (state.trail.length > 5) saveLastLoad(); }, 60000);
+    startAutoDetect();
+}
+
+// Stop tracking a specific tail
+function stopTrackingTail(tail){
+    const state = trackedPlanes[tail];
+    if (!state) return;
+    if (state.pollInterval) clearInterval(state.pollInterval);
+    if (state.autoSaveInterval) clearInterval(state.autoSaveInterval);
+    if (state.animFrame) cancelAnimationFrame(state.animFrame);
+    if (state.marker) state.marker.remove();
+    if (state.label) state.label.remove();
+    if (state.trailLine) state.trailLine.remove();
+    delete trackedPlanes[tail];
+    if (Object.keys(trackedPlanes).length === 0){
+        stopAutoDetect();
+        document.getElementById("planeInfo").style.display = "none";
+        const tb = document.getElementById("trackBtn");
+        tb.textContent = "✈️ Track Plane";
+        tb.style.background = "var(--card-bg)"; tb.style.color = "#00d4ff"; tb.style.borderColor = "#00d4ff";
+        tb.onclick = openTrackModal;
+    } else {
+        updateMultiPlaneInfoPanel();
+    }
+}
+
+// Track all visible/active tails for DZ
+async function trackAllVisible(){
+    const dz = document.getElementById("dz").value;
+    try {
+        const [tails, trailsData] = await Promise.all([
+            fetch(`/tails?dz=${encodeURIComponent(dz)}`).then(r=>r.json()).catch(()=>[]),
+            fetch(`/adsb_trails?dz=${encodeURIComponent(dz)}`).then(r=>r.json()).catch(()=>({}))
+        ]);
+        const nowMs = Date.now();
+        const activeTails = Object.entries(trailsData)
+            .filter(([,e]) => (nowMs - new Date(e.fetched_at).getTime()) < 10*60*1000)
+            .map(([t]) => t);
+        const toTrack = activeTails.length > 0 ? activeTails : tails;
+        closeTrackModal();
+        for (const tail of toTrack){
+            if (!trackedPlanes[tail]) await startTrackingTail(tail);
+        }
+    } catch(e){ console.warn("trackAllVisible error:", e); }
+}
+
+// Poll a specific tail (multi-plane)
+async function pollPlaneTail(tail){
+    const state = trackedPlanes[tail];
+    if (!state) return;
+    try {
+        const r = await fetch(`/plane?tail=${encodeURIComponent(tail)}`);
+        const data = await r.json();
+        if (!data.found){
+            if (state.data && state.data.spd > 5 && state.data.hdg != null){
+                const distM = state.data.spd * 0.514444 * 5;
+                const R = 6378137;
+                const rad = state.data.hdg * Math.PI / 180;
+                const lat1 = state.data.lat * Math.PI / 180;
+                const lon1 = state.data.lon * Math.PI / 180;
+                const lat2 = Math.asin(Math.sin(lat1)*Math.cos(distM/R) + Math.cos(lat1)*Math.sin(distM/R)*Math.cos(rad));
+                const lon2 = lon1 + Math.atan2(Math.sin(rad)*Math.sin(distM/R)*Math.cos(lat1), Math.cos(distM/R)-Math.sin(lat1)*Math.sin(lat2));
+                state.data = {...state.data, lat: lat2*180/Math.PI, lon: lon2*180/Math.PI};
+                if (state.marker){
+                    state.animFrom = state.animTo || {lat: state.data.lat, lng: state.data.lon};
+                    state.animTo = {lat: state.data.lat, lng: state.data.lon};
+                    state.animStart = null;
+                    if (state.animFrame) cancelAnimationFrame(state.animFrame);
+                    state.animFrame = requestAnimationFrame(ts => animatePlaneTail(tail, ts));
+                }
+            }
+            return;
+        }
+        data.tail = tail;
+        updatePlaneMarkerTail(tail, data);
+    } catch(e){ console.warn(`ADS-B fetch failed for ${tail}:`, e); }
+}
+
+// Update plane marker for a specific tail
+function updatePlaneMarkerTail(tail, data){
+    const state = trackedPlanes[tail];
+    if (!state) return;
+    state.data = data;
+    const now = Date.now();
+    if (state.trail.length > 0 && state._lastTrailTs){
+        const last = state.trail[state.trail.length-1];
+        const distM = distMeters(last, [data.lat, data.lon]);
+        const dtSec = Math.max((now - state._lastTrailTs) / 1000, 1);
+        if ((distM / dtSec) * 1.94384 > 250){ return; }
+    }
+    state._lastTrailTs = now;
+    if (!state.marker){
+        state.marker = L.marker([data.lat, data.lon], {
+            icon: planeTrackIconColored(data.hdg||0, data.on_ground, state.color),
+            zIndexOffset: 1000
+        }).addTo(map);
+        state.marker.bindTooltip(tail, {permanent:false, direction:'top'});
+    } else {
+        state.marker.setIcon(planeTrackIconColored(data.hdg||0, data.on_ground, state.color));
+    }
+    state.trail.push([data.lat, data.lon]);
+    state.trailMeta.push({ alt: data.alt, spd: data.spd, vert: data.vert });
+    if (state.trailLine){ state.trailLine.setLatLngs(state.trail); }
+    else {
+        state.trailLine = L.polyline(state.trail, { color: state.color, weight: 4, opacity: 0.6 }).addTo(map);
+        state.trailLine.bindTooltip(tail, {permanent:false, direction:'top'});
+    }
+    state.animFrom = state.animTo || { lat: data.lat, lng: data.lon };
+    state.animTo = { lat: data.lat, lng: data.lon };
+    state.animStart = null;
+    if (state.animFrame) cancelAnimationFrame(state.animFrame);
+    state.animFrame = requestAnimationFrame(ts => animatePlaneTail(tail, ts));
+    detectJumpRunTail(tail, data);
+    updateMultiPlaneInfoPanel();
+}
+
+function animatePlaneTail(tail, ts){
+    const state = trackedPlanes[tail];
+    if (!state || !state.marker || !state.animTo) return;
+    if (!state.animStart) state.animStart = ts;
+    const t = Math.min((ts - state.animStart) / PLANE_ANIM_DUR, 1);
+    const ease = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+    const from = state.animFrom || state.animTo;
+    const lat = from.lat + (state.animTo.lat - from.lat) * ease;
+    const lng = from.lng + (state.animTo.lng - from.lng) * ease;
+    state.marker.setLatLng([lat, lng]);
+    if (t < 1) state.animFrame = requestAnimationFrame(ts2 => animatePlaneTail(tail, ts2));
+}
+
+function detectJumpRunTail(tail, data){
+    const state = trackedPlanes[tail];
+    if (!state) return;
+    state.history.push({ lat:data.lat, lon:data.lon, alt:data.alt, hdg:data.hdg, spd:data.spd, vert:data.vert||0, ts:Date.now() });
+    if (state.history.length > 60) state.history.shift();
+    const vert = data.vert || 0;
+    if (vert < DIVE_THRESHOLD) state.divingConfirmed++;
+    else state.divingConfirmed = 0;
+    if (state.divingConfirmed === DIVE_CONFIRM){
+        planeHistory = [...state.history];
+        extractAndDrawJumpRun();
+        setTimeout(saveLastLoad, 500);
+    }
+}
+
+function planeTrackIconColored(hdg, onGround, color){
+    color = color || '#00d4ff';
+    const glow = color + 'aa';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="-30 -30 60 60"
+        style="transform:rotate(${hdg}deg);overflow:visible;filter:drop-shadow(0 0 6px ${glow})">
+      <rect x="-4" y="-18" width="8" height="36" rx="3" fill="${color}"/>
+      <polygon points="0,-28 -3,-18 3,-18" fill="${color}"/>
+      <polygon points="-28,-2 -4,-5 -4,1 -28,3" fill="${color}"/>
+      <polygon points="28,-2 4,-5 4,1 28,3" fill="${color}"/>
+      <polygon points="-14,17 -3,15 -3,19 -14,19" fill="${color}"/>
+      <polygon points="14,17 3,15 3,19 14,19" fill="${color}"/>
+      <polygon points="0,10 -2,18 2,18" fill="${color}"/>
+    </svg>`;
+    return L.divIcon({ html: svg, className: "", iconSize: [72,72], iconAnchor: [36,36] });
+}
+
+function updateMultiPlaneInfoPanel(){
+    const tails = Object.keys(trackedPlanes);
+    if (tails.length === 0){ document.getElementById("planeInfo").style.display = "none"; return; }
+    const tb = document.getElementById("trackBtn");
+    tb.textContent = `■ Tracking ${tails.length} Plane${tails.length>1?'s':''}`;
+    tb.style.color = "var(--red)"; tb.style.borderColor = "var(--red)";
+    tb.style.background = "rgba(255,79,79,0.1)";
+    tb.onclick = openTrackModal;
+    const rows = tails.map(tail => {
+        const s = trackedPlanes[tail];
+        const d = s.data;
+        if (!d) return `<div style="color:${s.color};font-size:0.82rem;padding:3px 0">${tail} — waiting...</div>`;
+        const alt  = d.alt  ? Math.round(d.alt).toLocaleString() + " ft"  : "—";
+        const spd  = d.spd  ? Math.round(d.spd) + " kt" : "—";
+        const vert = d.vert ? (d.vert>0?"↑":"↓") + Math.abs(Math.round(d.vert)) + " fpm" : "—";
+        return `<div style="display:flex;align-items:center;gap:6px;font-size:0.8rem;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05)">
+            <span style="color:${s.color};font-weight:bold;min-width:60px;font-family:'Share Tech Mono',monospace">${tail}</span>
+            <span style="color:var(--muted);flex:1">${alt} · ${spd} · ${vert}</span>
+            <button onclick="stopTrackingTail('${tail}')" style="padding:2px 6px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:3px;font-size:0.7rem;cursor:pointer">✕</button>
+        </div>`;
+    }).join('');
+    document.getElementById("planeInfo").style.display = "block";
+    document.getElementById("planeInfo").innerHTML = rows;
+}
+
+function startAutoDetect(){
+    if (_autoDetectInterval) return;
+    _autoDetectInterval = setInterval(checkAutoDetect, 5 * 60 * 1000);
+}
+function stopAutoDetect(){
+    if (_autoDetectInterval){ clearInterval(_autoDetectInterval); _autoDetectInterval = null; }
+}
+async function checkAutoDetect(){
+    const dz = document.getElementById("dz").value;
+    if (!dz) return;
+    try {
+        const r = await fetch(`/adsb_trails?dz=${encodeURIComponent(dz)}`);
+        const data = await r.json();
+        const nowMs = Date.now();
+        for (const [tail, entry] of Object.entries(data)){
+            const age = nowMs - new Date(entry.fetched_at).getTime();
+            if (age < 10 * 60 * 1000 && !trackedPlanes[tail]){
+                console.log(`Auto-detect: starting tracking for ${tail}`);
+                showJumpRunStatus(`📡 ${tail} just appeared on ADS-B — auto-tracking!`);
+                await startTrackingTail(tail);
+            }
+        }
+    } catch(e){ console.warn("Auto-detect error:", e); }
 }
 
 function showLastJumpRun(){
@@ -2351,26 +2736,7 @@ async function loadLastFlight(){
 
 async function startTracking(){
     const tail = document.getElementById("planeTail").value.trim().toUpperCase();
-    if (!tail){ document.getElementById("trackError").textContent="Enter a tail number"; document.getElementById("trackError").style.display="block"; return; }
-    closeTrackModal();
-    // Save tail for this DZ
-    const dzName = document.getElementById("dz").value;
-    fetch('/tails', { method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ dz: dzName, tail: tail }) }).catch(()=>{});
-    document.getElementById("trackBtn").textContent = "■ Stop Tracking " + tail;
-    document.getElementById("trackBtn").style.color = "var(--red)";
-    document.getElementById("trackBtn").style.borderColor = "var(--red)";
-    document.getElementById("trackBtn").style.background = "rgba(255,79,79,0.1)";
-    document.getElementById("trackBtn").onclick = stopTracking;
-
-    // First poll — calls ADS-B Exchange directly from browser
-    await pollPlane(tail);
-
-    if (planeTrackInterval) clearInterval(planeTrackInterval);
-    planeTrackInterval = setInterval(() => pollPlane(tail), 5000);
-    // Auto-save trail every 60 seconds
-    if (window._autoSaveInterval) clearInterval(window._autoSaveInterval);
-    window._autoSaveInterval = setInterval(() => { if (planeTrail.length > 5) saveLastLoad(); }, 60000);
+    await startTrackingTail(tail);
 }
 
 function stopTracking(){

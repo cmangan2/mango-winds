@@ -1834,7 +1834,10 @@ async function openTrackModal(){
         }
     } catch(e){ console.warn("Could not load tail list:", e); listEl.innerHTML = ''; }
 }
-function closeTrackModal(){ document.getElementById("trackModal").style.display = "none"; }
+function closeTrackModal(){
+    document.getElementById("trackModal").style.display = "none";
+    updateMultiPlaneInfoPanel();
+}
 
 function planeTrackIcon(hdg, onGround){
     const color = onGround ? "#5a7a96" : "#00d4ff";
@@ -2334,6 +2337,8 @@ function planeTrackIconColored(hdg, onGround, color){
 function updateMultiPlaneInfoPanel(){
     const tails = Object.keys(trackedPlanes);
     if (tails.length === 0){ document.getElementById("planeInfo").style.display = "none"; return; }
+    // Force side panel open on mobile so planeInfo is visible
+    if (window.innerWidth < 600 && !panelOpen) togglePanel();
     const tb = document.getElementById("trackBtn");
     tb.textContent = `■ Tracking ${tails.length} Plane${tails.length>1?'s':''}`;
     tb.style.color = "var(--red)"; tb.style.borderColor = "var(--red)";

@@ -1615,10 +1615,36 @@ def models_debug():
     lat = request.args.get("lat", 43.371169, type=float)
     lon = request.args.get("lon", -70.925974, type=float)
     hour_offset = request.args.get("hour", 0, type=int)
-    hour = datetime.now(timezone.utc).hour + hour_offset
+    now_utc = datetime.now(timezone.utc)
+    app_hour = now_utc.hour + hour_offset           # what /data uses as the array index
+    hour = app_hour
     raw = fetch_forecast(lat, lon, hour_offset)
     if not raw or "models" not in raw:
         return jsonify({"error": "no forecast data"}), 503
+    # Diagnostics: are the hourly arrays UTC-indexed (as /data assumes) or local-time-indexed?
+    diag = {}
+    true_idx = None
+    for mname, md in raw["models"].items():
+        times = ((md or {}).get("hourly") or {}).get("time", [])
+        off = (md or {}).get("utc_offset_seconds")
+        tidx = None
+        if times and off is not None:
+            target = now_utc.replace(minute=0, second=0, microsecond=0) + timedelta(hours=hour_offset)
+            for i, t in enumerate(times):
+                try:
+                    tu = datetime.strptime(t, "%Y-%m-%dT%H:%M").replace(tzinfo=timezone.utc) - timedelta(seconds=off)
+                except Exception:
+                    continue
+                if tu == target:
+                    tidx = i; break
+        diag[mname] = {"timezone": (md or {}).get("timezone"), "utc_offset_seconds": off,
+                       "time_first": times[0] if times else None,
+                       "time_at_app_index": times[app_hour] if app_hour < len(times) else None,
+                       "true_index_for_now": tidx,
+                       "time_at_true_index": times[tidx] if tidx is not None else None}
+        if true_idx is None: true_idx = tidx
+    if request.args.get("idx", "app") == "true" and true_idx is not None:
+        hour = true_idx
     STD_H = {1000: 364, 975: 820, 950: 1555, 925: 2500, 850: 4780}
     out = {}
     valid = None
@@ -1638,7 +1664,8 @@ def models_debug():
                 "alt_ft_msl": round(g * 3.28084) if g is not None else STD_H[lvl],
                 "speed": val(f"windspeed_{lvl}hPa"), "dir": val(f"winddirection_{lvl}hPa")}
         out[mname] = row
-    return jsonify({"lat": lat, "lon": lon, "valid_utc": valid, "hour_offset": hour_offset,
+    return jsonify({"lat": lat, "lon": lon, "valid_time_label": valid, "hour_index_used": hour, "app_hour_index": app_hour,
+                    "now_utc": now_utc.strftime("%Y-%m-%dT%H:%M"), "diagnostics": diag, "hour_offset": hour_offset,
                     "units": "speed in knots, direction in degrees (wind from)",
                     "models": out})
 

@@ -399,7 +399,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
         GFS_ENDPOINT_MODELS = {"hrrr_conus", "nam_conus", "gfs_seamless"}
         # Without an explicit model the /v1/gfs endpoint returns the GFS blend for all three,
         # which made HRRR/NAM duplicates of GFS. Ask for each model by its own API name.
-        API_MODEL_NAME = {"hrrr_conus": "gfs_hrrr", "nam_conus": "ncep_nam_conus"}
+        API_MODEL_NAME = {"gfs_seamless": "gfs_global", "hrrr_conus": "gfs_hrrr", "nam_conus": "ncep_nam_conus"}
         def model_endpoint(m):
             if m in GFS_ENDPOINT_MODELS:
                 return base_url.replace("/v1/forecast", "/v1/gfs")

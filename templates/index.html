@@ -1207,7 +1207,7 @@ async function load(){
                 <span style="color:var(--muted);font-size:0.62rem;letter-spacing:0.1em">DRIFT</span>
                 <span style="color:var(--text);text-align:right">${(d.freefall.distance/1609.344).toFixed(2)} mi</span>
             </div>`;
-        const MODEL_LABELS={"gfs_seamless":"GFS","icon_seamless":"ICON","hrrr_conus":"HRRR","ecmwf_ifs025":"ECMWF"};
+        const MODEL_LABELS={"gfs_seamless":"GFS","icon_seamless":"ICON","hrrr_conus":"HRRR","hrdps":"HRDPS","ecmwf_ifs025":"ECMWF"};
         const ml=d.models_loaded||{};
         const loadedModels=Object.keys(ml).filter(m=>ml[m]);
         let modelDots=Object.entries(MODEL_LABELS).map(([key,label])=>{

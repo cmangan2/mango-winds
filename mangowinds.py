@@ -838,14 +838,10 @@ def format_winds(data, hour, lat=0, lon=0):
                         ms = s0 + (s1 - s0) * t
                         break
             result[alt]["max_speed"] = round(max(ms, result[alt]["speed"]), 1)
-        # SFC max_speed from 10m model speeds
+        # SFC max_speed: highest of the models' own surface values (the same 10 m / 80 m mix
+        # that makes up the SFC average), never lower than the average itself.
         if 0 in result:
-            sfc_max_spds = []
-            for mh in models_h.values():
-                s10_arr = mh.get("windspeed_10m", [])
-                if hour < len(s10_arr) and s10_arr[hour] is not None:
-                    sfc_max_spds.append(float(s10_arr[hour]))
-            result[0]["max_speed"] = round(max(sfc_max_spds), 1) if sfc_max_spds else result[0]["speed"]
+            result[0]["max_speed"] = round(max(max(sfc_spds), result[0]["speed"]), 1) if sfc_spds else result[0]["speed"]
         # Build per-altitude spread map keyed by display altitude (1000ft increments)
         per_alt_spread = {}
         for alt in range(0, 15000, 1000):

@@ -57,7 +57,7 @@ try {
     --green: #39ff89;
     --orange: #ffaa00;
     --red: #ff4f4f;
-    --panel-w: 340px;
+    --panel-w: 392px;
     --drawer-h: 56px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -159,11 +159,11 @@ select:focus { border-color: var(--accent); }
 .alt-section-title { font-size: 0.64rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin: 10px 0 4px; }
 .alt-section-title.upper { color: var(--freefall); }
 .alt-section-title.lower { color: var(--canopy); }
-.wind-card { display: grid; grid-template-columns: 52px 20px 58px 58px 38px 42px 42px; align-items: center; gap: 4px; padding: 6px 10px; margin: 2px 0; border-radius: 6px; background: var(--card-alt); border: 1px solid transparent; transition: border-color 0.15s; font-family: 'Share Tech Mono', monospace; font-size: 0.78rem; }
+.wind-card { display: grid; grid-template-columns: 58px 24px minmax(50px,1fr) minmax(50px,1fr) 40px 40px 36px; align-items: center; gap: 4px; padding: 6px 10px; margin: 2px 0; border-radius: 6px; background: var(--card-alt); border: 1px solid transparent; transition: border-color 0.15s; font-family: 'Share Tech Mono', monospace; font-size: 0.78rem; }
 .wind-card:hover { border-color: var(--border); }
 .wind-card.upper { background: rgba(255,170,0,0.06); }
 .wind-card.upper .alt { color: var(--freefall); opacity: 0.75; }
-.wind-card .alt { color: var(--muted); font-size: 0.7rem; }
+.wind-card .alt { color: var(--muted); font-size: 0.7rem; white-space: nowrap; }
 .wind-card:not(.upper) .alt { color: var(--canopy); opacity: 0.85; }
 .wind-card .speed { text-align: right; font-weight: bold; }
 .wind-card .dir { color: var(--muted); font-size: 0.72rem; text-align: right; }

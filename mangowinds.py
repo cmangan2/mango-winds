@@ -391,7 +391,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
         # Short range (0-18h): GFS + ICON + HRRR + NAM — best resolution for current conditions
         # Long range (19-72h): GFS + ICON + ECMWF — HRRR/NAM don't go that far out
         if hour_offset <= 18:
-            ensemble_models = ["gfs_seamless", "icon_seamless", "hrrr_conus", "nam_conus"]
+            ensemble_models = ["gfs_seamless", "icon_seamless", "hrrr_conus"]
         else:
             ensemble_models = ["gfs_seamless", "icon_seamless", "ecmwf_ifs025"]
 
@@ -1897,7 +1897,7 @@ def data():
         pass
 
     # Build model status for frontend display
-    all_possible_models = ["gfs_seamless", "icon_seamless", "hrrr_conus", "nam_conus", "ecmwf_ifs025"]
+    all_possible_models = ["gfs_seamless", "icon_seamless", "hrrr_conus", "ecmwf_ifs025"]
     models_loaded = {}
     if raw and raw.get("source") == "openmeteo_ensemble":
         loaded = set(raw.get("models", {}).keys())

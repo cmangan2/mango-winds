@@ -2483,6 +2483,7 @@ async function startTrackingTail(tail){
 function stopTrackingTail(tail){
     const state = trackedPlanes[tail];
     if (!state) return;
+    _autoWatchMuted.add(tail);   // user stopped it: don't auto-restart this session
     if (state.pollInterval) clearInterval(state.pollInterval);
     if (state.autoSaveInterval) clearInterval(state.autoSaveInterval);
     if (state.animFrame) cancelAnimationFrame(state.animFrame);
@@ -2689,6 +2690,43 @@ function updateMultiPlaneInfoPanel(){
     document.getElementById("planeInfo").style.display = "block";
     document.getElementById("planeInfo").innerHTML = rows;
 }
+
+// ── Airborne watcher: while the page is open, check the DZ's saved planes every minute and
+//    start live tracking automatically for any that is flying. Stopping a plane mutes it until reload.
+const AUTOWATCH_MS = 60 * 1000;
+const _autoWatchMuted = new Set();
+let _autoWatchTimer = null, _autoWatchBusy = false, _autoWatchTails = { dz: null, at: 0, list: [] };
+
+async function autoWatchTick(){
+    if (_autoWatchBusy || document.hidden) return;
+    const dz = (document.getElementById("dz") || {}).value;
+    if (!dz) return;
+    _autoWatchBusy = true;
+    try {
+        if (_autoWatchTails.dz !== dz || Date.now() - _autoWatchTails.at > 5 * 60 * 1000){
+            const list = await fetch(`/tails?dz=${encodeURIComponent(dz)}`).then(r => r.json()).catch(() => []);
+            _autoWatchTails = { dz, at: Date.now(), list: Array.isArray(list) ? list : [] };
+        }
+        const todo = _autoWatchTails.list.filter(t => !trackedPlanes[t] && !_autoWatchMuted.has(t));
+        const checks = await Promise.all(todo.map(t =>
+            fetch(`/plane?tail=${encodeURIComponent(t)}`).then(r => r.json()).then(d => [t, d]).catch(() => [t, null])));
+        const flying = checks.filter(([t, d]) => d && d.found && d.lat != null && d.lon != null && !d.on_ground).map(([t]) => t);
+        for (const tail of flying){
+            if (document.getElementById("dz").value !== dz) break;   // DZ changed mid-check
+            showJumpRunStatus(`✈️ ${tail} is airborne — tracking started automatically`);
+            setTimeout(() => showJumpRunStatus(null), 6000);
+            await startTrackingTail(tail);
+        }
+    } catch(e){ console.warn("Auto-watch error:", e); }
+    _autoWatchBusy = false;
+}
+function startAutoWatch(){
+    if (_autoWatchTimer) return;
+    _autoWatchTimer = setInterval(autoWatchTick, AUTOWATCH_MS);
+    setTimeout(autoWatchTick, 8000);
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", startAutoWatch);
+else startAutoWatch();
 
 function startAutoDetect(){
     if (_autoDetectInterval) return;

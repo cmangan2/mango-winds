@@ -548,12 +548,6 @@ select:focus { border-color: var(--accent); }
                 <div id="jumpRunInfo" style="display:none"></div>
                 <button id="lastLoadBtn" onclick="openLastLoadModal()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#00d4ff;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">✈️ Show Last Load</button>
                 <button id="fetchTrailsBtn" onclick="openFetchModal()" style="margin-top:6px;width:100%;padding:6px 10px;background:none;color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🔄 Fetch Plane Data</button>
-                <button id="fixJrBtn" onclick="toggleFixJrPanel()" style="margin-bottom:6px;width:100%;padding:6px 10px;background:none;color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🛠️ Fix Jump Run</button>
-                <div id="fixJrPanel" style="display:none;margin-bottom:6px;padding:8px 10px;background:var(--card-bg);border:1px solid var(--border);border-radius:6px">
-                    <div style="font-size:0.68rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Looks wrong for today?</div>
-                    <button onclick="startManualJrOverride()" style="width:100%;margin-bottom:5px;padding:6px;background:none;border:1px solid #00d4ff;color:#00d4ff;border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✏️ Draw Manually</button>
-                    <button onclick="discardTodayJumpRun()" style="width:100%;padding:6px;background:none;border:1px solid #ff4f4f;color:#ff4f4f;border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">🗑️ Discard Today's</button>
-                </div>
                 </div><!-- end btn-scroll -->
             </div><!-- end controls -->
 
@@ -968,14 +962,9 @@ function endDraw(ll){
     const dist = Math.sqrt((startPx.x-endPx.x)**2+(startPx.y-endPx.y)**2);
     if (dist < 15) {
         jrStart = null;
-        if (manualJrOverrideActive){ manualJrOverrideActive = false; showJumpRunStatus(null); }
         return;
     }
     jrEnd = endPt; drawJumpRun(); toggleDrawMode();
-    if (manualJrOverrideActive){
-        manualJrOverrideActive = false;
-        saveManualJrOverride(jrStart, jrEnd, Math.round(bearing(jrStart, jrEnd)));
-    }
 }
 
 function onMapMouseDown(e){ 
@@ -1675,58 +1664,6 @@ function submitDefineJumpRun(){
     jrStart=startPt; jrEnd=offsetLatLon(startPt[0],startPt[1],dir,length);
     closeDefineModal(); drawJumpRun();
     if (window.innerWidth<600&&panelOpen) togglePanel();
-}
-
-// ── JUMP RUN OVERRIDE (manual fix / discard for today's shared jump run) ──
-let manualJrOverrideActive = false;
-
-function toggleFixJrPanel(){
-    const p = document.getElementById("fixJrPanel");
-    p.style.display = (p.style.display === "none") ? "block" : "none";
-}
-
-function startManualJrOverride(){
-    // Uses the same click-and-drag draw-on-map interaction as "Draw Jump Run",
-    // then saves the resulting line as today's official jump run for this DZ.
-    manualJrOverrideActive = true;
-    document.getElementById("fixJrPanel").style.display = "none";
-    showJumpRunStatus("✏️ Click and drag on the map to set today's jump run");
-    if (!drawMode) toggleDrawMode();
-}
-
-function saveManualJrOverride(start, end, hdg){
-    const dzName = document.getElementById("dz").value;
-    fetch('/jumprun', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            dz: dzName, start, end, heading: hdg,
-            alt: null, tail: '', source: 'manual'
-        })
-    }).then(r => r.json()).then(d => {
-        if (d.status === 'saved'){
-            showJumpRunStatus("✅ Jump run set");
-            loadCommunityJR();
-        } else {
-            showJumpRunStatus("⚠️ Could not save override");
-        }
-    }).catch(e => showJumpRunStatus("⚠️ Could not save — check connection"));
-}
-
-function discardTodayJumpRun(){
-    document.getElementById("fixJrPanel").style.display = "none";
-    const dzName = document.getElementById("dz").value;
-    fetch('/jumprun', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dz: dzName, source: 'discard' })
-    }).then(r => r.json()).then(d => {
-        if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
-        if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
-        if (communityJrArrow){ communityJrArrow.remove(); communityJrArrow = null; }
-        clearTrackedJR();
-        showJumpRunStatus("🗑️ Today's jump run discarded");
-    }).catch(e => showJumpRunStatus("⚠️ Could not discard — check connection"));
 }
 
 function initMap(){
@@ -2972,8 +2909,6 @@ function stopTracking(){
     if (arrow) arrow.remove();
     if (planeTrail.length > 10) saveLastLoad();
     showJumpRunStatus(null);
-    jrMarkPoints = [];
-    jrMarkMarkers.forEach(m => m.remove()); jrMarkMarkers = [];
     map.getContainer().style.cursor = "";
     showStoppedPanel();
     const tb = document.getElementById("trackBtn");
@@ -2994,7 +2929,6 @@ function showStoppedPanel(){
         `<span style="color:var(--muted);font-weight:bold">${tail} — Stopped</span><br>` +
         `ALT&nbsp;&nbsp;${alt}<br>SPD&nbsp;&nbsp;${spd}<br>HDG&nbsp;&nbsp;${hdg}` +
         `<br><div style="display:flex;gap:4px;margin-top:6px">` +
-        `<button onclick="startJrMarkMode()" style="flex:1;padding:4px;background:none;border:1px solid #ff4f4f;color:#ff4f4f;border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.78rem;cursor:pointer">✏️ Mark JR</button>` +
         `<button onclick="resumeTracking()" style="flex:1;padding:4px;background:none;border:1px solid var(--accent);color:var(--accent);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.78rem;cursor:pointer">▶ Resume</button>` +
         `<button onclick="clearTracking()" style="flex:1;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.78rem;cursor:pointer">✕ Clear</button>` +
         `</div>`;
@@ -3027,16 +2961,12 @@ function clearTracking(){
     if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
     if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
     if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
-    if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
-    if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
     if (planeTrailLine){ planeTrailLine.remove(); planeTrailLine = null; }
     if (historyTrailLine){ historyTrailLine.remove(); historyTrailLine = null; }
     const arrow = document.getElementById("planeOffscreenArrow");
     if (arrow) arrow.remove();
     trackedPlane = null; planeHistory = []; divingConfirmed = 0;
     planeTrail = []; window._planeTrailMeta = [];
-    frozenTrailPoints = null; jrMarkPoints = [];
-    jrMarkMarkers.forEach(m => m.remove()); jrMarkMarkers = [];
     map.getContainer().style.cursor = "";
     showJumpRunStatus(null);
     document.getElementById("planeInfo").style.display = "none";
@@ -3048,224 +2978,6 @@ function clearTracking(){
     tb.onclick = openTrackModal;
 }
 
-
-// ── COMMUNITY JUMP RUN ──
-let frozenTrailPoints = null;   // points from frozen trail for click selection
-let jrMarkMode = false;         // waiting for user to click start/end
-let jrMarkPoints = [];          // [start, end] latlng clicks
-let jrMarkMarkers = [];         // temp markers during selection
-let communityJrLine = null;
-let communityJrLabel = null;
-let communityJrArrow = null;
-let frozenTrailLine = null;
-
-function freezeTrail(){
-    if (!trackedPlane || planeTrail.length < 2){
-        showJumpRunStatus("No flight trail to freeze yet");
-        return;
-    }
-
-    // Save trail before stopTracking clears it
-    const savedTrail = [...planeTrail];
-    const savedTrailLine = planeTrailLine;
-
-    // Stop everything cleanly — but intercept trail removal
-    planeTrail = [];          // prevent stopTracking from using stale trail
-    planeTrailLine = null;    // prevent stopTracking from removing the line
-
-    stopTracking();           // full cleanup of plane marker, intervals, JR lines etc
-
-    // Restore frozen trail
-    frozenTrailPoints = savedTrail;
-    planeTrailLine = savedTrailLine;
-    if (planeTrailLine){ planeTrailLine.setStyle({ opacity: 0.9, weight: 5 }); }
-
-    // Show freeze UI
-    document.getElementById("planeInfo").style.display = "block";
-    document.getElementById("planeInfo").innerHTML =
-        `<span style="color:var(--freefall);font-weight:bold">Trail frozen</span>` +
-        `<br><div style="display:flex;gap:4px;margin-top:6px">` +
-        `<button onclick="startJrMarkMode()" style="flex:1;padding:5px;background:none;border:1px solid #ff4f4f;color:#ff4f4f;border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✏️ Mark Jump Run</button>` +
-        `<button onclick="clearFrozenTrail()" style="flex:1;padding:5px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✕ Clear All</button>` +
-        `</div>`;
-
-    showJumpRunStatus("Tap 'Mark Jump Run' then tap start and end on the trail.");
-}
-
-function nearestTrailPoint(clickLatLng){
-    const trail = frozenTrailPoints || planeTrail;
-    if (!trail || trail.length === 0) return clickLatLng;
-    let best = null, bestDist = Infinity;
-    for (const pt of trail){
-        const d = map.distance(clickLatLng, L.latLng(pt[0], pt[1]));
-        if (d < bestDist){ bestDist = d; best = L.latLng(pt[0], pt[1]); }
-    }
-    return best || clickLatLng;
-}
-
-function startJrMarkMode(){
-    jrMarkMode = true;
-    jrMarkPoints = [];
-    jrMarkMarkers.forEach(m => m.remove()); jrMarkMarkers = [];
-    map.getContainer().style.cursor = "crosshair";
-    showJumpRunStatus("Tap the START of the jump run on the trail...");
-
-    map.once('click', function(e){
-        const snapped = nearestTrailPoint(e.latlng);
-        jrMarkPoints.push(snapped);
-        const m = L.circleMarker([snapped.lat, snapped.lng], {
-            radius: 8, color: '#ff4f4f', fillColor: '#ff4f4f', fillOpacity: 0.9, weight: 2
-        }).addTo(map);
-        jrMarkMarkers.push(m);
-        showJumpRunStatus("Now tap the END of the jump run on the trail...");
-
-        map.once('click', function(e2){
-            const snapped2 = nearestTrailPoint(e2.latlng);
-            jrMarkPoints.push(snapped2);
-            const m2 = L.circleMarker([snapped2.lat, snapped2.lng], {
-                radius: 8, color: '#ff4f4f', fillColor: '#ff4f4f', fillOpacity: 0.9, weight: 2
-            }).addTo(map);
-            jrMarkMarkers.push(m2);
-            map.getContainer().style.cursor = "";
-            jrMarkMode = false;
-            drawAndSaveCommunityJR();
-        });
-    });
-}
-
-function drawAndSaveCommunityJR(){
-    if (jrMarkPoints.length < 2) return;
-    const start = jrMarkPoints[0];
-    const end   = jrMarkPoints[1];
-
-    if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
-    if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
-    if (communityJrArrow){ communityJrArrow.remove(); communityJrArrow = null; }
-
-    // Extract trail segment between the two snapped points
-    const trail = frozenTrailPoints || planeTrail;
-    let coords = [[start.lat, start.lng], [end.lat, end.lng]]; // fallback straight line
-    if (trail && trail.length > 1){
-        // Find indices of start and end in trail
-        let si = 0, ei = trail.length - 1, sd = Infinity, ed = Infinity;
-        for (let i = 0; i < trail.length; i++){
-            const ds = map.distance(start, L.latLng(trail[i][0], trail[i][1]));
-            const de = map.distance(end,   L.latLng(trail[i][0], trail[i][1]));
-            if (ds < sd){ sd = ds; si = i; }
-            if (de < ed){ ed = de; ei = i; }
-        }
-        // Ensure start < end
-        if (si > ei){ const tmp = si; si = ei; ei = tmp; }
-        const seg = trail.slice(si, ei + 1);
-        if (seg.length >= 2) coords = seg;
-    }
-
-    communityJrLine = L.polyline(coords, {
-        color: "#ff4f4f", weight: 4, opacity: 0.9
-    }).addTo(map);
-
-    // coords is array of [lat,lon] pairs
-    const hdg = bearing(
-        Array.isArray(coords[0]) ? coords[0] : [coords[0].lat, coords[0].lng],
-        Array.isArray(coords[coords.length-1]) ? coords[coords.length-1] : [coords[coords.length-1].lat, coords[coords.length-1].lng]
-    );
-    const midPt = coords[Math.floor(coords.length/2)];
-    const midLat = Array.isArray(midPt) ? midPt[0] : midPt.lat;
-    const midLng = Array.isArray(midPt) ? midPt[1] : midPt.lng;
-    const startPt2 = coords[0];
-    const startLat = Array.isArray(startPt2) ? startPt2[0] : startPt2.lat;
-    const startLng = Array.isArray(startPt2) ? startPt2[1] : startPt2.lng;
-
-    communityJrLabel = L.marker([startLat, startLng], {
-        icon: L.divIcon({
-            html: `<div style="display:inline-block;background:rgba(7,11,16,0.95);border:1.5px solid #ff4f4f;border-radius:6px;padding:4px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;font-weight:700;color:#ff4f4f;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.7);white-space:nowrap">Jump Run</div>`,
-            className: "", iconAnchor: [0,0]
-        }), interactive: false
-    }).addTo(map);
-
-    // Save to server
-    const dzName = document.getElementById("dz").value;
-    const alt = trackedPlane ? trackedPlane.alt : null;
-    const tail = trackedPlane ? trackedPlane.tail : "";
-
-    const saveStart = Array.isArray(coords[0]) ? coords[0] : [coords[0].lat, coords[0].lng];
-    const saveEnd = Array.isArray(coords[coords.length-1]) ? coords[coords.length-1] : [coords[coords.length-1].lat, coords[coords.length-1].lng];
-    fetch('/jumprun', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            dz: dzName,
-            start: saveStart,
-            end: saveEnd,
-            alt: alt,
-            heading: Math.round(hdg),
-            tail: tail,
-        })
-    }).then(r => r.json()).then(d => {
-        if (d.status === 'saved'){
-            const n = d.submissions || 1;
-            const msg = n > 1 ? `✅ Saved! Averaged with ${n} submissions today.` : '✅ Jump run saved! Others at this DZ can now see it.';
-            showJumpRunStatus(msg);
-            jrMarkMarkers.forEach(m => m.remove()); jrMarkMarkers = [];
-            // Update planeInfo
-            document.getElementById("planeInfo").innerHTML =
-                `<span style="color:#39ff89;font-weight:bold">Jump run saved!</span>` +
-                `<br><div style="display:flex;gap:4px;margin-top:6px">` +
-                `<button onclick="startJrMarkMode()" style="flex:1;padding:5px;background:none;border:1px solid #ff4f4f;color:#ff4f4f;border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✏️ Re-mark</button>` +
-                `<button onclick="clearFrozenTrail()" style="flex:1;padding:5px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✕ Clear All</button>` +
-                `</div>`;
-        }
-    }).catch(e => showJumpRunStatus("⚠️ Could not save — check connection"));
-}
-
-function clearFrozenTrail(){
-    if (planeTrailLine){ planeTrailLine.remove(); planeTrailLine = null; }
-    if (frozenTrailLine){ frozenTrailLine.remove(); frozenTrailLine = null; }
-    if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
-    if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
-    if (communityJrArrow){ communityJrArrow.remove(); communityJrArrow = null; }
-    jrMarkMarkers.forEach(m => m.remove()); jrMarkMarkers = [];
-    frozenTrailPoints = null; jrMarkPoints = [];
-    document.getElementById("planeInfo").style.display = "none";
-    planeTrail = [];
-    map.getContainer().style.cursor = "";
-    showJumpRunStatus(null);
-}
-
-async function loadCommunityJR(){
-    const dzName = document.getElementById("dz").value;
-    try {
-        const r = await fetch(`/jumprun?dz=${encodeURIComponent(dzName)}`);
-        const d = await r.json();
-        if (!d.start || !d.end){
-            showJumpRunStatus("No jump run saved for this DZ today");
-            return;
-        }
-        // Show age in label
-        const ts = new Date(d.timestamp);
-        const ageHours = (Date.now() - ts.getTime()) / 3600000;
-        const dateStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        let timeStr;
-        if (ageHours < 0.25) timeStr = `${dateStr} · just now`;
-        else if (ageHours < 1) timeStr = `${dateStr} · ${Math.round(ageHours*60)}min ago`;
-        else if (ageHours < 24) timeStr = `${dateStr} · ` + ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
-        else timeStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-        // Draw it
-        if (communityJrLine){ communityJrLine.remove(); }
-        if (communityJrLabel){ communityJrLabel.remove(); }
-        communityJrLine = L.polyline([d.start, d.end], {
-            color: "#ff4f4f", weight: 4, opacity: 0.9
-        }).addTo(map);
-        communityJrLabel = L.marker(d.start, {
-            icon: L.divIcon({
-                html: `<div style="display:inline-block;background:rgba(7,11,16,0.95);border:1.5px solid #ff4f4f;border-radius:6px;padding:5px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;font-weight:700;color:#ff4f4f;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.7);white-space:nowrap;line-height:1.5">Jump Run ${d.heading ? d.heading+'°' : ''}<br><span style="font-weight:600;font-size:0.78rem;letter-spacing:0.06em">${timeStr}${d.tail ? ' · '+d.tail : ''}${d.submission_count > 1 ? ' · '+d.submission_count+' reports' : ''}</span></div>`,
-                className: "", iconAnchor: [0, 24]
-            }), interactive: false
-        }).addTo(map);
-    } catch(e){
-        showJumpRunStatus("⚠️ Could not load jump run data");
-    }
-}
 
 // ── CLOUD POPUP DRAG ──
 (function(){

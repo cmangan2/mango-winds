@@ -1892,9 +1892,7 @@ function planeTrackIcon(hdg, onGround){
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="-30 -30 60 60"
         style="transform:rotate(${hdg}deg);overflow:visible;filter:drop-shadow(0 0 6px ${glow})">
       <!-- Fuselage — boxy Caravan style -->
-      <rect x="-4" y="-18" width="8" height="36" rx="3" fill="${color}"/>
-      <!-- Nose cone -->
-      <polygon points="0,-28 -3,-18 3,-18" fill="${color}"/>
+      <rect x="-4" y="-23" width="8" height="41" rx="3" fill="${color}"/>
       <!-- Wide high wings -->
       <polygon points="-28,-2 -4,-5 -4,1 -28,3" fill="${color}"/>
       <polygon points="28,-2 4,-5 4,1 28,3" fill="${color}"/>
@@ -2262,8 +2260,7 @@ async function drawLegacyLastLoad(dzName){
     lastLoadPlane = L.marker(lastPt, {
         icon: L.divIcon({
             html: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="-30 -30 60 60" style="opacity:0.55;filter:drop-shadow(0 0 4px rgba(0,212,255,0.4))">
-                <rect x="-4" y="-18" width="8" height="36" rx="3" fill="#00d4ff"/>
-                <polygon points="0,-28 -3,-18 3,-18" fill="#00d4ff"/>
+                <rect x="-4" y="-23" width="8" height="41" rx="3" fill="#00d4ff"/>
                 <polygon points="-28,-2 -4,-5 -4,1 -28,3" fill="#00d4ff"/>
                 <polygon points="28,-2 4,-5 4,1 28,3" fill="#00d4ff"/>
                 <polygon points="-14,17 -3,15 -3,19 -14,19" fill="#00d4ff"/>
@@ -2653,8 +2650,7 @@ function planeTrackIconColored(hdg, onGround, color){
     const glow = color + 'aa';
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="-30 -30 60 60"
         style="transform:rotate(${hdg}deg);overflow:visible;filter:drop-shadow(0 0 6px ${glow})">
-      <rect x="-4" y="-18" width="8" height="36" rx="3" fill="${color}"/>
-      <polygon points="0,-28 -3,-18 3,-18" fill="${color}"/>
+      <rect x="-4" y="-23" width="8" height="41" rx="3" fill="${color}"/>
       <polygon points="-28,-2 -4,-5 -4,1 -28,3" fill="${color}"/>
       <polygon points="28,-2 4,-5 4,1 28,3" fill="${color}"/>
       <polygon points="-14,17 -3,15 -3,19 -14,19" fill="${color}"/>

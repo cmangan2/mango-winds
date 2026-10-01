@@ -362,6 +362,26 @@ select:focus { border-color: var(--accent); }
     </div>
 </div>
 
+<!-- ── FETCH PLANE DATA MODAL ── -->
+<div id="fetchModal" style="display:none;position:fixed;inset:0;background:rgba(7,11,16,0.88);z-index:99999;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px" onclick="if(event.target===this)closeFetchModal()">
+    <div style="background:var(--panel-bg);border:1px solid var(--border);border-radius:16px;max-width:380px;width:100%;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.6);overflow:hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px 12px;border-bottom:1px solid var(--border);font-weight:700;font-size:1rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--accent)">
+            <span>🔄 Fetch Plane Data</span>
+            <button onclick="closeFetchModal()" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:0 4px">✕</button>
+        </div>
+        <div style="padding:10px 18px 0;font-size:0.78rem;color:var(--muted)">Pick the planes to pull the most recent flight for.</div>
+        <div id="fetchPlaneList" style="padding:10px 18px;display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto;color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:0.8rem">Loading planes…</div>
+        <div id="fetchSelectRow" style="display:none;padding:0 18px 6px;gap:14px;font-size:0.75rem">
+            <button onclick="setAllFetchChecks(true)" style="background:none;border:none;color:#00d4ff;cursor:pointer;padding:0;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;letter-spacing:0.05em">Select all</button>
+            <button onclick="setAllFetchChecks(false)" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:0;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;letter-spacing:0.05em">Select none</button>
+        </div>
+        <div id="fetchResults" style="padding:0 18px;font-family:'Share Tech Mono',monospace;font-size:0.74rem;line-height:1.7;color:var(--muted)"></div>
+        <div style="padding:10px 18px 16px">
+            <button id="fetchGoBtn" onclick="runFetchSelected()" style="display:none;width:100%;padding:10px;background:rgba(0,212,255,0.12);color:#00d4ff;border:1px solid #00d4ff;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">🔄 Fetch</button>
+        </div>
+    </div>
+</div>
+
 <!-- ── TRACK PLANE MODAL ── -->
 <div id="trackModal" style="display:none;position:fixed;inset:0;background:rgba(7,11,16,0.88);z-index:99999;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px">
     <div style="background:var(--panel-bg);border:1px solid var(--border);border-radius:16px;max-width:380px;width:100%;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.6);overflow:hidden">
@@ -502,7 +522,7 @@ select:focus { border-color: var(--accent); }
                 <button id="advancedBtn" onclick="openAdvancedModal()" style="margin-top:6px;width:100%;padding:6px 10px;background:var(--card-bg);color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">⚙️ Canopy Settings</button>
                 <div id="jumpRunInfo" style="display:none"></div>
                 <button id="lastLoadBtn" onclick="toggleLastLoad()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#00d4ff;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">✈️ Show Last Load</button>
-                <button id="fetchTrailsBtn" onclick="fetchTrailsNow()" style="margin-top:6px;width:100%;padding:6px 10px;background:none;color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🔄 Fetch Plane Data Now</button>
+                <button id="fetchTrailsBtn" onclick="openFetchModal()" style="margin-top:6px;width:100%;padding:6px 10px;background:none;color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🔄 Fetch Plane Data</button>
                 <button id="communityJrBtn" onclick="loadCommunityJR()" style="margin-top:6px;margin-bottom:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">📍 Show Last Jump Run</button>
                 <button id="fixJrBtn" onclick="toggleFixJrPanel()" style="margin-bottom:6px;width:100%;padding:6px 10px;background:none;color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🛠️ Fix Jump Run</button>
                 <div id="fixJrPanel" style="display:none;margin-bottom:6px;padding:8px 10px;background:var(--card-bg);border:1px solid var(--border);border-radius:6px">
@@ -1770,7 +1790,7 @@ async function openTrackModal(){
     try {
         const [tailsRes, trailsRes] = await Promise.all([
             fetch(`/tails?dz=${encodeURIComponent(dz)}`).then(r=>r.json()).catch(()=>[]),
-            fetch(`/adsb_trails?dz=${encodeURIComponent(dz)}`).then(r=>r.json()).catch(()=>({}))
+            fetch(`/adsb_trails?dz=${encodeURIComponent(dz)}&summary=1`).then(r=>r.json()).catch(()=>({}))
         ]);
         const tails = tailsRes || [];
 
@@ -1782,7 +1802,7 @@ async function openTrackModal(){
         const nowMs = Date.now();
         const activeTails = [];
         for (const [tail, entry] of Object.entries(trailsRes)){
-            const age = nowMs - new Date(entry.fetched_at).getTime();
+            const age = adsbAgeMs(entry, nowMs);
             if (age < 10 * 60 * 1000) activeTails.push(tail);
         }
 
@@ -1797,7 +1817,7 @@ async function openTrackModal(){
                 const entry = trailsRes[tail];
                 const isActive = activeTails.includes(tail);
                 const lastSeen = entry ? (() => {
-                    const age = Math.round((nowMs - new Date(entry.fetched_at).getTime()) / 60000);
+                    const age = Math.round(adsbAgeMs(entry, nowMs) / 60000);
                     return age < 2 ? '🟢 Live now' : age < 60 ? `🟡 ${age}m ago` : '⚫ Stale';
                 })() : '⚫ No data';
                 const color = isActive ? '#00d4ff' : 'var(--muted)';
@@ -2007,54 +2027,152 @@ function clearLastLoad(){
     if (btn){ btn.textContent = "✈️ Show Last Load"; btn.style.color = "#00d4ff"; btn.style.borderColor = "var(--border)"; }
 }
 
-// Fetch today's ADS-B trails for this DZ's saved tails right now (instead of waiting for the hourly poll)
+// How long ago a cached plane was actually seen (ms). Prefers the plane's own last-seen time;
+// falls back to when we fetched it, for entries cached before last_seen existed.
+function adsbAgeMs(entry, nowMs){
+    const seenMs = entry && entry.last_seen ? entry.last_seen * 1000 : new Date(entry && entry.fetched_at).getTime();
+    return (nowMs || Date.now()) - seenMs;
+}
+
+// ── Fetch Plane Data popup: choose which saved planes to pull ADS-B data for ──
 let fetchTrailsBusy = false;
-async function fetchTrailsNow(){
+const fmtClock = ts => new Date(ts * 1000).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+
+function updateFetchCount(){
+    const btn = document.getElementById("fetchGoBtn");
+    const n = document.querySelectorAll('#fetchPlaneList input[type=checkbox]:checked').length;
+    btn.textContent = fetchTrailsBusy ? "⏳ Fetching…" : (n ? `🔄 Fetch ${n} plane${n === 1 ? "" : "s"}` : "Pick at least one plane");
+    btn.disabled = fetchTrailsBusy || n === 0;
+    btn.style.opacity = btn.disabled ? "0.5" : "1";
+}
+
+function setAllFetchChecks(on){
+    if (fetchTrailsBusy) return;
+    document.querySelectorAll('#fetchPlaneList input[type=checkbox]').forEach(c => { c.checked = on; });
+    updateFetchCount();
+}
+
+// Build the plane rows. keepChecks=true preserves what's ticked (used after a fetch finishes).
+async function loadFetchRows(keepChecks){
+    const dz = document.getElementById("dz").value;
+    const list = document.getElementById("fetchPlaneList");
+    const prev = new Set([...list.querySelectorAll('input[type=checkbox]:checked')].map(c => c.value));
+    let tails = [], trails = {};
+    try {
+        [tails, trails] = await Promise.all([
+            fetch(`/tails?dz=${encodeURIComponent(dz)}`).then(r=>r.json()).catch(()=>[]),
+            fetch(`/adsb_trails?dz=${encodeURIComponent(dz)}&summary=1`).then(r=>r.json()).catch(()=>({}))
+        ]);
+    } catch(e){}
+    list.textContent = "";
+    const goBtn = document.getElementById("fetchGoBtn");
+    const selRow = document.getElementById("fetchSelectRow");
+    if (!tails.length){
+        list.textContent = "No planes saved for this DZ yet — tap Track Plane and enter a tail number first.";
+        goBtn.style.display = "none"; selRow.style.display = "none";
+        return;
+    }
+    tails.forEach(tail => {
+        const entry = trails[tail];
+        let sub = "No data fetched yet";
+        if (entry){
+            if (entry.flight_start && entry.flight_end){
+                sub = `Last flight ${fmtClock(entry.flight_start)}–${fmtClock(entry.flight_end)}` +
+                      (entry.max_alt ? ` · max ${Math.round(entry.max_alt).toLocaleString()} ft` : "");
+            } else {
+                sub = "Data cached";
+            }
+        }
+        const row = document.createElement("label");
+        row.style.cssText = "display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--card-alt);border:1px solid var(--border);border-radius:8px;cursor:pointer";
+        const cb = document.createElement("input");
+        cb.type = "checkbox"; cb.value = tail;
+        cb.checked = keepChecks ? prev.has(tail) : true;
+        cb.style.cssText = "width:18px;height:18px;accent-color:#00d4ff;flex:none";
+        cb.onchange = updateFetchCount;
+        const txt = document.createElement("div");
+        const name = document.createElement("div");
+        name.textContent = tail;
+        name.style.cssText = "font-size:0.9rem;color:#00d4ff;font-weight:bold";
+        const info = document.createElement("div");
+        info.textContent = sub;
+        info.style.cssText = "font-size:0.7rem;color:var(--muted);margin-top:2px";
+        txt.append(name, info);
+        row.append(cb, txt);
+        list.appendChild(row);
+    });
+    goBtn.style.display = "block"; selRow.style.display = "flex";
+    updateFetchCount();
+}
+
+async function openFetchModal(){
+    document.getElementById("fetchModal").style.display = "flex";
+    document.getElementById("fetchResults").textContent = "";
+    document.getElementById("fetchPlaneList").textContent = "Loading planes…";
+    document.getElementById("fetchGoBtn").style.display = "none";
+    document.getElementById("fetchSelectRow").style.display = "none";
+    await loadFetchRows(false);
+}
+
+function closeFetchModal(){
+    document.getElementById("fetchModal").style.display = "none";
+}
+
+async function runFetchSelected(){
     if (fetchTrailsBusy) return;
     const dzName = document.getElementById("dz").value;
-    const btn = document.getElementById("fetchTrailsBtn");
-    const setBtn = txt => { if (btn) btn.textContent = txt; };
-    let msg = null;
+    const picked = [...document.querySelectorAll('#fetchPlaneList input[type=checkbox]:checked')].map(c => c.value);
+    if (!picked.length) return;
+    const out = document.getElementById("fetchResults");
+    out.textContent = "";
+    const line = (txt, color) => {
+        const d = document.createElement("div");
+        d.textContent = txt;
+        if (color) d.style.color = color;
+        out.appendChild(d);
+    };
     fetchTrailsBusy = true;
-    setBtn("⏳ Fetching plane data…");
+    document.querySelectorAll('#fetchPlaneList input[type=checkbox]').forEach(c => { c.disabled = true; });
+    updateFetchCount();
+    let redraw = false;
     try {
         const r = await fetch('/adsb_trails/fetch_now', {
             method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ dz: dzName })
+            body: JSON.stringify({ dz: dzName, tails: picked })
         });
         const j = await r.json().catch(()=>({}));
-        if (r.status === 404){ msg = j.message || "No tail numbers saved for this DZ yet — tap Track Plane and add one"; return; }
-        if (r.status === 429){ msg = `Just fetched — try again in ${j.retry_after || 20}s`; return; }
-        if (!r.ok){ msg = "⚠️ Could not start the fetch"; return; }
+        if (r.status === 404 || r.status === 400){ line(j.message || "Could not start the fetch", "var(--red)"); return; }
+        if (r.status === 429){ line(`Just fetched — try again in ${j.retry_after || 20}s`); return; }
+        if (!r.ok){ line("⚠️ Could not start the fetch", "var(--red)"); return; }
+        if (j.started === false) line("Another fetch was already running — tap Fetch again if a plane is missing below.");
 
-        // Wait for the background fetch to finish (checks every 1.5s, gives up after ~2 min)
+        // Wait for the background fetch (checks every 1.5s, gives up after ~2 min)
         let summary = null, finished = false;
         for (let i = 0; i < 80; i++){
             await new Promise(res => setTimeout(res, 1500));
             const s = await fetch('/adsb_trails/fetch_status').then(x=>x.json()).catch(()=>null);
             if (s && !s.running){ summary = s.summary; finished = true; break; }
         }
-        if (!finished){ msg = "Still fetching — check again in a minute"; return; }
+        if (!finished){ line("Still fetching — check again in a minute."); return; }
 
-        // Redraw the trails on the map with the fresh data
-        if (lastLoadVisible) clearLastLoad();
-        await toggleLastLoad();
-
-        const saved = summary ? Object.entries(summary.saved || {}) : [];
-        if (saved.length){
-            const pts = saved.reduce((n, [, c]) => n + c, 0);
-            msg = `✓ ${saved.map(([t]) => t).join(", ")} — ${pts.toLocaleString()} points`;
-        } else if (summary && (summary.errors || []).length){
-            msg = "⚠️ Plane data source didn't respond — try again shortly";
-        } else {
-            msg = "No ADS-B data found for the saved planes today";
-        }
+        const saved = (summary && summary.saved) || {};
+        picked.forEach(t => {
+            if (saved[t] != null) line(`✓ ${t} — ${saved[t].toLocaleString()} points`, "#39ff89");
+            else if (summary && (summary.errors || []).includes(t)) line(`⚠ ${t} — data source didn't respond`, "var(--red)");
+            else line(`– ${t} — no flights found today`);
+        });
+        redraw = Object.keys(saved).length > 0;
     } catch(e){
-        msg = "⚠️ Could not fetch plane data";
+        line("⚠️ Could not fetch plane data", "var(--red)");
     } finally {
         fetchTrailsBusy = false;
-        setBtn("🔄 Fetch Plane Data Now");
-        if (msg){ showJumpRunStatus(msg); setTimeout(() => showJumpRunStatus(null), 6000); }
+        document.querySelectorAll('#fetchPlaneList input[type=checkbox]').forEach(c => { c.disabled = false; });
+        updateFetchCount();
+        if (redraw){
+            loadFetchRows(true);                          // refresh "Last flight ..." lines
+            if (lastLoadVisible) clearLastLoad();        // and redraw the trails on the map
+            toggleLastLoad();
+        }
     }
 }
 
@@ -2258,11 +2376,11 @@ async function trackAllVisible(){
     try {
         const [tails, trailsData] = await Promise.all([
             fetch(`/tails?dz=${encodeURIComponent(dz)}`).then(r=>r.json()).catch(()=>[]),
-            fetch(`/adsb_trails?dz=${encodeURIComponent(dz)}`).then(r=>r.json()).catch(()=>({}))
+            fetch(`/adsb_trails?dz=${encodeURIComponent(dz)}&summary=1`).then(r=>r.json()).catch(()=>({}))
         ]);
         const nowMs = Date.now();
         const activeTails = Object.entries(trailsData)
-            .filter(([,e]) => (nowMs - new Date(e.fetched_at).getTime()) < 10*60*1000)
+            .filter(([,e]) => adsbAgeMs(e, nowMs) < 10*60*1000)
             .map(([t]) => t);
         const toTrack = activeTails.length > 0 ? activeTails : tails;
         closeTrackModal();
@@ -2424,11 +2542,11 @@ async function checkAutoDetect(){
     const dz = document.getElementById("dz").value;
     if (!dz) return;
     try {
-        const r = await fetch(`/adsb_trails?dz=${encodeURIComponent(dz)}`);
+        const r = await fetch(`/adsb_trails?dz=${encodeURIComponent(dz)}&summary=1`);
         const data = await r.json();
         const nowMs = Date.now();
         for (const [tail, entry] of Object.entries(data)){
-            const age = nowMs - new Date(entry.fetched_at).getTime();
+            const age = adsbAgeMs(entry, nowMs);
             if (age < 10 * 60 * 1000 && !trackedPlanes[tail]){
                 console.log(`Auto-detect: starting tracking for ${tail}`);
                 showJumpRunStatus(`📡 ${tail} just appeared on ADS-B — auto-tracking!`);

@@ -391,7 +391,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
         # Short range (0-18h): GFS + ICON + HRRR + NAM — best resolution for current conditions
         # Long range (19-72h): GFS + ICON + ECMWF — HRRR/NAM don't go that far out
         if hour_offset <= 18:
-            ensemble_models = ["gfs_seamless", "icon_seamless", "hrrr_conus"]
+            ensemble_models = ["gfs_seamless", "icon_seamless", "hrrr_conus", "hrdps"]
         else:
             ensemble_models = ["gfs_seamless", "icon_seamless", "ecmwf_ifs025"]
 
@@ -399,10 +399,12 @@ def fetch_forecast(lat, lon, hour_offset=0):
         GFS_ENDPOINT_MODELS = {"hrrr_conus", "nam_conus", "gfs_seamless"}
         # Without an explicit model the /v1/gfs endpoint returns the GFS blend for all three,
         # which made HRRR/NAM duplicates of GFS. Ask for each model by its own API name.
-        API_MODEL_NAME = {"gfs_seamless": "gfs_global", "hrrr_conus": "gfs_hrrr", "nam_conus": "ncep_nam_conus"}
+        API_MODEL_NAME = {"gfs_seamless": "gfs_global", "hrrr_conus": "gfs_hrrr", "nam_conus": "ncep_nam_conus", "hrdps": "gem_hrdps_continental"}
         def model_endpoint(m):
             if m in GFS_ENDPOINT_MODELS:
                 return base_url.replace("/v1/forecast", "/v1/gfs")
+            if m == "hrdps":   # Environment Canada HRDPS 2.5 km lives on the GEM endpoint
+                return base_url.replace("/v1/forecast", "/v1/gem")
             return base_url
 
         def fetch_one_model(model):
@@ -414,7 +416,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
             endpoint = model_endpoint(model)
             if model == "hrrr_conus":
                 fcast_days = 1
-            elif model == "nam_conus":
+            elif model in ("nam_conus", "hrdps"):
                 fcast_days = 2
             else:
                 fcast_days = 3
@@ -1897,7 +1899,7 @@ def data():
         pass
 
     # Build model status for frontend display
-    all_possible_models = ["gfs_seamless", "icon_seamless", "hrrr_conus", "ecmwf_ifs025"]
+    all_possible_models = ["gfs_seamless", "icon_seamless", "hrrr_conus", "hrdps", "ecmwf_ifs025"]
     models_loaded = {}
     if raw and raw.get("source") == "openmeteo_ensemble":
         loaded = set(raw.get("models", {}).keys())

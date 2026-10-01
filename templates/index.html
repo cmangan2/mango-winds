@@ -1600,6 +1600,7 @@ function toggleDetailPopup(id){
 
 function toggleCards(){ const wrap=document.getElementById("cards-wrap"),btn=document.getElementById("toggleCardsBtn"),hidden=wrap.style.display==="none"; wrap.style.display=hidden?"":"none"; btn.textContent=hidden?"Hide":"Show";
     // Winds hidden -> let the controls area use the freed space instead of its small scroll box
+    const mc=document.getElementById("modelCard"); if (mc) mc.style.display = hidden ? "" : "none";
     const bs=document.getElementById("btn-scroll"); if (bs) bs.style.maxHeight = hidden ? "190px" : "none"; }
 function closeWelcome(){
     try {

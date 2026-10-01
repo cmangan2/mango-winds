@@ -1605,6 +1605,44 @@ def lastload():
     return jsonify({"status": "saved"})
 
 
+@app.route("/models")
+def models_debug():
+    """Hidden read-only view: each model's own surface/low-level winds (not the blended values).
+    /models?token=...&lat=..&lon=..&hour=0  (token = CACHE_TOKEN, same as /clearcache)"""
+    token = request.args.get("token", "")
+    if token != os.environ.get("CACHE_TOKEN", "mango"):
+        return jsonify({"error": "unauthorized"}), 403
+    lat = request.args.get("lat", 43.371169, type=float)
+    lon = request.args.get("lon", -70.925974, type=float)
+    hour_offset = request.args.get("hour", 0, type=int)
+    hour = datetime.now(timezone.utc).hour + hour_offset
+    raw = fetch_forecast(lat, lon, hour_offset)
+    if not raw or "models" not in raw:
+        return jsonify({"error": "no forecast data"}), 503
+    STD_H = {1000: 364, 975: 820, 950: 1555, 925: 2500, 850: 4780}
+    out = {}
+    valid = None
+    for mname, md in raw["models"].items():
+        h = (md or {}).get("hourly", {})
+        times = h.get("time", [])
+        if valid is None and hour < len(times):
+            valid = times[hour]
+        def val(key):
+            arr = h.get(key, [])
+            return arr[hour] if hour < len(arr) else None
+        row = {"10m": {"speed": val("windspeed_10m"), "dir": val("winddirection_10m")},
+               "80m": {"speed": val("windspeed_80m"), "dir": val("winddirection_80m")}}
+        for lvl in (1000, 975, 950, 925, 850):
+            g = val(f"geopotential_height_{lvl}hPa")
+            row[f"{lvl}hPa"] = {
+                "alt_ft_msl": round(g * 3.28084) if g is not None else STD_H[lvl],
+                "speed": val(f"windspeed_{lvl}hPa"), "dir": val(f"winddirection_{lvl}hPa")}
+        out[mname] = row
+    return jsonify({"lat": lat, "lon": lon, "valid_utc": valid, "hour_offset": hour_offset,
+                    "units": "speed in knots, direction in degrees (wind from)",
+                    "models": out})
+
+
 @app.route("/clearcache")
 def clearcache():
     token = request.args.get("token", "")

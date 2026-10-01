@@ -2022,31 +2022,32 @@ import threading as _threading
 _adsb_fetch_lock = _threading.Lock()   # one ADS-B fetch at a time (hourly poller or manual)
 
 
-def fetch_adsb_trails_now(dz_filter=None, blocking=True):
+def fetch_adsb_trails_now(dz_filter=None, blocking=True, tails_filter=None):
     """Run one ADS-B fetch. Returns the summary dict, or None if another fetch is
     already running and blocking=False."""
     if not _adsb_fetch_lock.acquire(blocking=blocking):
         return None
     try:
-        return _fetch_adsb_trails_impl(dz_filter)
+        return _fetch_adsb_trails_impl(dz_filter, tails_filter)
     finally:
         _adsb_fetch_lock.release()
 
 
-def _fetch_adsb_trails_impl(dz_filter=None):
-    """Fetch today's flight trail for every tail number registered across all DZs
-    (or just one DZ when dz_filter is given).
-    Hits the adsb-proxy Vercel endpoint (?tail=N12345), which returns today's trail.
+def _fetch_adsb_trails_impl(dz_filter=None, tails_filter=None):
+    """Fetch the most recent flight's trail for every tail number registered across all DZs
+    (or just one DZ with dz_filter, or just some planes with tails_filter).
+    Hits the adsb-proxy Vercel endpoint (?tail=N12345&trail=1).
     Results are stored in _adsb_trails keyed by tail.
     Returns {"saved": {tail: point_count}, "empty": [tails with no data], "errors": [tails that failed]}."""
     summary = {"saved": {}, "empty": [], "errors": []}
     # Build a flat list of (tail, dz_name) pairs across all DZs
+    wanted = {t.upper() for t in tails_filter} if tails_filter else None
     pairs = []
     for dz_name, tails_list in _tails_log.items():
         if dz_filter and dz_name != dz_filter:
             continue
         for tail in tails_list:
-            if tail:
+            if tail and (wanted is None or tail.upper() in wanted):
                 pairs.append((tail.upper(), dz_name))
 
     if not pairs:
@@ -2061,15 +2062,16 @@ def _fetch_adsb_trails_impl(dz_filter=None):
         if tail in new_trails:
             continue  # already fetched (same tail on multiple DZs)
         try:
-            url = f"https://adsb-proxy.vercel.app/api/plane?tail={tail}"
-            r = requests.get(url, timeout=12,
+            url = f"https://adsb-proxy.vercel.app/api/plane?tail={tail}&trail=1"
+            r = requests.get(url, timeout=15,
                              headers={"User-Agent": "MangoWindHub/1.0 adsb-trail-poller"})
             if not r.ok:
                 print(f"ADS-B poller: {tail} → HTTP {r.status_code}")
                 summary["errors"].append(tail)
                 continue
             data = r.json()
-            # Proxy returns: {tail, icao24, lat, lon, alt, track, timestamp, trail: [{lat,lon,alt,ts}, ...]}
+            # Proxy returns: {tail, icao24, found, trail: [{lat,lon,alt,ts}, ...] (latest flight),
+            #                 last_seen, flight_start, flight_end, max_alt, flights_total, ...}
             trail_pts = data.get("trail", [])
             if not trail_pts and data.get("lat") is not None:
                 # No trail but live position — wrap it
@@ -2079,8 +2081,14 @@ def _fetch_adsb_trails_impl(dz_filter=None):
                 new_trails[tail] = {
                     "dz": dz_name,
                     "icao24": data.get("icao24", ""),
-                    "points": trail_pts,   # [{lat, lon, alt, ts}, ...]
+                    "points": trail_pts,   # [{lat, lon, alt, ts}, ...] latest flight only
                     "fetched_at": fetched_at,
+                    # when the plane was actually last seen (epoch s) — fetched_at is only when WE asked
+                    "last_seen": data.get("last_seen") or trail_pts[-1].get("ts"),
+                    "flight_start": data.get("flight_start"),
+                    "flight_end": data.get("flight_end"),
+                    "max_alt": data.get("max_alt"),
+                    "flights_total": data.get("flights_total"),
                 }
                 print(f"ADS-B poller: {tail} → {len(trail_pts)} points")
                 summary["saved"][tail] = len(trail_pts)
@@ -2124,6 +2132,7 @@ def adsb_trails_endpoint():
     Optional ?dz=<name> to filter by dropzone, ?tail=<tail> to filter by tail."""
     dz_filter   = request.args.get("dz", "").strip()
     tail_filter = request.args.get("tail", "").strip().upper()
+    summary_only = request.args.get("summary", "") in ("1", "true")   # no points: for list / status checks
 
     result = {}
     for tail, entry in _adsb_trails.items():
@@ -2131,6 +2140,9 @@ def adsb_trails_endpoint():
             continue
         if dz_filter and entry.get("dz") != dz_filter:
             continue
+        if summary_only:
+            entry = {k: v for k, v in entry.items() if k != "points"}
+            entry["point_count"] = len(_adsb_trails[tail].get("points", []))
         result[tail] = entry
 
     return jsonify(result)
@@ -2143,9 +2155,9 @@ _adsb_job = {"running": False, "dz": None, "started": 0.0, "finished": 0.0, "sum
 _ADSB_FETCH_COOLDOWN = 20   # seconds between manual fetches for the same DZ
 
 
-def _adsb_manual_job(dz):
+def _adsb_manual_job(dz, tails=None):
     try:
-        summary = fetch_adsb_trails_now(dz_filter=dz, blocking=True)
+        summary = fetch_adsb_trails_now(dz_filter=dz, blocking=True, tails_filter=tails)
     except Exception as e:
         print(f"ADS-B manual fetch error: {e}")
         summary = {"saved": {}, "empty": [], "errors": ["internal"]}
@@ -2155,14 +2167,26 @@ def _adsb_manual_job(dz):
 
 @app.route("/adsb_trails/fetch_now", methods=["POST"])
 def adsb_trails_fetch_now():
-    """Start a background ADS-B fetch for every tail saved at one DZ."""
+    """Start a background ADS-B fetch for tails saved at one DZ.
+    Body: {"dz": "<name>", "tails": ["N895SF", ...]}  — tails is optional (default: all saved at the DZ)."""
     import time as _time
-    dz = ((request.get_json(silent=True) or {}).get("dz") or request.args.get("dz", "")).strip()
+    body = request.get_json(silent=True) or {}
+    dz = (body.get("dz") or request.args.get("dz", "")).strip()
     if not dz:
         return jsonify({"ok": False, "error": "dz required"}), 400
-    if not _tails_log.get(dz):
+    saved = [t.upper() for t in _tails_log.get(dz, []) if t]
+    if not saved:
         return jsonify({"ok": False, "error": "no_tails",
                         "message": "No tail numbers saved for this DZ yet"}), 404
+    requested = body.get("tails")
+    if requested is None:
+        tails = saved
+    else:
+        # only planes actually saved at this DZ may be fetched
+        tails = [t for t in dict.fromkeys(str(x).upper().strip() for x in requested) if t in saved]
+        if not tails:
+            return jsonify({"ok": False, "error": "no_tails_selected",
+                            "message": "Pick at least one plane"}), 400
     now = _time.time()
     if _adsb_job["running"] or _adsb_fetch_lock.locked():
         return jsonify({"ok": True, "started": False, "running": True}), 202
@@ -2170,7 +2194,7 @@ def adsb_trails_fetch_now():
         wait = int(_ADSB_FETCH_COOLDOWN - (now - _adsb_job["finished"])) + 1
         return jsonify({"ok": False, "error": "cooldown", "retry_after": wait}), 429
     _adsb_job.update({"running": True, "dz": dz, "started": now, "summary": None})
-    _threading.Thread(target=_adsb_manual_job, args=(dz,), daemon=True,
+    _threading.Thread(target=_adsb_manual_job, args=(dz, tails), daemon=True,
                       name="adsb-manual-fetch").start()
     return jsonify({"ok": True, "started": True, "running": True}), 202
 

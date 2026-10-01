@@ -362,6 +362,31 @@ select:focus { border-color: var(--accent); }
     </div>
 </div>
 
+<!-- ── LAST LOAD MODAL ── -->
+<div id="lastLoadModal" style="display:none;position:fixed;inset:0;background:rgba(7,11,16,0.88);z-index:99999;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px" onclick="if(event.target===this)closeLastLoadModal()">
+    <div style="background:var(--panel-bg);border:1px solid var(--border);border-radius:16px;max-width:380px;width:100%;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.6);overflow:hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px 12px;border-bottom:1px solid var(--border);font-weight:700;font-size:1rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--accent)">
+            <span>✈️ Show Last Load</span>
+            <button onclick="closeLastLoadModal()" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:0 4px">✕</button>
+        </div>
+        <div style="padding:10px 18px 0;font-size:0.78rem;color:var(--muted)">Pick which planes to draw on the map. Each one shows its most recent flight; the colour bar matches its line on the map.</div>
+        <div id="lastLoadList" style="padding:10px 18px;display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto;color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:0.8rem">Loading planes…</div>
+        <div id="lastLoadQuick" style="display:none;padding:0 18px 8px;gap:16px;align-items:center">
+            <span style="font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted)">Select</span>
+            <button onclick="setLastLoadChecks('all')" style="background:none;border:none;color:#00d4ff;cursor:pointer;padding:0;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;letter-spacing:0.05em">All planes</button>
+            <button onclick="setLastLoadChecks('recent')" style="background:none;border:none;color:#00d4ff;cursor:pointer;padding:0;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;letter-spacing:0.05em">Most recent flight</button>
+            <button onclick="setLastLoadChecks('none')" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:0;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;letter-spacing:0.05em">None</button>
+        </div>
+        <div style="padding:4px 18px 8px;display:flex;flex-direction:column;gap:8px">
+            <button id="lastLoadGoBtn" onclick="showSelectedLastLoad()" style="display:none;width:100%;padding:10px;background:rgba(0,212,255,0.12);color:#00d4ff;border:1px solid #00d4ff;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">🗺️ Show on map</button>
+            <button id="lastLoadHideBtn" onclick="hideLastLoad()" style="display:none;width:100%;padding:8px;background:none;color:var(--red);border:1px solid var(--red);border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">🚫 Hide last load from map</button>
+        </div>
+        <div style="padding:2px 18px 14px;font-size:0.74rem;color:var(--muted)">Need newer data?
+            <button onclick="closeLastLoadModal();openFetchModal()" style="background:none;border:none;color:#00d4ff;cursor:pointer;padding:0;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;letter-spacing:0.05em">🔄 Fetch Plane Data</button>
+        </div>
+    </div>
+</div>
+
 <!-- ── FETCH PLANE DATA MODAL ── -->
 <div id="fetchModal" style="display:none;position:fixed;inset:0;background:rgba(7,11,16,0.88);z-index:99999;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px" onclick="if(event.target===this)closeFetchModal()">
     <div style="background:var(--panel-bg);border:1px solid var(--border);border-radius:16px;max-width:380px;width:100%;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.6);overflow:hidden">
@@ -521,7 +546,7 @@ select:focus { border-color: var(--accent); }
 
                 <button id="advancedBtn" onclick="openAdvancedModal()" style="margin-top:6px;width:100%;padding:6px 10px;background:var(--card-bg);color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">⚙️ Canopy Settings</button>
                 <div id="jumpRunInfo" style="display:none"></div>
-                <button id="lastLoadBtn" onclick="toggleLastLoad()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#00d4ff;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">✈️ Show Last Load</button>
+                <button id="lastLoadBtn" onclick="openLastLoadModal()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#00d4ff;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">✈️ Show Last Load</button>
                 <button id="fetchTrailsBtn" onclick="openFetchModal()" style="margin-top:6px;width:100%;padding:6px 10px;background:none;color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🔄 Fetch Plane Data</button>
                 <button id="communityJrBtn" onclick="loadCommunityJR()" style="margin-top:6px;margin-bottom:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">📍 Show Last Jump Run</button>
                 <button id="fixJrBtn" onclick="toggleFixJrPanel()" style="margin-bottom:6px;width:100%;padding:6px 10px;background:none;color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🛠️ Fix Jump Run</button>
@@ -1760,6 +1785,7 @@ let lastLoadJrLine = null;
 let lastLoadJrLabel = null;
 let lastLoadPlane = null;
 let lastLoadVisible = false;
+let lastLoadShownTails = [];   // ADS-B planes currently drawn by Last Load
 const lastLoadLayers = [];   // array of {trailLine, jrLine, jrLabel, ghost} for multi-plane last load
 
 // Jump run detection history
@@ -2022,9 +2048,9 @@ function clearLastLoad(){
         if (l.ghost) l.ghost.remove();
     });
     lastLoadLayers.length = 0;
+    lastLoadShownTails = [];
     lastLoadVisible = false;
-    const btn = document.getElementById("lastLoadBtn");
-    if (btn){ btn.textContent = "✈️ Show Last Load"; btn.style.color = "#00d4ff"; btn.style.borderColor = "var(--border)"; }
+    setLastLoadBtn();
 }
 
 // How long ago a cached plane was actually seen (ms). Prefers the plane's own last-seen time;
@@ -2134,7 +2160,7 @@ async function runFetchSelected(){
     fetchTrailsBusy = true;
     document.querySelectorAll('#fetchPlaneList input[type=checkbox]').forEach(c => { c.disabled = true; });
     updateFetchCount();
-    let redraw = false;
+    let redraw = false, fetchedTails = [];
     try {
         const r = await fetch('/adsb_trails/fetch_now', {
             method:'POST', headers:{'Content-Type':'application/json'},
@@ -2161,7 +2187,8 @@ async function runFetchSelected(){
             else if (summary && (summary.errors || []).includes(t)) line(`⚠ ${t} — data source didn't respond`, "var(--red)");
             else line(`– ${t} — no flights found today`);
         });
-        redraw = Object.keys(saved).length > 0;
+        fetchedTails = Object.keys(saved);
+        redraw = fetchedTails.length > 0;
     } catch(e){
         line("⚠️ Could not fetch plane data", "var(--red)");
     } finally {
@@ -2170,124 +2197,243 @@ async function runFetchSelected(){
         updateFetchCount();
         if (redraw){
             loadFetchRows(true);                          // refresh "Last flight ..." lines
-            if (lastLoadVisible) clearLastLoad();        // and redraw the trails on the map
-            toggleLastLoad();
+            // and redraw the map: what was already shown, plus the planes just fetched
+            showLastLoadFor([...new Set([...lastLoadShownTails, ...fetchedTails])]);
         }
     }
 }
 
-async function toggleLastLoad(){
-    if (lastLoadVisible){ clearLastLoad(); return; }
-    const dzName = document.getElementById("dz").value;
-    try {
-        // Try ADS-B trails cache first (multi-plane)
-        const trailsRes = await fetch(`/adsb_trails?dz=${encodeURIComponent(dzName)}`).then(r=>r.json()).catch(()=>({}));
-        const tailEntries = Object.entries(trailsRes).filter(([,e]) => e.points && e.points.length >= 2);
-
-        if (tailEntries.length > 0){
-            clearLastLoad();
-            let allBounds = [];
-            tailEntries.forEach(([tail, entry], idx) => {
-                const color = TRAIL_COLORS[idx % TRAIL_COLORS.length];
-                const pts = entry.points.map(p => [p.lat, p.lon]);
-                const trailLine = L.polyline(pts, { color, weight:3, opacity:0.5, dashArray:'4,4' }).addTo(map);
-                trailLine.bindTooltip(tail, {permanent:false, direction:'top', className:'plane-tip'});
-                allBounds.push(...pts);
-
-                // Ghost plane marker at last known position
-                const lastPt = pts[pts.length-1];
-                const ghost = L.marker(lastPt, {
-                    icon: L.divIcon({
-                        html: `<div style="background:rgba(7,11,16,0.85);border:1px solid ${color};border-radius:4px;padding:2px 6px;font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:${color};white-space:nowrap">${tail}</div>`,
-                        className:"", iconAnchor:[0,0]
-                    }), zIndexOffset:900, interactive:false
-                }).addTo(map);
-
-                lastLoadLayers.push({ trailLine, jrLine:null, jrLabel:null, ghost });
-            });
-
-            lastLoadVisible = true;
-            const btn = document.getElementById("lastLoadBtn");
-            btn.textContent = "✈️ Hide Last Load"; btn.style.color = "#00d4ff"; btn.style.borderColor = "#00d4ff";
-            if (allBounds.length > 0) map.fitBounds(L.latLngBounds(allBounds), {padding:[40,40], maxZoom:13});
-            showJumpRunStatus(null);
-            return;
-        }
-
-        // Fallback: try legacy /lastload endpoint
-        const d = await fetch(`/lastload?dz=${encodeURIComponent(dzName)}`).then(r=>r.json()).catch(()=>({}));
-        if (!d.trail || d.trail.length < 2){ showJumpRunStatus("No load data saved for this DZ yet"); return; }
-        clearLastLoad();
-        lastLoadTrailLine = L.polyline(d.trail, { color:'#00d4ff', weight:3, opacity:0.45, dashArray:'4,4' }).addTo(map);
-        if (d.jumprun_coords && d.jumprun_coords.length >= 2){
-            lastLoadJrLine = L.polyline(d.jumprun_coords, { color:'#ff4f4f', weight:4, opacity:0.85 }).addTo(map);
-            const ts = new Date(d.timestamp);
-            const dateStr = ts.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
-            const timeStr = ts.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', timeZoneName:'short'});
-            lastLoadJrLabel = L.marker(d.jumprun_coords[0], {
-                icon: L.divIcon({
-                    html: `<div style="display:inline-block;background:rgba(7,11,16,0.95);border:1.5px solid #ff4f4f;border-radius:6px;padding:4px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.85rem;font-weight:700;color:#ff4f4f;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.7);white-space:nowrap">Jump Run<br><span style="font-size:0.72rem;font-weight:600;letter-spacing:0.06em">${dateStr} · ${timeStr}${d.tail ? ' · '+d.tail : ''}</span></div>`,
-                    className:"", iconAnchor:[0,24]
-                }), interactive:false
-            }).addTo(map);
-        }
-        const lastPt = d.trail[d.trail.length-1];
-        lastLoadPlane = L.marker(lastPt, {
-            icon: L.divIcon({
-                html: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="-30 -30 60 60" style="opacity:0.55;filter:drop-shadow(0 0 4px rgba(0,212,255,0.4))">
-                    <rect x="-4" y="-18" width="8" height="36" rx="3" fill="#00d4ff"/>
-                    <polygon points="0,-28 -3,-18 3,-18" fill="#00d4ff"/>
-                    <polygon points="-28,-2 -4,-5 -4,1 -28,3" fill="#00d4ff"/>
-                    <polygon points="28,-2 4,-5 4,1 28,3" fill="#00d4ff"/>
-                    <polygon points="-14,17 -3,15 -3,19 -14,19" fill="#00d4ff"/>
-                    <polygon points="14,17 3,15 3,19 14,19" fill="#00d4ff"/>
-                    <polygon points="0,10 -2,18 2,18" fill="#00d4ff"/>
-                </svg>`,
-                className:"", iconSize:[48,48], iconAnchor:[24,24]
-            }), zIndexOffset:900
-        }).addTo(map);
-        lastLoadVisible = true;
-        const btn = document.getElementById("lastLoadBtn");
-        btn.textContent = "✈️ Hide Last Load"; btn.style.color = "#00d4ff"; btn.style.borderColor = "#00d4ff";
-        map.fitBounds(lastLoadTrailLine.getBounds(), {padding:[40,40], maxZoom:13});
-    } catch(e){ showJumpRunStatus("⚠️ Could not load last load data"); console.error(e); }
+// ── Last Load popup: choose which planes' most recent flight to draw on the map ──
+const lastLoadColorMap = {};
+function lastLoadColor(tail){
+    if (!lastLoadColorMap[tail]) lastLoadColorMap[tail] = TRAIL_COLORS[Object.keys(lastLoadColorMap).length % TRAIL_COLORS.length];
+    return lastLoadColorMap[tail];
 }
 
-// Show ADS-B trail for a single tail from cache
-async function showLastLoadForTail(tail){
-    const dzName = document.getElementById("dz").value;
-    try {
-        const r = await fetch(`/adsb_trails?tail=${encodeURIComponent(tail)}&dz=${encodeURIComponent(dzName)}`);
-        const data = await r.json();
-        const entry = data[tail];
-        if (!entry || !entry.points || entry.points.length < 2){
-            showJumpRunStatus(`No ADS-B trail cached for ${tail} yet`); return;
-        }
-        const existingIdx = lastLoadLayers.findIndex(l => l._tail === tail);
-        if (existingIdx >= 0){
-            const old = lastLoadLayers.splice(existingIdx, 1)[0];
-            if (old.trailLine) old.trailLine.remove();
-            if (old.ghost) old.ghost.remove();
-        }
-        const colorIdx = lastLoadLayers.length;
-        const color = TRAIL_COLORS[colorIdx % TRAIL_COLORS.length];
-        const pts = entry.points.map(p => [p.lat, p.lon]);
-        const trailLine = L.polyline(pts, { color, weight:3, opacity:0.5, dashArray:'4,4' }).addTo(map);
-        trailLine.bindTooltip(tail, {permanent:false, direction:'top'});
-        const lastPt = pts[pts.length-1];
-        const ghost = L.marker(lastPt, {
+function setLastLoadBtn(){
+    const btn = document.getElementById("lastLoadBtn");
+    if (!btn) return;
+    btn.style.color = "#00d4ff";
+    if (lastLoadVisible){
+        const n = lastLoadShownTails.length + (lastLoadTrailLine ? 1 : 0);
+        btn.textContent = `✈️ Last Load: ${n} shown`;
+        btn.style.borderColor = "#00d4ff";
+    } else {
+        btn.textContent = "✈️ Show Last Load";
+        btn.style.borderColor = "var(--border)";
+    }
+}
+
+const escLL = str => String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// "1:14 PM–1:28 PM" for a flight today, "Sep 30, 9:03 PM–9:20 PM" for an older one
+function fmtFlightWhen(entry){
+    if (!entry || !entry.flight_start || !entry.flight_end) return null;
+    const sameDay = new Date(entry.flight_end * 1000).toDateString() === new Date().toDateString();
+    const day = sameDay ? "" : new Date(entry.flight_end * 1000).toLocaleDateString([], {month:'short', day:'numeric'}) + ", ";
+    return `${day}${fmtClock(entry.flight_start)}–${fmtClock(entry.flight_end)}`;
+}
+
+// Draw the saved "last load" from live tracking (red jump run line included). Returns its points, or null if none saved.
+async function drawLegacyLastLoad(dzName){
+    const d = await fetch(`/lastload?dz=${encodeURIComponent(dzName)}`).then(r=>r.json()).catch(()=>({}));
+    if (!d.trail || d.trail.length < 2) return null;
+    lastLoadTrailLine = L.polyline(d.trail, { color:'#00d4ff', weight:3, opacity:0.45, dashArray:'4,4' }).addTo(map);
+    if (d.jumprun_coords && d.jumprun_coords.length >= 2){
+        lastLoadJrLine = L.polyline(d.jumprun_coords, { color:'#ff4f4f', weight:4, opacity:0.85 }).addTo(map);
+        const ts = new Date(d.timestamp);
+        const dateStr = ts.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+        const timeStr = ts.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', timeZoneName:'short'});
+        lastLoadJrLabel = L.marker(d.jumprun_coords[0], {
             icon: L.divIcon({
-                html: `<div style="background:rgba(7,11,16,0.85);border:1px solid ${color};border-radius:4px;padding:2px 6px;font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:${color};white-space:nowrap">${tail}</div>`,
-                className:"", iconAnchor:[0,0]
-            }), zIndexOffset:900, interactive:false
+                html: `<div style="display:inline-block;background:rgba(7,11,16,0.95);border:1.5px solid #ff4f4f;border-radius:6px;padding:4px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.85rem;font-weight:700;color:#ff4f4f;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.7);white-space:nowrap">Jump Run<br><span style="font-size:0.72rem;font-weight:600;letter-spacing:0.06em">${dateStr} · ${timeStr}${d.tail ? ' · '+d.tail : ''}</span></div>`,
+                className:"", iconAnchor:[0,24]
+            }), interactive:false
         }).addTo(map);
-        const layer = { _tail: tail, trailLine, jrLine:null, jrLabel:null, ghost };
-        lastLoadLayers.push(layer);
-        lastLoadVisible = true;
-        map.fitBounds(trailLine.getBounds(), {padding:[40,40], maxZoom:13});
-        const btn = document.getElementById("lastLoadBtn");
-        if (btn){ btn.textContent = "✈️ Hide Last Load"; btn.style.color = "#00d4ff"; btn.style.borderColor = "#00d4ff"; }
-    } catch(e){ showJumpRunStatus(`⚠️ Could not load trail for ${tail}`); }
+    }
+    const lastPt = d.trail[d.trail.length-1];
+    lastLoadPlane = L.marker(lastPt, {
+        icon: L.divIcon({
+            html: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="-30 -30 60 60" style="opacity:0.55;filter:drop-shadow(0 0 4px rgba(0,212,255,0.4))">
+                <rect x="-4" y="-18" width="8" height="36" rx="3" fill="#00d4ff"/>
+                <polygon points="0,-28 -3,-18 3,-18" fill="#00d4ff"/>
+                <polygon points="-28,-2 -4,-5 -4,1 -28,3" fill="#00d4ff"/>
+                <polygon points="28,-2 4,-5 4,1 28,3" fill="#00d4ff"/>
+                <polygon points="-14,17 -3,15 -3,19 -14,19" fill="#00d4ff"/>
+                <polygon points="14,17 3,15 3,19 14,19" fill="#00d4ff"/>
+                <polygon points="0,10 -2,18 2,18" fill="#00d4ff"/>
+            </svg>`,
+            className:"", iconSize:[48,48], iconAnchor:[24,24]
+        }), zIndexOffset:900
+    }).addTo(map);
+    return d.trail;
+}
+
+// Draw the chosen planes' cached trails (most recent flight each). Replaces whatever is on the map now.
+async function showLastLoadFor(tails, opts){
+    opts = opts || {};
+    const dzName = document.getElementById("dz").value;
+    clearLastLoad();
+    const bounds = [], drawn = [], missing = [];
+    try {
+        const results = await Promise.all((tails || []).map(t =>
+            fetch(`/adsb_trails?tail=${encodeURIComponent(t)}&dz=${encodeURIComponent(dzName)}`)
+                .then(r => r.json()).then(d => [t, d[t]]).catch(() => [t, null])));
+        for (const [tail, entry] of results){
+            if (!entry || !entry.points || entry.points.length < 2){ missing.push(tail); continue; }
+            const color = lastLoadColor(tail);
+            const pts = entry.points.map(p => [p.lat, p.lon]);
+            const trailLine = L.polyline(pts, { color, weight:3, opacity:0.5, dashArray:'4,4' }).addTo(map);
+            trailLine.bindTooltip(tail, {permanent:false, direction:'top', className:'plane-tip'});
+            const ghost = L.marker(pts[pts.length-1], {
+                icon: L.divIcon({
+                    html: `<div style="background:rgba(7,11,16,0.85);border:1px solid ${color};border-radius:4px;padding:2px 6px;font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:${color};white-space:nowrap">${escLL(tail)}</div>`,
+                    className:"", iconAnchor:[0,0]
+                }), zIndexOffset:900, interactive:false
+            }).addTo(map);
+            lastLoadLayers.push({ _tail: tail, trailLine, jrLine:null, jrLabel:null, ghost });
+            bounds.push(...pts);
+            drawn.push(tail);
+        }
+        if (opts.legacy){
+            const lp = await drawLegacyLastLoad(dzName);
+            if (lp) bounds.push(...lp); else missing.push("saved jump run");
+        }
+    } catch(e){
+        console.error(e);
+        showJumpRunStatus("⚠️ Could not load last load data");
+        setTimeout(() => showJumpRunStatus(null), 5000);
+    }
+    lastLoadShownTails = drawn;
+    lastLoadVisible = drawn.length > 0 || !!lastLoadTrailLine;
+    setLastLoadBtn();
+    if (bounds.length) map.fitBounds(L.latLngBounds(bounds), {padding:[40,40], maxZoom:13});
+    if (missing.length){
+        showJumpRunStatus(`No trail data yet for ${missing.join(", ")} — try Fetch Plane Data`);
+        setTimeout(() => showJumpRunStatus(null), 6000);
+    } else {
+        showJumpRunStatus(null);
+    }
+}
+
+// Track popup's per-plane button: add that plane to what is already shown
+async function showLastLoadForTail(tail){
+    await showLastLoadFor([...new Set([...lastLoadShownTails, tail])]);
+}
+
+function updateLastLoadCount(){
+    const n = document.querySelectorAll('#lastLoadList input[type=checkbox]:checked').length;
+    const go = document.getElementById("lastLoadGoBtn");
+    go.textContent = n ? `🗺️ Show ${n} plane${n === 1 ? "" : "s"} on map` : "Pick at least one plane";
+    go.disabled = n === 0;
+    go.style.opacity = n === 0 ? "0.5" : "1";
+}
+
+function setLastLoadChecks(mode){
+    const boxes = [...document.querySelectorAll('#lastLoadList input[type=checkbox]')].filter(c => !c.disabled);
+    let newest = null;
+    if (mode === "recent"){
+        boxes.forEach(c => { if (c.dataset.end && (!newest || +c.dataset.end > +newest.dataset.end)) newest = c; });
+    }
+    boxes.forEach(c => { c.checked = mode === "all" ? true : mode === "recent" ? c === newest : false; });
+    updateLastLoadCount();
+}
+
+async function openLastLoadModal(){
+    const modal = document.getElementById("lastLoadModal");
+    modal.style.display = "flex";
+    const list = document.getElementById("lastLoadList");
+    list.textContent = "Loading planes…";
+    document.getElementById("lastLoadQuick").style.display = "none";
+    document.getElementById("lastLoadGoBtn").style.display = "none";
+    document.getElementById("lastLoadHideBtn").style.display = lastLoadVisible ? "block" : "none";
+    const dz = document.getElementById("dz").value;
+    let tails = [], trails = {}, legacy = {};
+    try {
+        [tails, trails, legacy] = await Promise.all([
+            fetch(`/tails?dz=${encodeURIComponent(dz)}`).then(r=>r.json()).catch(()=>[]),
+            fetch(`/adsb_trails?dz=${encodeURIComponent(dz)}&summary=1`).then(r=>r.json()).catch(()=>({})),
+            fetch(`/lastload?dz=${encodeURIComponent(dz)}`).then(r=>r.json()).catch(()=>({}))
+        ]);
+    } catch(e){}
+    const planes = [...new Set([...(tails || []), ...Object.keys(trails || {})])];
+    const hasLegacy = !!(legacy && legacy.trail && legacy.trail.length >= 2);
+    list.textContent = "";
+    if (!planes.length && !hasLegacy){
+        list.textContent = "No planes saved for this DZ yet — tap Track Plane and enter a tail number first.";
+        return;
+    }
+    planes.forEach(tail => lastLoadColor(tail));   // fix each plane's colour so the swatch matches its line
+    const anyData = planes.some(t => trails[t] && (trails[t].point_count || 0) >= 2);
+    const row = ({key, title, sub, color, enabled, checked, onMap, end}) => {
+        const label = document.createElement("label");
+        label.style.cssText = "display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--card-alt);border:1px solid var(--border);border-radius:8px;" +
+                              (enabled ? "cursor:pointer" : "opacity:0.5;cursor:default");
+        const cb = document.createElement("input");
+        cb.type = "checkbox"; cb.value = key; cb.checked = enabled && checked; cb.disabled = !enabled;
+        if (end) cb.dataset.end = end;
+        cb.style.cssText = "width:18px;height:18px;accent-color:#00d4ff;flex:none";
+        cb.onchange = updateLastLoadCount;
+        const swatch = document.createElement("div");
+        swatch.style.cssText = `width:5px;align-self:stretch;border-radius:3px;background:${color};flex:none`;
+        const txt = document.createElement("div");
+        txt.style.cssText = "flex:1;min-width:0";
+        const name = document.createElement("div");
+        name.textContent = title;
+        name.style.cssText = `font-size:0.9rem;color:${enabled ? color : "var(--muted)"};font-weight:bold`;
+        const info = document.createElement("div");
+        info.textContent = sub;
+        info.style.cssText = "font-size:0.7rem;color:var(--muted);margin-top:2px";
+        txt.append(name, info);
+        label.append(cb, swatch, txt);
+        if (onMap){
+            const badge = document.createElement("div");
+            badge.textContent = "ON MAP";
+            badge.style.cssText = "font-size:0.62rem;letter-spacing:0.08em;color:#39ff89;border:1px solid #39ff89;border-radius:4px;padding:1px 5px;flex:none";
+            label.appendChild(badge);
+        }
+        list.appendChild(label);
+    };
+    planes.forEach(tail => {
+        const entry = trails[tail];
+        const hasData = !!(entry && (entry.point_count || 0) >= 2);
+        let sub = "No data yet — use Fetch Plane Data first";
+        if (hasData){
+            const when = fmtFlightWhen(entry);
+            sub = (when ? `Flight ${when}` : "Cached trail") +
+                  (entry.max_alt ? ` · max ${Math.round(entry.max_alt).toLocaleString()} ft` : "");
+        }
+        const shown = lastLoadVisible && lastLoadShownTails.includes(tail);
+        row({ key: tail, title: tail, sub, color: lastLoadColor(tail), enabled: hasData,
+              checked: lastLoadVisible ? shown : true, onMap: shown, end: entry && entry.flight_end });
+    });
+    if (hasLegacy){
+        const when = legacy.timestamp ? new Date(legacy.timestamp).toLocaleString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'}) : "";
+        const shown = lastLoadVisible && !!lastLoadTrailLine;
+        row({ key: "__legacy__", title: "Saved jump run", color: "#ff4f4f", enabled: true,
+              sub: `From live tracking${when ? " · " + when : ""}${legacy.jumprun_coords && legacy.jumprun_coords.length >= 2 ? " · jump run line" : ""}`,
+              checked: lastLoadVisible ? shown : !anyData, onMap: shown });
+    }
+    document.getElementById("lastLoadQuick").style.display = "flex";
+    document.getElementById("lastLoadGoBtn").style.display = "block";
+    updateLastLoadCount();
+}
+
+function closeLastLoadModal(){
+    document.getElementById("lastLoadModal").style.display = "none";
+}
+
+async function showSelectedLastLoad(){
+    const picked = [...document.querySelectorAll('#lastLoadList input[type=checkbox]:checked')].map(c => c.value);
+    if (!picked.length) return;
+    closeLastLoadModal();
+    await showLastLoadFor(picked.filter(k => k !== "__legacy__"), { legacy: picked.includes("__legacy__") });
+}
+
+function hideLastLoad(){
+    clearLastLoad();
+    showJumpRunStatus(null);
+    closeLastLoadModal();
 }
 
 // Start tracking a specific tail (multi-plane aware)

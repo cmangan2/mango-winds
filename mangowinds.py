@@ -321,7 +321,8 @@ def fetch_metar(icao):
             wspd = obs.get("wspd")
             temp = obs.get("temp")
             # Handle variable winds (VRB) — use 0° direction, still show speed
-            if str(wdir).upper() == "VRB":
+            vrb = str(wdir).upper() == "VRB"
+            if vrb:
                 wdir = 0
             if wdir is not None and wspd is not None:
                 try:
@@ -331,6 +332,7 @@ def fetch_metar(icao):
                     result = {
                         "wdir": wdir_f,
                         "wspd": wspd_f,
+                        "vrb": vrb,
                         "temp": float(temp) if temp is not None else None,
                     }
                     _metar_cache[icao] = {"data": result, "expires": now + METAR_TTL}
@@ -1853,6 +1855,8 @@ def data():
                 "arrow":     wind_arrow(metar["wdir"]),
                 "color":     color(metar_spd),
                 "temp_f":    round(metar["temp"] * 9/5 + 32) if metar["temp"] is not None else winds[0].get("temp_f"),
+                # Calm or variable observation: direction is meaningless, so the page shows "Calm"
+                "calm":      bool(metar.get("vrb")) or metar_spd < 1,
             }
             print(f"SFC: using METAR {icao} {metar['wspd']}kt/{metar['wdir']}° temp={metar.get('temp')}°C")
         else:

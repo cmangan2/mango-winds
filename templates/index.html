@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.3">
+<meta name="app-version" content="4.5.4">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.3";
+    const CURRENT_VERSION = "4.5.4";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -548,7 +548,6 @@ select:focus { border-color: var(--accent); }
                 <div id="jumpRunInfo" style="display:none"></div>
                 <button id="lastLoadBtn" onclick="openLastLoadModal()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#00d4ff;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">✈️ Show Last Load</button>
                 <button id="fetchTrailsBtn" onclick="openFetchModal()" style="margin-top:6px;width:100%;padding:6px 10px;background:none;color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🔄 Fetch Plane Data</button>
-                <button id="communityJrBtn" onclick="loadCommunityJR()" style="margin-top:6px;margin-bottom:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">📍 Show Last Jump Run</button>
                 <button id="fixJrBtn" onclick="toggleFixJrPanel()" style="margin-bottom:6px;width:100%;padding:6px 10px;background:none;color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🛠️ Fix Jump Run</button>
                 <div id="fixJrPanel" style="display:none;margin-bottom:6px;padding:8px 10px;background:var(--card-bg);border:1px solid var(--border);border-radius:6px">
                     <div style="font-size:0.68rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Looks wrong for today?</div>
@@ -1706,7 +1705,7 @@ function saveManualJrOverride(start, end, hdg){
         })
     }).then(r => r.json()).then(d => {
         if (d.status === 'saved'){
-            showJumpRunStatus("✅ Jump run set — this replaces auto-detection for today");
+            showJumpRunStatus("✅ Jump run set");
             loadCommunityJR();
         } else {
             showJumpRunStatus("⚠️ Could not save override");
@@ -2718,11 +2717,6 @@ async function checkAutoDetect(){
     } catch(e){ console.warn("Auto-detect error:", e); }
 }
 
-function showLastJumpRun(){
-    if (lastJumpRunLine){ map.fitBounds(lastJumpRunLine.getBounds(), {padding:[60,60], maxZoom:13}); }
-    else { showJumpRunStatus("No jump run detected yet"); }
-}
-
 function updatePlaneMarker(data){
     trackedPlane = data;
     if (trackedPlaneMarker) trackedPlaneMarker.setIcon(planeTrackIcon(data.hdg||0, data.on_ground));
@@ -3240,7 +3234,6 @@ function clearFrozenTrail(){
 
 async function loadCommunityJR(){
     const dzName = document.getElementById("dz").value;
-    const btn = document.getElementById("communityJrBtn");
     try {
         const r = await fetch(`/jumprun?dz=${encodeURIComponent(dzName)}`);
         const d = await r.json();
@@ -3269,17 +3262,6 @@ async function loadCommunityJR(){
                 className: "", iconAnchor: [0, 24]
             }), interactive: false
         }).addTo(map);
-        btn.style.color = "#ff4f4f";
-        btn.style.borderColor = "#ff4f4f";
-        btn.textContent = "📍 Hide Jump Run";
-        btn.onclick = () => {
-            if (communityJrLine){ communityJrLine.remove(); communityJrLine = null; }
-            if (communityJrLabel){ communityJrLabel.remove(); communityJrLabel = null; }
-            btn.style.color = "#ff4f4f";
-            btn.style.borderColor = "var(--border)";
-            btn.textContent = "📍 Show Last Jump Run";
-            btn.onclick = loadCommunityJR;
-        };
     } catch(e){
         showJumpRunStatus("⚠️ Could not load jump run data");
     }

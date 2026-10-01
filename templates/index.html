@@ -2002,24 +2002,6 @@ function clearTrackedJR(){
     showJumpRunStatus(null);
 }
 
-function autoSaveDetectedJR(pts){
-    if (!pts || pts.length < 2) return;
-    const dzName = document.getElementById("dz").value;
-    const tail = trackedPlane ? trackedPlane.tail : "";
-    const start = [pts[0].lat, pts[0].lon];
-    const end   = [pts[pts.length-1].lat, pts[pts.length-1].lon];
-    const hdg   = Math.round(bearing(start, end));
-    const alt   = pts[pts.length-1].alt ? Math.round(pts[pts.length-1].alt) : null;
-    fetch('/jumprun', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ dz: dzName, start, end, heading: hdg, alt, tail, source: 'auto' })
-    }).then(r => r.json()).then(d => {
-        if (d.status === 'saved') console.log(`Auto-saved detected JR for ${dzName}: ${hdg}°`);
-        else if (d.status === 'ignored_locked') console.log(`Auto-detection ignored for ${dzName} — manual override active`);
-    }).catch(e => console.warn("Could not auto-save JR:", e));
-}
-
 function saveLastLoad(){
     if (planeTrail.length < 2) return;
     const dzName = document.getElementById("dz").value;
@@ -2616,7 +2598,6 @@ function updatePlaneMarkerTail(tail, data){
     state.animStart = null;
     if (state.animFrame) cancelAnimationFrame(state.animFrame);
     state.animFrame = requestAnimationFrame(ts => animatePlaneTail(tail, ts));
-    detectJumpRunTail(tail, data);
     updateMultiPlaneInfoPanel();
 }
 
@@ -2631,21 +2612,6 @@ function animatePlaneTail(tail, ts){
     const lng = from.lng + (state.animTo.lng - from.lng) * ease;
     state.marker.setLatLng([lat, lng]);
     if (t < 1) state.animFrame = requestAnimationFrame(ts2 => animatePlaneTail(tail, ts2));
-}
-
-function detectJumpRunTail(tail, data){
-    const state = trackedPlanes[tail];
-    if (!state) return;
-    state.history.push({ lat:data.lat, lon:data.lon, alt:data.alt, hdg:data.hdg, spd:data.spd, vert:data.vert||0, ts:Date.now() });
-    if (state.history.length > 60) state.history.shift();
-    const vert = data.vert || 0;
-    if (vert < DIVE_THRESHOLD) state.divingConfirmed++;
-    else state.divingConfirmed = 0;
-    if (state.divingConfirmed === DIVE_CONFIRM){
-        planeHistory = [...state.history];
-        extractAndDrawJumpRun();
-        setTimeout(saveLastLoad, 500);
-    }
 }
 
 function planeTrackIconColored(hdg, onGround, color){
@@ -2757,59 +2723,6 @@ function showLastJumpRun(){
     else { showJumpRunStatus("No jump run detected yet"); }
 }
 
-function detectJumpRun(data){
-    // Add to history buffer (keep last 5 minutes = 60 points at 5s intervals)
-    planeHistory.push({
-        lat: data.lat, lon: data.lon,
-        alt: data.alt, hdg: data.hdg,
-        spd: data.spd, vert: data.vert || 0,
-        ts: Date.now()
-    });
-    if (planeHistory.length > 60) planeHistory.shift();
-
-    const vert = data.vert || 0;
-
-    // Check for dive
-    if (vert < DIVE_THRESHOLD) {
-        divingConfirmed++;
-    } else {
-        divingConfirmed = 0;
-    }
-
-    // Confirmed dive after being level — extract jump run from history
-    if (divingConfirmed === DIVE_CONFIRM) {
-        extractAndDrawJumpRun();
-        setTimeout(saveLastLoad, 500); // save after JR line is drawn
-    }
-}
-
-function extractAndDrawJumpRun(){
-    if (planeHistory.length < 2) return;
-    const TWO_MILES_M = 3219;
-
-    // Walk backwards — skip the confirmed dive points first
-    let startIdx = planeHistory.length - 1;
-    while (startIdx >= 0 && (planeHistory[startIdx].vert || 0) < -1000){
-        startIdx--;
-    }
-    // Now collect up to 2 miles of pre-dive track
-    const pts = [];
-    let totalDist = 0;
-    for (let i = startIdx; i >= 0; i--){
-        const p = planeHistory[i];
-        if (pts.length > 0){
-            totalDist += distMeters([p.lat, p.lon], [pts[0].lat, pts[0].lon]);
-            if (totalDist > TWO_MILES_M) break;
-        }
-        pts.unshift(p);
-    }
-    if (pts.length < 2){ showJumpRunStatus("⚠️ Jump run not detected — not enough track data"); return; }
-    showJumpRunStatus(null);
-    drawJumpRunLine(pts);
-    // Auto-save detected jump run to community store if no manual one exists today
-    autoSaveDetectedJR(pts);
-}
-
 function updatePlaneMarker(data){
     trackedPlane = data;
     if (trackedPlaneMarker) trackedPlaneMarker.setIcon(planeTrackIcon(data.hdg||0, data.on_ground));
@@ -2832,7 +2745,6 @@ function updatePlaneMarker(data){
     }
     window._lastTrailTs = now;
 
-    detectJumpRun(data);
     // Always record real position + metadata to trail
     planeTrail.push([data.lat, data.lon]);
     // Store metadata alongside trail for hover tooltips
@@ -2888,7 +2800,6 @@ function updatePlaneMarker(data){
         `<span style="color:var(--accent);font-weight:bold">${data.tail}</span>${groundStr}<br>` +
         `ALT&nbsp;&nbsp;${alt}<br>SPD&nbsp;&nbsp;${spd}<br>HDG&nbsp;&nbsp;${hdg}<br>VERT&nbsp;${vert}` +
         `<br><div style="display:flex;gap:4px;margin-top:6px">` +
-        `<button onclick="clearTrackedJR()" style="flex:1;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.78rem;cursor:pointer">✕ JR</button>` +
         `<button onclick="stopTracking()" style="flex:1;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.78rem;cursor:pointer">&#9646; Stop</button>` +
         `<button onclick="clearTracking()" style="flex:1;padding:4px;background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.78rem;cursor:pointer">✕ Clear</button>` +
         `</div>`;
@@ -2956,73 +2867,15 @@ async function fetchTraceHistory(icao, tail){
         }).filter(p => p.lat != null);
 
         if (pts.length === 0){ showJumpRunStatus(null); return; }
-        const LEVEL = 500, DIVE = -1000;
-
-        // Find all dive events in history
-        let lastDiveIdx = -1;
-        for (let i = 2; i < pts.length; i++){
-            if ((pts[i].vert||0) < DIVE && (pts[i-1].vert||0) < DIVE){
-                lastDiveIdx = i;
-            }
-        }
-
-        if (lastDiveIdx < 0){
-            planeHistory = pts.slice(-60).map(p => ({...p, ts: p.ts * 1000}));
-            if (historyTrailLine){ historyTrailLine.remove(); historyTrailLine = null; }
-            const histCoords = pts.filter(p => p.lat && p.lon).map(p => [p.lat, p.lon]);
-            if (histCoords.length > 1){ historyTrailLine = L.polyline(histCoords, { color: '#00d4ff', weight: 2, opacity: 0.3 }).addTo(map); }
-            showJumpRunStatus(null);
-            return;
-        }
-
-        // Walk back from dive — skip dive points, take last 2 miles of pre-dive track
-        const TWO_MI = 3219;
-        let traceStart = lastDiveIdx - 1;
-        while (traceStart >= 0 && (pts[traceStart].vert || 0) < -1000) traceStart--;
-        const jrPts = [];
-        let tDist = 0;
-        for (let i = traceStart; i >= 0; i--){
-            const p = pts[i];
-            if (jrPts.length > 0){
-                tDist += distMeters([p.lat, p.lon], [jrPts[0].lat, jrPts[0].lon]);
-                if (tDist > TWO_MI) break;
-            }
-            jrPts.unshift(p);
-        }
-
-        planeHistory = pts.slice(Math.max(0, lastDiveIdx - 60), lastDiveIdx).map(p => ({...p, ts: p.ts * 1000}));
-
-        if (jrPts.length >= 2){
-            drawJumpRunLine(jrPts);
-            showJumpRunStatus(null);
-        } else {
-            showJumpRunStatus(null);
-        }
-            if (historyTrailLine){ if(historyTrailLine)historyTrailLine.remove(); historyTrailLine = null; }
-            const histCoords2 = pts.filter(p => p.lat && p.lon).map(p => [p.lat, p.lon]);
-            if (histCoords2.length > 1){ historyTrailLine = L.polyline(histCoords2, { color: '#00d4ff', weight: 2, opacity: 0.3 }).addTo(map); }
+        // Show the plane's own history trail (no jump run estimation)
+        if (historyTrailLine){ historyTrailLine.remove(); historyTrailLine = null; }
+        const histCoords = pts.filter(p => p.lat && p.lon).map(p => [p.lat, p.lon]);
+        if (histCoords.length > 1){ historyTrailLine = L.polyline(histCoords, { color: '#00d4ff', weight: 2, opacity: 0.3 }).addTo(map); }
+        showJumpRunStatus(null);
     } catch(e){
         console.error("Trace history error:", e);
         showJumpRunStatus(null);
     }
-}
-
-function drawJumpRunLine(pts){
-    if (lastJumpRunLine){ lastJumpRunLine.remove(); lastJumpRunLine = null; }
-    if (lastJumpRunLabel){ lastJumpRunLabel.remove(); lastJumpRunLabel = null; }
-    if (lastJumpRunArrow){ lastJumpRunArrow.remove(); lastJumpRunArrow = null; }
-    // Draw only start -> end as a straight line. Drawing every raw history point
-    // (the old behavior) turns a single noisy/glitched ADS-B position into a
-    // visible zigzag or triangle, since the raw track isn't perfectly straight.
-    const start = [pts[0].lat, pts[0].lon];
-    const end = [pts[pts.length - 1].lat, pts[pts.length - 1].lon];
-    lastJumpRunLine = L.polyline([start, end], { color: "#ff4f4f", weight: 4, opacity: 0.9 }).addTo(map);
-    lastJumpRunLabel = L.marker(start, {
-        icon: L.divIcon({
-            html: `<div style="display:inline-block;background:rgba(7,11,16,0.95);border:1.5px solid #ff4f4f;border-radius:6px;padding:4px 12px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;font-weight:700;color:#ff4f4f;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 2px 8px rgba(0,0,0,0.7);white-space:nowrap">Jump Run</div>`,
-            className: "", iconAnchor: [0, 24]
-        }), interactive: false
-    }).addTo(map);
 }
 
 async function loadLastFlight(){
@@ -3092,29 +2945,6 @@ async function loadLastFlight(){
         }
 
         // Step 4: Detect most recent jump run
-        const DIVE = -1000;
-        let lastDiveIdx = -1;
-        for (let i = 2; i < flightPts.length; i++){
-            if ((flightPts[i].vert||0) < DIVE && (flightPts[i-1].vert||0) < DIVE) lastDiveIdx = i;
-        }
-
-        if (lastDiveIdx >= 0){
-            const TWO_MI = 3219;
-            let traceStart = lastDiveIdx - 1;
-            while (traceStart >= 0 && (flightPts[traceStart].vert||0) < DIVE) traceStart--;
-            const jrPts = [];
-            let tDist = 0;
-            for (let i = traceStart; i >= 0; i--){
-                const p = flightPts[i];
-                if (jrPts.length > 0){
-                    tDist += distMeters([p.lat, p.lon], [jrPts[0].lat, jrPts[0].lon]);
-                    if (tDist > TWO_MI) break;
-                }
-                jrPts.unshift(p);
-            }
-            if (jrPts.length >= 2) drawJumpRunLine(jrPts);
-        }
-
         showJumpRunStatus(null);
 
         // Set trackedPlane for display
@@ -3123,7 +2953,7 @@ async function loadLastFlight(){
 
         document.getElementById("planeInfo").innerHTML =
             `<span style="color:var(--freefall);font-weight:bold">${tail} — Last Flight</span><br>` +
-            `${flightPts.length} points · ${lastDiveIdx >= 0 ? 'Jump run detected' : 'No dive detected'}` +
+            `${flightPts.length} points` +
             `<br><button onclick="clearTracking()" style="margin-top:6px;width:100%;padding:4px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">✕ Clear</button>`;
 
     } catch(e){

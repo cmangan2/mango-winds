@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.json
+!package.json
+winds_cache.json
+user_dropzones.txt
+pending_dropzones.txt
+visits.json
+jumprun.json
+tails.json
+lastload.json
+adsb_trails.json

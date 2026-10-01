@@ -1,4 +1,4 @@
-from flask import Flask, render_template, make_response, jsonify, request
+from flask import Flask, render_template, make_response, jsonify, request, redirect
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
@@ -15,10 +15,18 @@ app = Flask(__name__)
 _forecast_cache = {}
 CACHE_TTL = timedelta(minutes=120)  # 2 hour cache to reduce API calls
 CACHE_FILE  = os.environ.get("CACHE_FILE", os.path.join(os.path.dirname(__file__), "winds_cache.json"))
+USER_DZ_FILE    = os.environ.get("USER_DZ_FILE",    os.path.join(os.path.dirname(CACHE_FILE), "user_dropzones.txt"))
+PENDING_DZ_FILE = os.environ.get("PENDING_DZ_FILE", os.path.join(os.path.dirname(CACHE_FILE), "pending_dropzones.txt"))
+DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "")
+ADMIN_TOKEN     = os.environ.get("ADMIN_TOKEN", "mango-admin-2024")
+GITHUB_TOKEN    = os.environ.get("GITHUB_TOKEN", "")
+GITHUB_REPO     = os.environ.get("GITHUB_REPO", "cmangan2/mango-winds")
+GH_DZ_FILE      = "Dropzone list.txt"   # path inside the repo
 VISITS_FILE   = os.environ.get("VISITS_FILE",   os.path.join(os.path.dirname(__file__), "visits.json"))
 JUMPRUN_FILE  = os.environ.get("JUMPRUN_FILE",  os.path.join(os.path.dirname(__file__), "jumprun.json"))
 TAILS_FILE    = os.environ.get("TAILS_FILE",    os.path.join(os.path.dirname(__file__), "tails.json"))
-LASTLOAD_FILE = os.environ.get("LASTLOAD_FILE", os.path.join(os.path.dirname(__file__), "lastload.json"))
+LASTLOAD_FILE    = os.environ.get("LASTLOAD_FILE",    os.path.join(os.path.dirname(__file__), "lastload.json"))
+ADSB_TRAILS_FILE = os.environ.get("ADSB_TRAILS_FILE", os.path.join(os.path.dirname(__file__), "adsb_trails.json"))
 
 # Last load storage: {dz_name: {trail, jumprun_start, jumprun_end, tail, timestamp}}
 _lastload_log = {}
@@ -40,6 +48,27 @@ def save_lastload():
         print(f"Lastload save error: {e}")
 
 load_lastload()
+
+# ADS-B trail storage: {tail: {dz, points: [[lat,lon,alt,ts], ...], fetched_at}}
+_adsb_trails = {}
+
+def load_adsb_trails():
+    global _adsb_trails
+    try:
+        if os.path.exists(ADSB_TRAILS_FILE):
+            with open(ADSB_TRAILS_FILE) as f:
+                _adsb_trails = json.load(f)
+    except Exception as e:
+        print(f"ADS-B trails load error: {e}")
+
+def save_adsb_trails():
+    try:
+        with open(ADSB_TRAILS_FILE, "w") as f:
+            json.dump(_adsb_trails, f)
+    except Exception as e:
+        print(f"ADS-B trails save error: {e}")
+
+load_adsb_trails()
 
 # Tail number storage: {dz_name: ["N123AB", "N456CD", ...]}
 _tails_log = {}
@@ -205,22 +234,57 @@ load_cache_from_disk()
 # 🪂 DROPZONES
 # =====================================================
 
+def parse_dz_line(line):
+    """Parse a single dropzone line. Returns (name, lat, lon, icao) or None."""
+    line = line.strip()
+    if ":" not in line:
+        return None
+    name, rest = line.split(":", 1)
+    parts = [p.strip() for p in rest.split(",")]
+    try:
+        lat = float(parts[0])
+        lon = float(parts[1])
+        icao = parts[2].strip() if len(parts) > 2 else None
+        return (name.strip(), lat, lon, icao)
+    except (ValueError, IndexError):
+        return None
+
+def haversine_miles(lat1, lon1, lat2, lon2):
+    """Distance in miles between two lat/lon points."""
+    import math
+    R = 3958.8  # Earth radius in miles
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon/2)**2
+    return R * 2 * math.asin(math.sqrt(a))
+
 def load_dropzones(path="Dropzone list.txt"):
     dz = {}
     try:
         with open(path, "r", encoding="utf-8") as f:
             for line in f:
-                line = line.strip()
-                if ":" not in line:
-                    continue
-                name, rest = line.split(":", 1)
-                parts = [p.strip() for p in rest.split(",")]
-                lat = float(parts[0])
-                lon = float(parts[1])
-                icao = parts[2] if len(parts) > 2 else None
-                dz[name.strip()] = (lat, lon, icao)
+                parsed = parse_dz_line(line)
+                if parsed:
+                    name, lat, lon, icao = parsed
+                    dz[name] = (lat, lon, icao)
     except Exception:
         dz = {"default DZ": (43.3712, -70.9259, "KLEB")}
+    # Merge user-submitted DZs
+    try:
+        if os.path.exists(USER_DZ_FILE):
+            # Build set of base names (before " (City, ST)") already in the main list
+            # so user entries superseded by a properly-formatted main-list entry are skipped
+            existing_bases = {n.split(" (")[0].strip().lower() for n in dz}
+            with open(USER_DZ_FILE, "r", encoding="utf-8") as f:
+                for line in f:
+                    parsed = parse_dz_line(line)
+                    if parsed:
+                        name, lat, lon, icao = parsed
+                        base = name.split(" (")[0].strip().lower()
+                        if name not in dz and base not in existing_bases:
+                            dz[name] = (lat, lon, icao)
+    except Exception:
+        pass
     return dz
 
 
@@ -635,6 +699,7 @@ def format_winds(data, hour, lat=0, lon=0):
 
         # Build ensemble pressure level base
         ensemble_base = []
+        max_spd_pts = []  # (alt_ft, max_model_speed) at each pressure level
         ensemble_spreads = {}  # alt -> direction spread across models
         for lvl in LEVELS:
             m_spds, m_dirs = [], []
@@ -654,6 +719,8 @@ def format_winds(data, hour, lat=0, lon=0):
             if not m_spds or alt_ft is None: continue
             avg_spd, avg_dir = weighted_avg_wind(m_spds, m_dirs)
             ensemble_base.append((alt_ft, avg_spd, avg_dir))
+            # Track max model speed at this pressure level altitude
+            max_spd_pts.append((alt_ft, max(m_spds)))
             # Spread = max pairwise angular difference
             if len(m_dirs) > 1:
                 spread = max(angle_diff(m_dirs[i], m_dirs[j])
@@ -745,6 +812,37 @@ def format_winds(data, hour, lat=0, lon=0):
                 "color":     color(speed),
                 "temp_f":    tc_to_f(temp_c),
             }
+
+        # Add max_speed per altitude by interpolating max_spd_pts (same pressure levels as ensemble)
+        max_spd_pts_sorted = sorted(max_spd_pts, key=lambda x: x[0])
+        for alt in range(0, 15000, 1000):
+            if alt not in result:
+                continue
+            if not max_spd_pts_sorted:
+                result[alt]["max_speed"] = result[alt]["speed"]
+                continue
+            if alt <= max_spd_pts_sorted[0][0]:
+                ms = max_spd_pts_sorted[0][1]
+            elif alt >= max_spd_pts_sorted[-1][0]:
+                ms = max_spd_pts_sorted[-1][1]
+            else:
+                ms = result[alt]["speed"]  # fallback
+                for i in range(len(max_spd_pts_sorted)-1):
+                    a0, s0 = max_spd_pts_sorted[i]
+                    a1, s1 = max_spd_pts_sorted[i+1]
+                    if a0 <= alt <= a1:
+                        t = (alt - a0) / (a1 - a0)
+                        ms = s0 + (s1 - s0) * t
+                        break
+            result[alt]["max_speed"] = round(max(ms, result[alt]["speed"]), 1)
+        # SFC max_speed from 10m model speeds
+        if 0 in result:
+            sfc_max_spds = []
+            for mh in models_h.values():
+                s10_arr = mh.get("windspeed_10m", [])
+                if hour < len(s10_arr) and s10_arr[hour] is not None:
+                    sfc_max_spds.append(float(s10_arr[hour]))
+            result[0]["max_speed"] = round(max(sfc_max_spds), 1) if sfc_max_spds else result[0]["speed"]
         # Build per-altitude spread map keyed by display altitude (1000ft increments)
         per_alt_spread = {}
         for alt in range(0, 15000, 1000):
@@ -1165,6 +1263,295 @@ def plane():
         return jsonify({"error": str(e)}), 500
 
 
+
+# ── PENDING DROPZONE HELPERS ──
+
+def load_pending_dzs():
+    pending = []
+    try:
+        if not os.path.exists(PENDING_DZ_FILE):
+            return pending
+        with open(PENDING_DZ_FILE, "r", encoding="utf-8") as f:
+            import json as _json
+            for line in f:
+                line = line.strip()
+                if line:
+                    try: pending.append(_json.loads(line))
+                    except: pass
+    except: pass
+    return pending
+
+def save_pending_dzs(pending):
+    import json as _json
+    try:
+        _pd = os.path.dirname(PENDING_DZ_FILE)
+        if _pd: os.makedirs(_pd, exist_ok=True)
+        with open(PENDING_DZ_FILE, "w", encoding="utf-8") as f:
+            for entry in pending:
+                f.write(_json.dumps(entry) + "\n")
+    except Exception as e:
+        print(f"save_pending_dzs error: {e}")
+
+def load_user_dz_lines():
+    """Return raw lines from user_dropzones.txt."""
+    try:
+        if not os.path.exists(USER_DZ_FILE):
+            return []
+        with open(USER_DZ_FILE, "r", encoding="utf-8") as f:
+            return f.readlines()
+    except Exception:
+        return []
+
+def notify_discord(name, lat, lon, icao, submission_id):
+    if not DISCORD_WEBHOOK:
+        return
+    try:
+        admin_url = f"https://mango-winds.onrender.com/admin/dropzones?token={ADMIN_TOKEN}"
+        msg = {"embeds": [{"title": "✈️ New Dropzone Added (Live)", "color": 0x00d4ff,
+            "fields": [
+                {"name": "Name", "value": name, "inline": False},
+                {"name": "Latitude", "value": str(lat), "inline": True},
+                {"name": "Longitude", "value": str(lon), "inline": True},
+                {"name": "METAR", "value": icao or "Not provided", "inline": True},
+                {"name": "ID", "value": submission_id, "inline": True},
+            ],
+            "description": f"This DZ is already live. [👉 Edit or Remove]({admin_url})",
+            "footer": {"text": "Mango Wind Hub"}}]}
+        requests.post(DISCORD_WEBHOOK, json=msg, timeout=5)
+    except Exception as e:
+        print(f"Discord notify error: {e}")
+
+def github_get_dz_file():
+    """Fetch current Dropzone list.txt from GitHub. Returns (content_str, sha) or raises."""
+    import base64
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GH_DZ_FILE}"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github+json"}
+    r = requests.get(url, headers=headers, timeout=10)
+    r.raise_for_status()
+    data = r.json()
+    content = base64.b64decode(data["content"]).decode("utf-8")
+    return content, data["sha"]
+
+
+def github_commit_dz_file(new_content, sha, commit_message):
+    """Push updated Dropzone list.txt back to GitHub. Returns True on success."""
+    import base64
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GH_DZ_FILE}"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github+json",
+               "Content-Type": "application/json"}
+    payload = {
+        "message": commit_message,
+        "content": base64.b64encode(new_content.encode("utf-8")).decode("ascii"),
+        "sha": sha,
+        "branch": "main"
+    }
+    r = requests.put(url, headers=headers, json=payload, timeout=15)
+    r.raise_for_status()
+    return True
+
+
+@app.route("/add_dropzone", methods=["POST"])
+def add_dropzone():
+    import uuid
+    data = request.get_json(force=True) or {}
+    name = str(data.get("name", "")).strip()
+    city = str(data.get("city", "")).strip()
+    try:
+        lat = float(data.get("lat"))
+        lon = float(data.get("lon"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid latitude or longitude."}), 400
+    icao = str(data.get("icao", "")).strip().upper() or None
+
+    if not name:
+        return jsonify({"error": "Dropzone name is required."}), 400
+    if not city:
+        return jsonify({"error": "City, State/Country is required."}), 400
+    if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+        return jsonify({"error": "Coordinates out of range."}), 400
+
+    # Build the full display name with city, e.g. "Skydive Awesome (Pepperell, MA)"
+    full_name = f"{name} ({city})"
+
+    for existing_name, vals in DROPZONES.items():
+        dist = haversine_miles(lat, lon, vals[0], vals[1])
+        if dist <= 10:
+            return jsonify({"error": f"Too close to an existing dropzone: {existing_name} ({dist:.1f} mi away). It may already be listed!"}), 409
+
+    submission_id = str(uuid.uuid4())[:8]
+
+    # Persist to GitHub (survives redeploys) and update runtime dict
+    if GITHUB_TOKEN:
+        try:
+            content, sha = github_get_dz_file()
+            new_line = f"{full_name}: {lat},{lon},{icao or ''}\n"
+            new_content = content.rstrip("\n") + "\n" + new_line
+            github_commit_dz_file(
+                new_content, sha,
+                f"Add dropzone: {full_name} (submitted via web form, id={submission_id})"
+            )
+        except Exception as e:
+            return jsonify({"error": f"Could not save dropzone to GitHub: {e}"}), 500
+    else:
+        # Fallback: write to local file (ephemeral on Render free tier)
+        try:
+            _ud = os.path.dirname(USER_DZ_FILE)
+            if _ud: os.makedirs(_ud, exist_ok=True)
+            with open(USER_DZ_FILE, "a", encoding="utf-8") as f:
+                f.write(f"{full_name}: {lat},{lon},{icao or ''}\n")
+        except Exception as e:
+            return jsonify({"error": f"Could not save dropzone: {e}"}), 500
+
+    DROPZONES[full_name] = (lat, lon, icao)
+
+    # Also track in the review list so admin can edit/remove
+    entry = {"id": submission_id, "name": full_name, "lat": lat, "lon": lon, "icao": icao or ""}
+    pending = load_pending_dzs()
+    pending.append(entry)
+    save_pending_dzs(pending)
+
+    # Notify Discord
+    notify_discord(full_name, lat, lon, icao, submission_id)
+
+    return jsonify({"ok": True, "name": full_name, "lat": lat, "lon": lon, "icao": icao,
+                    "message": f"{full_name} has been added! It's now available for everyone."})
+
+
+@app.route("/admin/dropzones")
+def admin_dropzones():
+    token = request.args.get("token", "")
+    if token != ADMIN_TOKEN:
+        return "Unauthorized", 403
+    pending = load_pending_dzs()
+    rows = ""
+    for p in pending:
+        rows += f"""<tr>
+            <form method="POST" action="/admin/dropzones/action?token={ADMIN_TOKEN}">
+                <input type="hidden" name="id" value="{p['id']}">
+                <td><input name="name" value="{p['name']}" style="width:220px;background:#1a2535;color:#c8daea;border:1px solid #2a3f55;border-radius:4px;padding:4px 8px;font-family:monospace"></td>
+                <td><input name="lat" value="{p['lat']}" style="width:90px;background:#1a2535;color:#c8daea;border:1px solid #2a3f55;border-radius:4px;padding:4px 8px;font-family:monospace"></td>
+                <td><input name="lon" value="{p['lon']}" style="width:100px;background:#1a2535;color:#c8daea;border:1px solid #2a3f55;border-radius:4px;padding:4px 8px;font-family:monospace"></td>
+                <td><input name="icao" value="{p.get('icao','')}" style="width:70px;background:#1a2535;color:#c8daea;border:1px solid #2a3f55;border-radius:4px;padding:4px 8px;font-family:monospace;text-transform:uppercase"></td>
+                <td>
+                    <button name="action" value="approve" style="background:#39ff89;color:#070b10;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-weight:700;margin-right:6px">✓ Save Edits</button>
+                    <button name="action" value="reject" style="background:#ff4f4f;color:#fff;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-weight:700">✕ Remove</button>
+                </td>
+            </form>
+        </tr>"""
+    if not pending:
+        rows = '<tr><td colspan="5" style="text-align:center;padding:24px;color:#5a7a96">No user submissions yet</td></tr>'
+    html = f"""<!DOCTYPE html><html><head><title>MWH — Dropzone Review</title>
+<style>body{{background:#070b10;color:#c8daea;font-family:monospace,sans-serif;padding:32px}}
+h1{{color:#00d4ff;letter-spacing:.1em;font-size:1.4rem;margin-bottom:24px}}
+table{{border-collapse:collapse;width:100%}}th{{color:#5a7a96;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;padding:8px 12px;text-align:left;border-bottom:1px solid #1a2535}}
+td{{padding:10px 12px;border-bottom:1px solid #1a2535;vertical-align:middle}}
+.msg{{background:#1a2535;border-left:3px solid #39ff89;padding:12px 16px;border-radius:4px;margin-bottom:16px;color:#39ff89}}
+.err{{background:#1a2535;border-left:3px solid #ff4f4f;padding:12px 16px;border-radius:4px;margin-bottom:16px;color:#ff4f4f}}</style></head>
+<body><h1>🛫 Mango Wind Hub — Dropzone Review</h1><p style="color:#5a7a96;font-size:.85rem;margin-top:-16px;margin-bottom:20px">All submissions are live. Edit fields and save, or remove entirely.</p>
+{"".join(f'<div class="msg">{m}</div>' for m in request.args.getlist("msg"))}
+{"".join(f'<div class="err">{e}</div>' for e in request.args.getlist("err"))}
+<table><thead><tr><th>Name</th><th>Lat</th><th>Lon</th><th>METAR</th><th>Action</th></tr></thead>
+<tbody>{rows}</tbody></table></body></html>"""
+    return html
+
+
+@app.route("/admin/dropzones/action", methods=["POST"])
+def admin_dropzone_action():
+    from urllib.parse import quote
+    token = request.args.get("token", "")
+    if token != ADMIN_TOKEN:
+        return "Unauthorized", 403
+    sub_id = request.form.get("id", "").strip()
+    action = request.form.get("action", "")
+    name   = request.form.get("name", "").strip()
+    icao   = request.form.get("icao", "").strip().upper() or None
+    try:
+        lat = float(request.form.get("lat"))
+        lon = float(request.form.get("lon"))
+    except (TypeError, ValueError):
+        return redirect(f"/admin/dropzones?token={ADMIN_TOKEN}&err=Invalid+coordinates")
+
+    pending = load_pending_dzs()
+    new_pending = [p for p in pending if p["id"] != sub_id]
+
+    original = next((p for p in pending if p["id"] == sub_id), None)
+    original_name = original["name"] if original else name
+
+    if action == "approve":
+        # Save edits — update GitHub Dropzone list.txt replacing the original entry
+        try:
+            if GITHUB_TOKEN:
+                content, sha = github_get_dz_file()
+                lines = content.splitlines(keepends=True)
+                new_lines = []
+                replaced = False
+                for line in lines:
+                    parsed = parse_dz_line(line)
+                    if parsed and parsed[0] == original_name:
+                        new_lines.append(f"{name}: {lat},{lon},{icao or ''}\n")
+                        replaced = True
+                    else:
+                        new_lines.append(line)
+                if not replaced:
+                    new_lines.append(f"{name}: {lat},{lon},{icao or ''}\n")
+                github_commit_dz_file(
+                    "".join(new_lines), sha,
+                    f"Admin edit dropzone: {original_name} → {name} (id={sub_id})"
+                )
+            else:
+                # Fallback: local file
+                existing = load_user_dz_lines()
+                new_lines = []
+                replaced = False
+                for line in existing:
+                    parsed = parse_dz_line(line)
+                    if parsed and parsed[0] == original_name:
+                        new_lines.append(f"{name}: {lat},{lon},{icao or ''}\n")
+                        replaced = True
+                    else:
+                        new_lines.append(line)
+                if not replaced:
+                    new_lines.append(f"{name}: {lat},{lon},{icao or ''}\n")
+                _ud2 = os.path.dirname(USER_DZ_FILE)
+                if _ud2: os.makedirs(_ud2, exist_ok=True)
+                with open(USER_DZ_FILE, "w", encoding="utf-8") as f:
+                    f.writelines(new_lines)
+            if original_name in DROPZONES and original_name != name:
+                del DROPZONES[original_name]
+            DROPZONES[name] = (lat, lon, icao)
+        except Exception as e:
+            return redirect(f"/admin/dropzones?token={ADMIN_TOKEN}&err={quote(str(e))}")
+        # Update pending record with new values
+        for p in new_pending:
+            if p["id"] == sub_id:
+                p.update({"name": name, "lat": lat, "lon": lon, "icao": icao or ""})
+        new_pending_with_updated = new_pending + ([{"id": sub_id, "name": name, "lat": lat, "lon": lon, "icao": icao or ""}] if sub_id not in [p["id"] for p in new_pending] else [])
+        save_pending_dzs(new_pending_with_updated)
+        return redirect(f"/admin/dropzones?token={ADMIN_TOKEN}&msg={quote(name + ' updated!')}")
+    else:
+        # Remove — delete from GitHub Dropzone list.txt and runtime
+        try:
+            if GITHUB_TOKEN:
+                content, sha = github_get_dz_file()
+                lines = content.splitlines(keepends=True)
+                new_lines = [l for l in lines if not (parse_dz_line(l) and parse_dz_line(l)[0] == original_name)]
+                github_commit_dz_file(
+                    "".join(new_lines), sha,
+                    f"Admin remove dropzone: {original_name} (id={sub_id})"
+                )
+            else:
+                existing = load_user_dz_lines()
+                new_lines = [l for l in existing if not (parse_dz_line(l) and parse_dz_line(l)[0] == original_name)]
+                with open(USER_DZ_FILE, "w", encoding="utf-8") as f:
+                    f.writelines(new_lines)
+            if original_name in DROPZONES:
+                del DROPZONES[original_name]
+        except Exception as e:
+            return redirect(f"/admin/dropzones?token={ADMIN_TOKEN}&err={quote(str(e))}")
+        save_pending_dzs(new_pending)
+        return redirect(f"/admin/dropzones?token={ADMIN_TOKEN}&msg={quote(original_name + ' removed.')}") 
+
+
 @app.route("/plane/trace")
 def plane_trace():
     """Fetch recent flight trace history for an aircraft by ICAO hex."""
@@ -1494,12 +1881,13 @@ def data():
     current_hour_index = now_utc.hour
     hour = current_hour_index + hour_offset
 
-    # Get ICAO for this DZ if available
-    icao = None
-    for dz_vals in DROPZONES.values():
-        if len(dz_vals) > 2 and abs(dz_vals[0]-lat) < 0.01 and abs(dz_vals[1]-lon) < 0.01:
-            icao = dz_vals[2]
-            break
+    # Get ICAO for this DZ if available — frontend can override with ?icao= for custom DZs
+    icao = request.args.get("icao", "").strip() or None
+    if not icao:
+        for dz_vals in DROPZONES.values():
+            if len(dz_vals) > 2 and abs(dz_vals[0]-lat) < 0.01 and abs(dz_vals[1]-lon) < 0.01:
+                icao = dz_vals[2]
+                break
 
     # Record visit — find DZ name from coords
     dz_name = "Unknown"
@@ -1527,11 +1915,16 @@ def data():
     if hour_offset == 0 and icao and winds:
         metar = fetch_metar(icao)
         if metar:
+            metar_spd = round(metar["wspd"], 1)
+            # max_speed = highest of METAR and any model surface speed
+            model_sfc_max = winds[0].get("max_speed", metar_spd)
+            sfc_max = round(max(metar_spd, model_sfc_max), 1)
             winds[0] = {
-                "speed":     round(metar["wspd"], 1),
+                "speed":     metar_spd,
+                "max_speed": sfc_max,
                 "direction": round(metar["wdir"] % 360, 0),
                 "arrow":     wind_arrow(metar["wdir"]),
-                "color":     color(metar["wspd"]),
+                "color":     color(metar_spd),
                 "temp_f":    round(metar["temp"] * 9/5 + 32) if metar["temp"] is not None else winds[0].get("temp_f"),
             }
             print(f"SFC: using METAR {icao} {metar['wspd']}kt/{metar['wdir']}° temp={metar.get('temp')}°C")
@@ -1619,6 +2012,188 @@ def data():
     })
     response.headers["Cache-Control"] = "no-store, max-age=0"
     return response
+
+
+# =====================================================
+# ✈️ ADS-B TRAIL FETCHER
+# =====================================================
+
+import threading as _threading
+_adsb_fetch_lock = _threading.Lock()   # one ADS-B fetch at a time (hourly poller or manual)
+
+
+def fetch_adsb_trails_now(dz_filter=None, blocking=True):
+    """Run one ADS-B fetch. Returns the summary dict, or None if another fetch is
+    already running and blocking=False."""
+    if not _adsb_fetch_lock.acquire(blocking=blocking):
+        return None
+    try:
+        return _fetch_adsb_trails_impl(dz_filter)
+    finally:
+        _adsb_fetch_lock.release()
+
+
+def _fetch_adsb_trails_impl(dz_filter=None):
+    """Fetch today's flight trail for every tail number registered across all DZs
+    (or just one DZ when dz_filter is given).
+    Hits the adsb-proxy Vercel endpoint (?tail=N12345), which returns today's trail.
+    Results are stored in _adsb_trails keyed by tail.
+    Returns {"saved": {tail: point_count}, "empty": [tails with no data], "errors": [tails that failed]}."""
+    summary = {"saved": {}, "empty": [], "errors": []}
+    # Build a flat list of (tail, dz_name) pairs across all DZs
+    pairs = []
+    for dz_name, tails_list in _tails_log.items():
+        if dz_filter and dz_name != dz_filter:
+            continue
+        for tail in tails_list:
+            if tail:
+                pairs.append((tail.upper(), dz_name))
+
+    if not pairs:
+        print("ADS-B poller: no tail numbers registered")
+        return summary
+
+    print(f"ADS-B poller: fetching {len(pairs)} tail(s): {[p[0] for p in pairs]}")
+    fetched_at = datetime.now(timezone.utc).isoformat()
+    new_trails = {}
+
+    for tail, dz_name in pairs:
+        if tail in new_trails:
+            continue  # already fetched (same tail on multiple DZs)
+        try:
+            url = f"https://adsb-proxy.vercel.app/api/plane?tail={tail}"
+            r = requests.get(url, timeout=12,
+                             headers={"User-Agent": "MangoWindHub/1.0 adsb-trail-poller"})
+            if not r.ok:
+                print(f"ADS-B poller: {tail} → HTTP {r.status_code}")
+                summary["errors"].append(tail)
+                continue
+            data = r.json()
+            # Proxy returns: {tail, icao24, lat, lon, alt, track, timestamp, trail: [{lat,lon,alt,ts}, ...]}
+            trail_pts = data.get("trail", [])
+            if not trail_pts and data.get("lat") is not None:
+                # No trail but live position — wrap it
+                trail_pts = [{"lat": data.get("lat"), "lon": data.get("lon"),
+                               "alt": data.get("alt"), "ts": data.get("timestamp")}]
+            if trail_pts:
+                new_trails[tail] = {
+                    "dz": dz_name,
+                    "icao24": data.get("icao24", ""),
+                    "points": trail_pts,   # [{lat, lon, alt, ts}, ...]
+                    "fetched_at": fetched_at,
+                }
+                print(f"ADS-B poller: {tail} → {len(trail_pts)} points")
+                summary["saved"][tail] = len(trail_pts)
+            else:
+                print(f"ADS-B poller: {tail} → no position data")
+                summary["empty"].append(tail)
+        except Exception as e:
+            print(f"ADS-B poller: {tail} error: {e}")
+            summary["errors"].append(tail)
+
+    if new_trails:
+        _adsb_trails.update(new_trails)
+        save_adsb_trails()
+        print(f"ADS-B poller: saved {len(new_trails)} trail(s)")
+    return summary
+
+
+def _adsb_poll_loop():
+    """Background thread: poll ADS-B data every 60 minutes."""
+    import time
+    # Initial fetch after a short delay so app is fully up
+    time.sleep(30)
+    while True:
+        try:
+            fetch_adsb_trails_now()
+        except Exception as e:
+            print(f"ADS-B poll loop error: {e}")
+        time.sleep(3600)  # 1 hour
+
+
+# Start background ADS-B poller (only in gunicorn/production, not pytest)
+import threading as _threading
+_adsb_thread = _threading.Thread(target=_adsb_poll_loop, daemon=True, name="adsb-poller")
+_adsb_thread.start()
+print("ADS-B background poller started")
+
+
+@app.route("/adsb_trails")
+def adsb_trails_endpoint():
+    """Return cached ADS-B trail data for all registered planes.
+    Optional ?dz=<name> to filter by dropzone, ?tail=<tail> to filter by tail."""
+    dz_filter   = request.args.get("dz", "").strip()
+    tail_filter = request.args.get("tail", "").strip().upper()
+
+    result = {}
+    for tail, entry in _adsb_trails.items():
+        if tail_filter and tail != tail_filter:
+            continue
+        if dz_filter and entry.get("dz") != dz_filter:
+            continue
+        result[tail] = entry
+
+    return jsonify(result)
+
+
+# ── Manual "fetch now" (used by the in-app button) ──
+# Runs in a background thread because the app runs a single gunicorn worker and a
+# fetch can take ~10s per tail; the button polls /adsb_trails/fetch_status.
+_adsb_job = {"running": False, "dz": None, "started": 0.0, "finished": 0.0, "summary": None}
+_ADSB_FETCH_COOLDOWN = 20   # seconds between manual fetches for the same DZ
+
+
+def _adsb_manual_job(dz):
+    try:
+        summary = fetch_adsb_trails_now(dz_filter=dz, blocking=True)
+    except Exception as e:
+        print(f"ADS-B manual fetch error: {e}")
+        summary = {"saved": {}, "empty": [], "errors": ["internal"]}
+    import time as _time
+    _adsb_job.update({"running": False, "finished": _time.time(), "summary": summary})
+
+
+@app.route("/adsb_trails/fetch_now", methods=["POST"])
+def adsb_trails_fetch_now():
+    """Start a background ADS-B fetch for every tail saved at one DZ."""
+    import time as _time
+    dz = ((request.get_json(silent=True) or {}).get("dz") or request.args.get("dz", "")).strip()
+    if not dz:
+        return jsonify({"ok": False, "error": "dz required"}), 400
+    if not _tails_log.get(dz):
+        return jsonify({"ok": False, "error": "no_tails",
+                        "message": "No tail numbers saved for this DZ yet"}), 404
+    now = _time.time()
+    if _adsb_job["running"] or _adsb_fetch_lock.locked():
+        return jsonify({"ok": True, "started": False, "running": True}), 202
+    if _adsb_job["dz"] == dz and now - _adsb_job["finished"] < _ADSB_FETCH_COOLDOWN:
+        wait = int(_ADSB_FETCH_COOLDOWN - (now - _adsb_job["finished"])) + 1
+        return jsonify({"ok": False, "error": "cooldown", "retry_after": wait}), 429
+    _adsb_job.update({"running": True, "dz": dz, "started": now, "summary": None})
+    _threading.Thread(target=_adsb_manual_job, args=(dz,), daemon=True,
+                      name="adsb-manual-fetch").start()
+    return jsonify({"ok": True, "started": True, "running": True}), 202
+
+
+@app.route("/adsb_trails/fetch_status")
+def adsb_trails_fetch_status():
+    """Progress of the manual fetch started by /adsb_trails/fetch_now."""
+    return jsonify({"running": _adsb_job["running"] or _adsb_fetch_lock.locked(),
+                    "dz": _adsb_job["dz"], "summary": _adsb_job["summary"]})
+
+
+@app.route("/adsb_trails/refresh")
+def adsb_trails_refresh():
+    """Admin endpoint to manually trigger an ADS-B poll immediately."""
+    token = request.args.get("token", "")
+    expected = os.environ.get("CACHE_TOKEN", "mango")
+    if token != expected:
+        return jsonify({"error": "unauthorized"}), 403
+    try:
+        fetch_adsb_trails_now()
+        return jsonify({"ok": True, "trails": len(_adsb_trails), "tails": list(_adsb_trails.keys())})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # =====================================================

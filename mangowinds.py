@@ -397,6 +397,9 @@ def fetch_forecast(lat, lon, hour_offset=0):
 
         # Model-to-endpoint mapping — HRRR and NAM require /v1/gfs endpoint
         GFS_ENDPOINT_MODELS = {"hrrr_conus", "nam_conus", "gfs_seamless"}
+        # Without an explicit model the /v1/gfs endpoint returns the GFS blend for all three,
+        # which made HRRR/NAM duplicates of GFS. Ask for each model by its own API name.
+        API_MODEL_NAME = {"gfs_seamless": "gfs_global", "hrrr_conus": "gfs_hrrr", "nam_conus": "ncep_nam_conus"}
         def model_endpoint(m):
             if m in GFS_ENDPOINT_MODELS:
                 return base_url.replace("/v1/forecast", "/v1/gfs")
@@ -415,7 +418,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
                 fcast_days = 2
             else:
                 fcast_days = 3
-            model_param = "" if model in ("hrrr_conus", "nam_conus") else f"&models={model}"
+            model_param = f"&models={API_MODEL_NAME.get(model, model)}"
             # No API key in base_params — free API by default
             base_params = (f"?latitude={lat}&longitude={lon}"
                           f"&forecast_days={fcast_days}&timezone=GMT"
@@ -427,7 +430,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
                     paid_url = "https://customer-api.open-meteo.com/v1/forecast"
                     paid_params = base_params.replace(base_url, paid_url) if base_url in base_params else base_params
                     # Rebuild with paid URL and key
-                    mp = "" if model in ("hrrr_conus", "nam_conus") else f"&models={model}"
+                    mp = f"&models={API_MODEL_NAME.get(model, model)}"
                     kp = f"&apikey={api_key}"
                     pp = (f"?latitude={lat}&longitude={lon}"
                           f"&forecast_days={fcast_days}&timezone=GMT"
@@ -606,6 +609,17 @@ def format_winds(data, hour, lat=0, lon=0):
             1000: 364, 975: 820, 950: 1555, 925: 2500,
             850: 4780, 700: 9843, 600: 14108, 500: 18289
         }
+        # Site elevation (ft MSL) from the models' own top-level "elevation" field.
+        # All heights below are converted to feet AGL (above ground), which is what jumpers use.
+        _elevs = []
+        if source == "openmeteo_ensemble":
+            for _md in data["models"].values():
+                try:
+                    if _md and _md.get("elevation") is not None: _elevs.append(float(_md["elevation"]))
+                except Exception:
+                    pass
+        elev_ft = (sum(_elevs) / len(_elevs)) * 3.28084 if _elevs else 0.0
+
         def gh(lvl):
             val = h.get(f"geopotential_height_{lvl}hPa", [None]*200)[hour]
             if val is None:
@@ -616,23 +630,17 @@ def format_winds(data, hour, lat=0, lon=0):
             return round(tc * 9/5 + 32) if tc is not None else None
 
         all_levels = [
-            (gh(1000), h["windspeed_1000hPa"][hour], h["winddirection_1000hPa"][hour], h.get("temperature_1000hPa", [None]*200)[hour]),
-            (gh(975),  h["windspeed_975hPa"][hour],  h["winddirection_975hPa"][hour],  h.get("temperature_975hPa",  [None]*200)[hour]),
-            (gh(950),  h["windspeed_950hPa"][hour],  h["winddirection_950hPa"][hour],  h.get("temperature_950hPa",  [None]*200)[hour]),
-            (gh(925),  h["windspeed_925hPa"][hour],  h["winddirection_925hPa"][hour],  h.get("temperature_925hPa",  [None]*200)[hour]),
-            (gh(850),  h["windspeed_850hPa"][hour],  h["winddirection_850hPa"][hour],  h.get("temperature_850hPa",  [None]*200)[hour]),
-            (gh(700),  h["windspeed_700hPa"][hour],  h["winddirection_700hPa"][hour],  h.get("temperature_700hPa",  [None]*200)[hour]),
-            (gh(600),  h["windspeed_600hPa"][hour],  h["winddirection_600hPa"][hour],  h.get("temperature_600hPa",  [None]*200)[hour]),
-            (gh(500),  h["windspeed_500hPa"][hour],  h["winddirection_500hPa"][hour],  h.get("temperature_500hPa",  [None]*200)[hour]),
+            (gh(1000) - elev_ft, h["windspeed_1000hPa"][hour], h["winddirection_1000hPa"][hour], h.get("temperature_1000hPa", [None]*200)[hour]),
+            (gh(975) - elev_ft,  h["windspeed_975hPa"][hour],  h["winddirection_975hPa"][hour],  h.get("temperature_975hPa",  [None]*200)[hour]),
+            (gh(950) - elev_ft,  h["windspeed_950hPa"][hour],  h["winddirection_950hPa"][hour],  h.get("temperature_950hPa",  [None]*200)[hour]),
+            (gh(925) - elev_ft,  h["windspeed_925hPa"][hour],  h["winddirection_925hPa"][hour],  h.get("temperature_925hPa",  [None]*200)[hour]),
+            (gh(850) - elev_ft,  h["windspeed_850hPa"][hour],  h["winddirection_850hPa"][hour],  h.get("temperature_850hPa",  [None]*200)[hour]),
+            (gh(700) - elev_ft,  h["windspeed_700hPa"][hour],  h["winddirection_700hPa"][hour],  h.get("temperature_700hPa",  [None]*200)[hour]),
+            (gh(600) - elev_ft,  h["windspeed_600hPa"][hour],  h["winddirection_600hPa"][hour],  h.get("temperature_600hPa",  [None]*200)[hour]),
+            (gh(500) - elev_ft,  h["windspeed_500hPa"][hour],  h["winddirection_500hPa"][hour],  h.get("temperature_500hPa",  [None]*200)[hour]),
         ]
-        # Get site elevation from Open-Meteo response (top-level field)
-        try:
-            elev_m = float(data["data"].get("elevation") or 0)
-            elev_ft = elev_m * 3.28084
-        except Exception:
-            elev_ft = 0
-        # Only keep pressure levels at least 300ft above site elevation
-        min_alt_ft = elev_ft + 300
+        # Only keep pressure levels at least 300 ft above ground (altitudes are AGL now)
+        min_alt_ft = 300
         pressure_levels = [(a, s, d, t) for a, s, d, t in all_levels
                            if a > min_alt_ft and s is not None and d is not None]
         # Safety: if filter removed everything, fall back to all valid levels
@@ -693,7 +701,7 @@ def format_winds(data, hour, lat=0, lon=0):
                 m_spds.append(spd); m_dirs.append(dirn)
                 if alt_ft is None:
                     v = mh.get(f"geopotential_height_{lvl}hPa", [None]*200)[hour]
-                    alt_ft = v*3.28084 if v is not None else float(STD_H.get(lvl, 0))
+                    alt_ft = (v*3.28084 if v is not None else float(STD_H.get(lvl, 0))) - elev_ft
             if not m_spds or alt_ft is None: continue
             avg_spd, avg_dir = weighted_avg_wind(m_spds, m_dirs)
             ensemble_base.append((alt_ft, avg_spd, avg_dir))
@@ -715,6 +723,7 @@ def format_winds(data, hour, lat=0, lon=0):
 
         # SFC: ensemble average of 10m+80m across models
         sfc_spds, sfc_dirs = [], []
+        s10_l, d10_l, s80_l, d80_l = [], [], [], []
         for mh in models_h.values():
             s10_arr = mh.get("windspeed_10m",[])
             d10_arr = mh.get("winddirection_10m",[])
@@ -729,9 +738,21 @@ def format_winds(data, hour, lat=0, lon=0):
             r10 = math.radians(d10); r80 = math.radians(d80 or d10)
             sin_s = (math.sin(r10)*s10 + math.sin(r80)*s80)/(s10+s80+0.001)
             cos_s = (math.cos(r10)*s10 + math.cos(r80)*s80)/(s10+s80+0.001)
+            s10_l.append(s10); d10_l.append(d10); s80_l.append(s80); d80_l.append(d80 or d10)
             sfc_spds.append(avg_spd_sfc)
             sfc_dirs.append(math.degrees(math.atan2(sin_s, cos_s)) % 360)
         surf_spd, surf_dir = weighted_avg_wind(sfc_spds, sfc_dirs)
+
+        # Blend up from the surface: add the models' own 10 m (33 ft) and 80 m (262 ft) AGL winds
+        # as profile points, so low altitudes interpolate from real near-ground data instead of
+        # copying the lowest pressure level.
+        if s10_l and s80_l:
+            w10 = weighted_avg_wind(s10_l, d10_l)
+            w80 = weighted_avg_wind(s80_l, d80_l)
+            ensemble_base = sorted(
+                [(33.0, w10[0], w10[1]), (262.0, w80[0], w80[1])] +
+                [pt for pt in ensemble_base if pt[0] > 350],
+                key=lambda x: x[0])
 
         result = {}
         # Use 2m temperature for surface display — much more accurate than pressure level temp

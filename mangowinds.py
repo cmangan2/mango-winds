@@ -418,7 +418,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
             model_param = "" if model in ("hrrr_conus", "nam_conus") else f"&models={model}"
             # No API key in base_params — free API by default
             base_params = (f"?latitude={lat}&longitude={lon}"
-                          f"&forecast_days={fcast_days}&timezone=auto"
+                          f"&forecast_days={fcast_days}&timezone=GMT"
                           f"&wind_speed_unit=kn{model_param}")
 
             def fetch_url(fields_str, use_paid=False):
@@ -430,7 +430,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
                     mp = "" if model in ("hrrr_conus", "nam_conus") else f"&models={model}"
                     kp = f"&apikey={api_key}"
                     pp = (f"?latitude={lat}&longitude={lon}"
-                          f"&forecast_days={fcast_days}&timezone=auto"
+                          f"&forecast_days={fcast_days}&timezone=GMT"
                           f"&wind_speed_unit=kn{mp}{kp}")
                     url = f"https://customer-api.open-meteo.com/v1/forecast{pp}&hourly={fields_str}"
                 else:
@@ -1692,7 +1692,7 @@ def fetch_cloud_data(lat, lon):
         base = "https://api.open-meteo.com/v1/gfs"  # free first
         fields = "cloudcover_low,cloudcover_mid,cloudcover_high,cloudcover,precipitation_probability,visibility,dewpoint_2m,temperature_2m"
         url = (f"{base}?latitude={lat}&longitude={lon}&hourly={fields}"
-               f"&forecast_days=3&timezone=auto&models=gfs_seamless")
+               f"&forecast_days=3&timezone=GMT&models=gfs_seamless")
         # No key for free API
         r = requests.get(url, timeout=10, headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
         if r.ok:

@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.5">
+<meta name="app-version" content="4.5.6">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.5";
+    const CURRENT_VERSION = "4.5.6";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -1207,7 +1207,7 @@ async function load(){
                 <span style="color:var(--muted);font-size:0.62rem;letter-spacing:0.1em">DRIFT</span>
                 <span style="color:var(--text);text-align:right">${(d.freefall.distance/1609.344).toFixed(2)} mi</span>
             </div>`;
-        const MODEL_LABELS={"gfs_seamless":"GFS","icon_seamless":"ICON","hrrr_conus":"HRRR","nam_conus":"NAM","ecmwf_ifs025":"ECMWF"};
+        const MODEL_LABELS={"gfs_seamless":"GFS","icon_seamless":"ICON","hrrr_conus":"HRRR","ecmwf_ifs025":"ECMWF"};
         const ml=d.models_loaded||{};
         const loadedModels=Object.keys(ml).filter(m=>ml[m]);
         let modelDots=Object.entries(MODEL_LABELS).map(([key,label])=>{

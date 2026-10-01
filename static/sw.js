@@ -1,4 +1,4 @@
-const CACHE_NAME = "mwh-v4.5.4";
+const CACHE_NAME = "mwh-v4.5.5";
 const STATIC_ASSETS = [
   "/",
   "/static/manifest.json"
@@ -27,7 +27,6 @@ self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);
   // Always network-first for wind data and API calls
   if (url.pathname.startsWith("/data") || 
-      url.pathname.startsWith("/jumprun") ||
       url.pathname.startsWith("/lastload") ||
       url.pathname.startsWith("/plane") ||
       url.pathname.startsWith("/tails")) {

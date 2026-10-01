@@ -23,7 +23,6 @@ GITHUB_TOKEN    = os.environ.get("GITHUB_TOKEN", "")
 GITHUB_REPO     = os.environ.get("GITHUB_REPO", "cmangan2/mango-winds")
 GH_DZ_FILE      = "Dropzone list.txt"   # path inside the repo
 VISITS_FILE   = os.environ.get("VISITS_FILE",   os.path.join(os.path.dirname(__file__), "visits.json"))
-JUMPRUN_FILE  = os.environ.get("JUMPRUN_FILE",  os.path.join(os.path.dirname(__file__), "jumprun.json"))
 TAILS_FILE    = os.environ.get("TAILS_FILE",    os.path.join(os.path.dirname(__file__), "tails.json"))
 LASTLOAD_FILE    = os.environ.get("LASTLOAD_FILE",    os.path.join(os.path.dirname(__file__), "lastload.json"))
 ADSB_TRAILS_FILE = os.environ.get("ADSB_TRAILS_FILE", os.path.join(os.path.dirname(__file__), "adsb_trails.json"))
@@ -90,27 +89,6 @@ def save_tails():
         print(f"Tails save error: {e}")
 
 load_tails()
-
-# Jump run storage: {dz_name: {start, end, alt, heading, timestamp, tail}}
-_jumprun_log = {}
-
-def load_jumprun():
-    global _jumprun_log
-    try:
-        if os.path.exists(JUMPRUN_FILE):
-            with open(JUMPRUN_FILE) as f:
-                _jumprun_log = json.load(f)
-    except Exception as e:
-        print(f"Jumprun load error: {e}")
-
-def save_jumprun():
-    try:
-        with open(JUMPRUN_FILE, "w") as f:
-            json.dump(_jumprun_log, f)
-    except Exception as e:
-        print(f"Jumprun save error: {e}")
-
-load_jumprun()
 
 # Visit tracking: {dz_name: {date: count}}
 _visit_log = {}
@@ -1625,145 +1603,6 @@ def lastload():
     }
     save_lastload()
     return jsonify({"status": "saved"})
-
-
-@app.route("/jumprun", methods=["GET", "POST"])
-def jumprun():
-    if request.method == "GET":
-        dz_name = request.args.get("dz", "")
-        if dz_name and dz_name in _jumprun_log:
-            entry = _jumprun_log[dz_name]
-            # Reset if from a previous calendar day (local time) — this also clears any lock
-            try:
-                ts = datetime.fromisoformat(entry.get("timestamp", ""))
-                entry_date = ts.astimezone().date()
-                today = datetime.now().astimezone().date()
-                if entry_date < today:
-                    return jsonify({})
-            except Exception:
-                pass
-            return jsonify(entry)
-        return jsonify({})
-
-    # POST — save a jump run, averaging with recent submissions
-    data = request.json
-    dz_name = data.get("dz", "").strip()
-    if not dz_name:
-        return jsonify({"error": "dz required"}), 400
-
-    source = data.get("source", "auto")   # "auto" | "manual" | "discard"
-    now_utc = datetime.now(timezone.utc)
-    existing = _jumprun_log.get(dz_name, {})
-
-    # A manual override or discard from earlier today locks the entry — auto-detection
-    # can no longer overwrite or average into it until the next calendar day.
-    def is_locked_today(entry):
-        if not entry or not entry.get("locked"):
-            return False
-        try:
-            ts = datetime.fromisoformat(entry.get("timestamp", ""))
-            return ts.astimezone().date() == datetime.now().astimezone().date()
-        except Exception:
-            return False
-
-    if source == "discard":
-        _jumprun_log[dz_name] = {
-            "start": None, "end": None, "alt": None, "heading": None,
-            "timestamp": now_utc.isoformat(), "tail": "",
-            "submission_count": 0, "locked": True,
-        }
-        save_jumprun()
-        print(f"Jump run discarded for {dz_name}")
-        return jsonify({"status": "discarded"})
-
-    if source != "manual" and is_locked_today(existing):
-        # Auto-detection tried to write over a manual override/discard — ignore it.
-        print(f"Ignoring auto jump run for {dz_name} — locked by manual override today")
-        return jsonify({"status": "ignored_locked"})
-
-    new_start   = data.get("start")   # [lat, lon]
-    new_end     = data.get("end")     # [lat, lon]
-    new_alt     = data.get("alt")
-    new_heading = data.get("heading")
-    new_tail    = data.get("tail", "")
-
-    if not new_start or not new_end:
-        return jsonify({"error": "start and end required"}), 400
-
-    if source == "manual":
-        _jumprun_log[dz_name] = {
-            "start":            new_start,
-            "end":              new_end,
-            "alt":              new_alt,
-            "heading":          new_heading,
-            "timestamp":        now_utc.isoformat(),
-            "tail":             new_tail,
-            "submission_count": 1,
-            "locked":           True,
-        }
-        save_jumprun()
-        print(f"Jump run manually set for {dz_name}: hdg={new_heading}° (locked)")
-        return jsonify({"status": "saved", "submissions": 1})
-
-    # Check if existing entry is from today and heading is within 30° (same jump run direction)
-    def heading_diff(a, b):
-        d = abs((a - b + 180) % 360 - 180)
-        return d
-
-    use_avg = False
-    if existing and existing.get("timestamp") and existing.get("heading") is not None and new_heading is not None:
-        try:
-            existing_ts = datetime.fromisoformat(existing["timestamp"])
-            age_hours = (now_utc - existing_ts).total_seconds() / 3600
-            same_direction = heading_diff(existing["heading"], new_heading) < 30
-            if age_hours < 6 and same_direction:
-                use_avg = True
-        except Exception:
-            pass
-
-    if use_avg:
-        # Average with existing — weighted toward new (most recent is most relevant)
-        n = min(existing.get("submission_count", 1), 5)  # cap influence of old data at 5
-        w_old, w_new = n, 1
-        w_total = w_old + w_new
-        def avg_coord(old, new):
-            return [(old[0]*w_old + new[0]*w_new) / w_total,
-                    (old[1]*w_old + new[1]*w_new) / w_total]
-        avg_start = avg_coord(existing["start"], new_start)
-        avg_end   = avg_coord(existing["end"],   new_end)
-        avg_alt   = ((existing.get("alt") or 0)*w_old + (new_alt or 0)*w_new) / w_total if existing.get("alt") and new_alt else new_alt
-        # Circular average for heading
-        import math as _math
-        h_old_r = _math.radians(existing["heading"])
-        h_new_r = _math.radians(new_heading)
-        avg_sin = (_math.sin(h_old_r)*w_old + _math.sin(h_new_r)*w_new) / w_total
-        avg_cos = (_math.cos(h_old_r)*w_old + _math.cos(h_new_r)*w_new) / w_total
-        avg_hdg = round(_math.degrees(_math.atan2(avg_sin, avg_cos)) % 360)
-        _jumprun_log[dz_name] = {
-            "start":            avg_start,
-            "end":              avg_end,
-            "alt":              round(avg_alt) if avg_alt else None,
-            "heading":          avg_hdg,
-            "timestamp":        now_utc.isoformat(),
-            "tail":             new_tail or existing.get("tail", ""),
-            "submission_count": n + 1,
-        }
-        print(f"Jump run averaged for {dz_name} (n={n+1}): hdg={avg_hdg}°")
-    else:
-        # New jump run (different direction or too old) — replace
-        _jumprun_log[dz_name] = {
-            "start":            new_start,
-            "end":              new_end,
-            "alt":              new_alt,
-            "heading":          new_heading,
-            "timestamp":        now_utc.isoformat(),
-            "tail":             new_tail,
-            "submission_count": 1,
-        }
-        print(f"Jump run saved for {dz_name}: hdg={new_heading}°")
-
-    save_jumprun()
-    return jsonify({"status": "saved", "submissions": _jumprun_log[dz_name]["submission_count"]})
 
 
 @app.route("/clearcache")

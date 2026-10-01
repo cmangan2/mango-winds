@@ -391,7 +391,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
         # Short range (0-18h): GFS + ICON + HRRR + NAM — best resolution for current conditions
         # Long range (19-72h): GFS + ICON + ECMWF — HRRR/NAM don't go that far out
         if hour_offset <= 18:
-            ensemble_models = ["gfs_seamless", "icon_seamless", "hrrr_conus", "hrdps"]
+            ensemble_models = ["gfs_seamless", "icon_seamless", "hrrr_conus", "hrdps", "ecmwf_ifs025"]
         else:
             ensemble_models = ["gfs_seamless", "icon_seamless", "ecmwf_ifs025"]
 

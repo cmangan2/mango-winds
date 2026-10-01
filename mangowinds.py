@@ -2018,20 +2018,40 @@ def data():
 # ✈️ ADS-B TRAIL FETCHER
 # =====================================================
 
-def fetch_adsb_trails_now():
-    """Fetch today's flight trail for every tail number registered across all DZs.
-    Hits /plane?tail=N12345 which returns lat/lon/alt/track history via the
-    adsb-proxy Vercel endpoint. Results are stored in _adsb_trails keyed by tail."""
+import threading as _threading
+_adsb_fetch_lock = _threading.Lock()   # one ADS-B fetch at a time (hourly poller or manual)
+
+
+def fetch_adsb_trails_now(dz_filter=None, blocking=True):
+    """Run one ADS-B fetch. Returns the summary dict, or None if another fetch is
+    already running and blocking=False."""
+    if not _adsb_fetch_lock.acquire(blocking=blocking):
+        return None
+    try:
+        return _fetch_adsb_trails_impl(dz_filter)
+    finally:
+        _adsb_fetch_lock.release()
+
+
+def _fetch_adsb_trails_impl(dz_filter=None):
+    """Fetch today's flight trail for every tail number registered across all DZs
+    (or just one DZ when dz_filter is given).
+    Hits the adsb-proxy Vercel endpoint (?tail=N12345), which returns today's trail.
+    Results are stored in _adsb_trails keyed by tail.
+    Returns {"saved": {tail: point_count}, "empty": [tails with no data], "errors": [tails that failed]}."""
+    summary = {"saved": {}, "empty": [], "errors": []}
     # Build a flat list of (tail, dz_name) pairs across all DZs
     pairs = []
     for dz_name, tails_list in _tails_log.items():
+        if dz_filter and dz_name != dz_filter:
+            continue
         for tail in tails_list:
             if tail:
                 pairs.append((tail.upper(), dz_name))
 
     if not pairs:
         print("ADS-B poller: no tail numbers registered")
-        return
+        return summary
 
     print(f"ADS-B poller: fetching {len(pairs)} tail(s): {[p[0] for p in pairs]}")
     fetched_at = datetime.now(timezone.utc).isoformat()
@@ -2046,6 +2066,7 @@ def fetch_adsb_trails_now():
                              headers={"User-Agent": "MangoWindHub/1.0 adsb-trail-poller"})
             if not r.ok:
                 print(f"ADS-B poller: {tail} → HTTP {r.status_code}")
+                summary["errors"].append(tail)
                 continue
             data = r.json()
             # Proxy returns: {tail, icao24, lat, lon, alt, track, timestamp, trail: [{lat,lon,alt,ts}, ...]}
@@ -2062,15 +2083,19 @@ def fetch_adsb_trails_now():
                     "fetched_at": fetched_at,
                 }
                 print(f"ADS-B poller: {tail} → {len(trail_pts)} points")
+                summary["saved"][tail] = len(trail_pts)
             else:
                 print(f"ADS-B poller: {tail} → no position data")
+                summary["empty"].append(tail)
         except Exception as e:
             print(f"ADS-B poller: {tail} error: {e}")
+            summary["errors"].append(tail)
 
     if new_trails:
         _adsb_trails.update(new_trails)
         save_adsb_trails()
         print(f"ADS-B poller: saved {len(new_trails)} trail(s)")
+    return summary
 
 
 def _adsb_poll_loop():
@@ -2109,6 +2134,52 @@ def adsb_trails_endpoint():
         result[tail] = entry
 
     return jsonify(result)
+
+
+# ── Manual "fetch now" (used by the in-app button) ──
+# Runs in a background thread because the app runs a single gunicorn worker and a
+# fetch can take ~10s per tail; the button polls /adsb_trails/fetch_status.
+_adsb_job = {"running": False, "dz": None, "started": 0.0, "finished": 0.0, "summary": None}
+_ADSB_FETCH_COOLDOWN = 20   # seconds between manual fetches for the same DZ
+
+
+def _adsb_manual_job(dz):
+    try:
+        summary = fetch_adsb_trails_now(dz_filter=dz, blocking=True)
+    except Exception as e:
+        print(f"ADS-B manual fetch error: {e}")
+        summary = {"saved": {}, "empty": [], "errors": ["internal"]}
+    import time as _time
+    _adsb_job.update({"running": False, "finished": _time.time(), "summary": summary})
+
+
+@app.route("/adsb_trails/fetch_now", methods=["POST"])
+def adsb_trails_fetch_now():
+    """Start a background ADS-B fetch for every tail saved at one DZ."""
+    import time as _time
+    dz = ((request.get_json(silent=True) or {}).get("dz") or request.args.get("dz", "")).strip()
+    if not dz:
+        return jsonify({"ok": False, "error": "dz required"}), 400
+    if not _tails_log.get(dz):
+        return jsonify({"ok": False, "error": "no_tails",
+                        "message": "No tail numbers saved for this DZ yet"}), 404
+    now = _time.time()
+    if _adsb_job["running"] or _adsb_fetch_lock.locked():
+        return jsonify({"ok": True, "started": False, "running": True}), 202
+    if _adsb_job["dz"] == dz and now - _adsb_job["finished"] < _ADSB_FETCH_COOLDOWN:
+        wait = int(_ADSB_FETCH_COOLDOWN - (now - _adsb_job["finished"])) + 1
+        return jsonify({"ok": False, "error": "cooldown", "retry_after": wait}), 429
+    _adsb_job.update({"running": True, "dz": dz, "started": now, "summary": None})
+    _threading.Thread(target=_adsb_manual_job, args=(dz,), daemon=True,
+                      name="adsb-manual-fetch").start()
+    return jsonify({"ok": True, "started": True, "running": True}), 202
+
+
+@app.route("/adsb_trails/fetch_status")
+def adsb_trails_fetch_status():
+    """Progress of the manual fetch started by /adsb_trails/fetch_now."""
+    return jsonify({"running": _adsb_job["running"] or _adsb_fetch_lock.locked(),
+                    "dz": _adsb_job["dz"], "summary": _adsb_job["summary"]})
 
 
 @app.route("/adsb_trails/refresh")

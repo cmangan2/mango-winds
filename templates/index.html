@@ -502,6 +502,7 @@ select:focus { border-color: var(--accent); }
                 <button id="advancedBtn" onclick="openAdvancedModal()" style="margin-top:6px;width:100%;padding:6px 10px;background:var(--card-bg);color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">⚙️ Canopy Settings</button>
                 <div id="jumpRunInfo" style="display:none"></div>
                 <button id="lastLoadBtn" onclick="toggleLastLoad()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#00d4ff;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">✈️ Show Last Load</button>
+                <button id="fetchTrailsBtn" onclick="fetchTrailsNow()" style="margin-top:6px;width:100%;padding:6px 10px;background:none;color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🔄 Fetch Plane Data Now</button>
                 <button id="communityJrBtn" onclick="loadCommunityJR()" style="margin-top:6px;margin-bottom:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">📍 Show Last Jump Run</button>
                 <button id="fixJrBtn" onclick="toggleFixJrPanel()" style="margin-bottom:6px;width:100%;padding:6px 10px;background:none;color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🛠️ Fix Jump Run</button>
                 <div id="fixJrPanel" style="display:none;margin-bottom:6px;padding:8px 10px;background:var(--card-bg);border:1px solid var(--border);border-radius:6px">
@@ -2004,6 +2005,57 @@ function clearLastLoad(){
     lastLoadVisible = false;
     const btn = document.getElementById("lastLoadBtn");
     if (btn){ btn.textContent = "✈️ Show Last Load"; btn.style.color = "#00d4ff"; btn.style.borderColor = "var(--border)"; }
+}
+
+// Fetch today's ADS-B trails for this DZ's saved tails right now (instead of waiting for the hourly poll)
+let fetchTrailsBusy = false;
+async function fetchTrailsNow(){
+    if (fetchTrailsBusy) return;
+    const dzName = document.getElementById("dz").value;
+    const btn = document.getElementById("fetchTrailsBtn");
+    const setBtn = txt => { if (btn) btn.textContent = txt; };
+    let msg = null;
+    fetchTrailsBusy = true;
+    setBtn("⏳ Fetching plane data…");
+    try {
+        const r = await fetch('/adsb_trails/fetch_now', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ dz: dzName })
+        });
+        const j = await r.json().catch(()=>({}));
+        if (r.status === 404){ msg = j.message || "No tail numbers saved for this DZ yet — tap Track Plane and add one"; return; }
+        if (r.status === 429){ msg = `Just fetched — try again in ${j.retry_after || 20}s`; return; }
+        if (!r.ok){ msg = "⚠️ Could not start the fetch"; return; }
+
+        // Wait for the background fetch to finish (checks every 1.5s, gives up after ~2 min)
+        let summary = null, finished = false;
+        for (let i = 0; i < 80; i++){
+            await new Promise(res => setTimeout(res, 1500));
+            const s = await fetch('/adsb_trails/fetch_status').then(x=>x.json()).catch(()=>null);
+            if (s && !s.running){ summary = s.summary; finished = true; break; }
+        }
+        if (!finished){ msg = "Still fetching — check again in a minute"; return; }
+
+        // Redraw the trails on the map with the fresh data
+        if (lastLoadVisible) clearLastLoad();
+        await toggleLastLoad();
+
+        const saved = summary ? Object.entries(summary.saved || {}) : [];
+        if (saved.length){
+            const pts = saved.reduce((n, [, c]) => n + c, 0);
+            msg = `✓ ${saved.map(([t]) => t).join(", ")} — ${pts.toLocaleString()} points`;
+        } else if (summary && (summary.errors || []).length){
+            msg = "⚠️ Plane data source didn't respond — try again shortly";
+        } else {
+            msg = "No ADS-B data found for the saved planes today";
+        }
+    } catch(e){
+        msg = "⚠️ Could not fetch plane data";
+    } finally {
+        fetchTrailsBusy = false;
+        setBtn("🔄 Fetch Plane Data Now");
+        if (msg){ showJumpRunStatus(msg); setTimeout(() => showJumpRunStatus(null), 6000); }
+    }
 }
 
 async function toggleLastLoad(){

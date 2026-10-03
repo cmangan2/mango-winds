@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.10">
+<meta name="app-version" content="4.5.11">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.10";
+    const CURRENT_VERSION = "4.5.11";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -2627,8 +2627,7 @@ function planeTrackIconColored(hdg, onGround, color){
 function updateMultiPlaneInfoPanel(){
     const tails = Object.keys(trackedPlanes);
     if (tails.length === 0){ document.getElementById("planeInfo").style.display = "none"; return; }
-    // Force side panel open on mobile so planeInfo is visible
-    if (window.innerWidth < 600 && !panelOpen) togglePanel();
+    // (Don't force the mobile drawer open here: auto-tracking and every poll call this, and it kept re-opening the drawer.)
     const tb = document.getElementById("trackBtn");
     tb.textContent = `■ Tracking ${tails.length} Plane${tails.length>1?'s':''}`;
     tb.style.color = "var(--red)"; tb.style.borderColor = "var(--red)";

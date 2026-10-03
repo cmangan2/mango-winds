@@ -580,7 +580,7 @@ let firstLoad = true;
 let drawMode = false;
 let freeDrawMode = false, freeDrawing = false, freeDrawLayer = null, freeDrawLayers = [], freeDrawPoints = [];
 let jumpRunLine = null, freefallLine = null;
-let jrStart = null, jrEnd = null;
+let jrStart = null, jrEnd = null, jrDef = null, jrBox = null;
 let lastFreefall = null, lastWind14k = null, lastGndSpeedKts = null;
 let planeMarker = null, planeAnimId = null;
 let animGeneration = 0;
@@ -628,7 +628,8 @@ function groundSpeedForLeg(flyingHdgDeg, altFt){
 }
 
 function drawFreefallParallel(){
-    if (!jrStart || !jrEnd || !lastFreefall) return;
+    if (!jrStart || !jrEnd) return;
+    if (!lastFreefall) { drawJrBox(); return; }
     if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
     const ff = lastFreefall;
     const ffDist = Math.min(ff.distance, 8000);
@@ -658,6 +659,34 @@ function drawFreefallParallel(){
     const sepLine = sepSuggested ? `Rec. Jumper Sep: <span style="color:var(--accent)">${sepSuggested} sec</span>` : "";
     document.getElementById("jumpRunInfo").innerHTML =
         `JR heading: ${bear.toFixed(0)}°<br>JR length: ${(jrLenM/1609.344).toFixed(2)} mi<br>JR speed: ${gndKts}<br>FF drift: ${(ffDist/1609.344).toFixed(2)} mi @ ${ff.direction.toFixed(0)}°${sepLine ? "<br>" + sepLine : ""}`;
+    drawJrBox();
+}
+
+function drawJrBox(){
+    if (jrBox) { jrBox.remove(); jrBox = null; }
+    if (!jrStart || !jrEnd || lat === undefined) return;
+    const hdg = bearing(jrStart, jrEnd);
+    let pp, offTxt;
+    if (jrDef) {
+        pp = jrDef.dist > 0 ? `${jrDef.distDir === "prior" ? "Prior" : "Past"} ${jrDef.dist.toFixed(2)} mi` : "At DZ";
+        offTxt = jrDef.offset > 0 ? `${jrDef.offset.toFixed(2)} mi ${jrDef.offDir}` : "None";
+    } else {
+        const cosLat = Math.cos(lat * Math.PI / 180);
+        const dx = (jrStart[1] - lon) * 111320 * cosLat / 1609.344;
+        const dy = (jrStart[0] - lat) * 110574 / 1609.344;
+        const h = hdg * Math.PI / 180;
+        const along = dx * Math.sin(h) + dy * Math.cos(h);
+        const cross = dx * Math.cos(h) - dy * Math.sin(h);
+        pp = Math.abs(along) < 0.005 ? "At DZ" : `${along < 0 ? "Prior" : "Past"} ${Math.abs(along).toFixed(2)} mi`;
+        const offB = (hdg + (cross >= 0 ? 90 : 270)) % 360;
+        const card = ["N","E","S","W"][Math.round(offB / 90) % 4];
+        offTxt = Math.abs(cross) < 0.005 ? "None" : `${Math.abs(cross).toFixed(2)} mi ${card}`;
+    }
+    const spd = lastGndSpeedKts ? lastGndSpeedKts.toFixed(0) + " kt" : "—";
+    const sep = recommendedSep(lastGndSpeedKts);
+    const html = `<div style="position:absolute;left:14px;bottom:14px;white-space:nowrap;background:rgba(10,14,20,0.92);border:1px solid var(--accent);border-radius:6px;padding:6px 9px;font-family:'Share Tech Mono',monospace;font-size:11px;line-height:1.5;color:#e8eef5;box-shadow:0 2px 8px rgba(0,0,0,0.5);pointer-events:none">`
+        + `<b style="color:var(--accent)">JUMP RUN</b><br>Heading: ${hdg.toFixed(0)}°<br>${pp}<br>Offset: ${offTxt}<br>Est. speed: ${spd}<br>Rec. sep: ${sep ? sep + " sec" : "—"}</div>`;
+    jrBox = L.marker(jrStart, { icon: L.divIcon({ html, className: '', iconSize: [0,0] }), interactive: false, keyboard: false, zIndexOffset: 1200 }).addTo(map);
 }
 
 function recommendedSep(gndKts){
@@ -813,7 +842,8 @@ function bearing(a, b){
 function clearJumpRun(){
     if (jumpRunLine) { jumpRunLine.forEach(l => l.remove()); jumpRunLine = null; }
     if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
-    stopPlane(); jrStart = null; jrEnd = null;
+    stopPlane(); jrStart = null; jrEnd = null; jrDef = null;
+    if (jrBox) { jrBox.remove(); jrBox = null; }
     document.getElementById("jumpRunInfo").style.display = "none";
     document.getElementById("replayBtn").style.display = "none";
     document.getElementById("clearBtn").style.display = "none";
@@ -922,7 +952,8 @@ function toggleDrawMode(){
     if (drawMode){
         btn.classList.add("active"); btn.textContent = "✕ Cancel Draw";
         map.getContainer().style.cursor = "crosshair";
-        clearAnimation(); jrStart = null; jrEnd = null;
+        clearAnimation(); jrStart = null; jrEnd = null; jrDef = null;
+        if (jrBox) { jrBox.remove(); jrBox = null; }
         if (window.innerWidth < 600 && panelOpen) togglePanel();
     } else {
         btn.classList.remove("active"); btn.textContent = "✏️ Draw Jump Run";
@@ -938,7 +969,8 @@ function touchToLatLng(touch){
 }
 
 function startDraw(ll){
-    isDragging = true; jrStart = [ll.lat, ll.lng];
+    isDragging = true; jrStart = [ll.lat, ll.lng]; jrDef = null;
+    if (jrBox) { jrBox.remove(); jrBox = null; }
     if (jumpRunLine) { jumpRunLine.forEach(l => l.remove()); jumpRunLine = null; }
     if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
     if (dragLine) { dragLine.remove(); dragLine = null; }
@@ -1664,6 +1696,7 @@ function submitDefineJumpRun(){
     let startPt=offsetLatLon(lat,lon,startBearing,dist);
     const offBearing={N:0,S:180,E:90,W:270}[offDir];
     if (offset>0) startPt=offsetLatLon(startPt[0],startPt[1],offBearing,offset);
+    jrDef={dist,distDir,offset,offDir};
     jrStart=startPt; jrEnd=offsetLatLon(startPt[0],startPt[1],dir,length);
     closeDefineModal(); drawJumpRun();
     if (window.innerWidth<600&&panelOpen) togglePanel();

@@ -684,7 +684,12 @@ function drawJrBox(){
     }
     const spd = lastGndSpeedKts ? lastGndSpeedKts.toFixed(0) + " kt" : "—";
     const sep = recommendedSep(lastGndSpeedKts);
-    const html = `<div style="position:absolute;left:14px;bottom:14px;white-space:nowrap;background:rgba(10,14,20,0.92);border:1px solid var(--accent);border-radius:6px;padding:6px 9px;font-family:'Share Tech Mono',monospace;font-size:11px;line-height:1.5;color:#e8eef5;box-shadow:0 2px 8px rgba(0,0,0,0.5);pointer-events:none">`
+    // Put the box on the side of the start point facing away from the DZ so it never covers the DZ marker
+    const dzPx = map.latLngToLayerPoint(L.latLng(lat, lon)), stPx = map.latLngToLayerPoint(L.latLng(jrStart));
+    const vx = stPx.x - dzPx.x, vy = stPx.y - dzPx.y;
+    const hPos = vx >= 0 ? "left:14px" : "right:14px";
+    const vPos = vy >= 0 ? "top:14px" : "bottom:14px";
+    const html = `<div style="position:absolute;${hPos};${vPos};width:max-content;white-space:nowrap;background:rgba(10,14,20,0.92);border:1px solid var(--accent);border-radius:6px;padding:6px 9px;font-family:'Share Tech Mono',monospace;font-size:11px;line-height:1.5;color:#e8eef5;box-shadow:0 2px 8px rgba(0,0,0,0.5);pointer-events:none">`
         + `<b style="color:var(--accent)">JUMP RUN</b><br>Heading: ${hdg.toFixed(0)}°<br>${pp}<br>Offset: ${offTxt}<br>Est. speed: ${spd}<br>Rec. sep: ${sep ? sep + " sec" : "—"}</div>`;
     jrBox = L.marker(jrStart, { icon: L.divIcon({ html, className: '', iconSize: [0,0] }), interactive: false, keyboard: false, zIndexOffset: 1200 }).addTo(map);
 }

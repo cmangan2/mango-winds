@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.11">
+<meta name="app-version" content="4.5.12">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.11";
+    const CURRENT_VERSION = "4.5.12";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -1711,6 +1711,7 @@ function submitDefineJumpRun(){
 function initMap(){
     map=L.map('map',{zoomSnap:0.25,zoomDelta:0.25,wheelPxPerZoomLevel:120}).setView([lat,lon],9);
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'Tiles © Esri'}).addTo(map);
+    map.on('move zoom resize',updateAllPlaneArrows);
     map.on('mousedown',onMapMouseDown);
     map.on('mousemove',onMapMouseMove);
     map.on('mouseup',onMapMouseUp);
@@ -1908,33 +1909,44 @@ function isOnScreen(lat, lon){
     return map.getBounds().contains(L.latLng(lat, lon));
 }
 
-function updateOffscreenArrow(lat, lon){
-    let arrow = document.getElementById("planeOffscreenArrow");
+function updateOffscreenArrow(lat, lon, id, color){
+    id = id || "planeOffscreenArrow"; color = color || "#00d4ff";
+    let arrow = document.getElementById(id);
     if (isOnScreen(lat, lon)){ if (arrow) arrow.style.display = "none"; return; }
     const mapRect = map.getContainer().getBoundingClientRect();
-    const center = map.latLngToContainerPoint(map.getCenter());
     const target = map.latLngToContainerPoint(L.latLng(lat, lon));
-    const dx = target.x - center.x, dy = target.y - center.y;
+    // Visible area inset from the edges (extra room at the bottom on mobile for the collapsed drawer)
+    const mobile = window.innerWidth < 600;
+    const insetL = 30, insetR = 30, insetT = 30, insetB = mobile ? 56 + 30 : 30;
+    const x0 = insetL, x1 = mapRect.width - insetR, y0 = insetT, y1 = mapRect.height - insetB;
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    const dx = target.x - cx, dy = target.y - cy;
     const angle = Math.atan2(dy, dx);
-    const margin = 44, W = mapRect.width - margin*2, H = mapRect.height - margin*2;
-    let ex, ey;
-    if (Math.abs(dx)*H > Math.abs(dy)*W){ ex = dx > 0 ? W/2 : -W/2; ey = ex*dy/dx; }
-    else { ey = dy > 0 ? H/2 : -H/2; ex = ey*dx/dy; }
-    const px = mapRect.left + mapRect.width/2 + ex;
-    const py = mapRect.top + mapRect.height/2 + ey;
+    const sx = dx === 0 ? Infinity : ((dx > 0 ? x1 : x0) - cx) / dx;
+    const sy = dy === 0 ? Infinity : ((dy > 0 ? y1 : y0) - cy) / dy;
+    const k = Math.min(sx, sy);
+    const px = mapRect.left + cx + dx * k;
+    const py = mapRect.top + cy + dy * k;
     const deg = angle*180/Math.PI + 90;
     if (!arrow){
         arrow = document.createElement("div");
-        arrow.id = "planeOffscreenArrow";
+        arrow.id = id; arrow.className = "planeOffscreenArrow";
         arrow.style.cssText = "position:fixed;z-index:7999;pointer-events:none;width:36px;height:36px;margin-left:-18px;margin-top:-18px;";
         document.body.appendChild(arrow);
     }
     arrow.style.display = "block";
     arrow.style.left = px + "px"; arrow.style.top = py + "px";
     arrow.innerHTML = `<svg width="36" height="36" viewBox="0 0 36 36" style="transform:rotate(${deg}deg)">
-        <polygon points="18,4 26,28 18,23 10,28" fill="#00d4ff" opacity="0.9"/>
-        <circle cx="18" cy="18" r="6" fill="rgba(0,212,255,0.2)" stroke="#00d4ff" stroke-width="1.5"/>
+        <polygon points="18,4 26,28 18,23 10,28" fill="${color}" opacity="0.9"/>
+        <circle cx="18" cy="18" r="6" fill="rgba(0,212,255,0.2)" stroke="${color}" stroke-width="1.5"/>
     </svg>`;
+}
+
+function updateAllPlaneArrows(){
+    Object.keys(trackedPlanes).forEach(tail => {
+        const st = trackedPlanes[tail];
+        if (st && st.marker){ const ll = st.marker.getLatLng(); updateOffscreenArrow(ll.lat, ll.lng, "planeOffscreenArrow_" + tail, st.color); }
+    });
 }
 
 function animatePlane(timestamp){
@@ -2467,6 +2479,7 @@ function stopTrackingTail(tail){
     if (state.marker) state.marker.remove();
     if (state.label) state.label.remove();
     if (state.trailLine) state.trailLine.remove();
+    { const ar = document.getElementById("planeOffscreenArrow_" + tail); if (ar) ar.remove(); }
     delete trackedPlanes[tail];
     refreshModalList();  // update button to "Track" without closing
     if (Object.keys(trackedPlanes).length === 0){
@@ -2606,6 +2619,7 @@ function animatePlaneTail(tail, ts){
     const lat = from.lat + (state.animTo.lat - from.lat) * ease;
     const lng = from.lng + (state.animTo.lng - from.lng) * ease;
     state.marker.setLatLng([lat, lng]);
+    updateOffscreenArrow(lat, lng, "planeOffscreenArrow_" + tail, state.color);
     if (t < 1) state.animFrame = requestAnimationFrame(ts2 => animatePlaneTail(tail, ts2));
 }
 

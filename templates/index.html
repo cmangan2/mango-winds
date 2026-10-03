@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.8">
+<meta name="app-version" content="4.5.9">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.8";
+    const CURRENT_VERSION = "4.5.9";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -84,7 +84,8 @@ body {
     #wrap { flex-direction: column; position: relative; }
     #map { position: absolute; inset: 0; z-index: 1; }
     #panel {
-        position: absolute; bottom: 0; left: 0; right: 0; width: 100%;
+        position: fixed; bottom: 0; left: 0; right: 0; width: 100%;
+        -webkit-transform: translateY(calc(100% - var(--drawer-h))); will-change: transform;
         max-height: 88vh; max-height: 88dvh; border-left: none;
         border-top: 2px solid var(--border);
         border-radius: 18px 18px 0 0; z-index: 10;
@@ -1746,6 +1747,15 @@ function initMap(){
     window.addEventListener("orientationchange",resetDrawer);
     window.addEventListener("pageshow",resetDrawer);
     document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") resetDrawer(); });
+    // Self-heal: if the handle ever ends up outside the visible viewport on mobile (browser toolbar
+    // show/hide, keyboard, rotation), drop any stray inline transform so the CSS puts it back.
+    function healDrawer(){
+        if (dragging || window.innerWidth>=600) return;
+        const r=handle.getBoundingClientRect(), vh=(window.visualViewport?window.visualViewport.height:window.innerHeight);
+        if (r.top>vh-8 || r.bottom<8 || r.height===0) resetDrawer();
+    }
+    if (window.visualViewport){ window.visualViewport.addEventListener("resize",healDrawer); window.visualViewport.addEventListener("scroll",healDrawer); }
+    setInterval(healDrawer,2000);
 })();
 
 // ── PLANE TRACKER ──

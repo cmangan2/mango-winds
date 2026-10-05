@@ -1786,7 +1786,7 @@ def fetch_cloud_data(lat, lon):
 
 
 def build_cloud_forecast(raw, current_hour):
-    """Extract cloud cover, precip, visibility for next 8 hours in 2-hour blocks."""
+    """Extract cloud cover, precip, visibility for now plus the next 4 hours, hourly."""
     try:
         if not raw or raw.get("source") != "openmeteo_ensemble":
             return None
@@ -1807,7 +1807,7 @@ def build_cloud_forecast(raw, current_hour):
             return arr[idx] if idx < len(arr) else default
 
         blocks = []
-        for offset in range(0, 9, 2):  # 0, 2, 4, 6, 8 hours from now
+        for offset in range(0, 5):  # now and each of the next 4 hours
             h = current_hour + offset
             cl  = safe_get("cloudcover_low",  h, 0)
             cm  = safe_get("cloudcover_mid",  h, 0)

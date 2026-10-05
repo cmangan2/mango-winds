@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.12">
+<meta name="app-version" content="4.5.13">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.12";
+    const CURRENT_VERSION = "4.5.13";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -440,9 +440,11 @@ select:focus { border-color: var(--accent); }
 </div>
 
 <!-- ── CLOUD FORECAST POPUP ── -->
-<div id="cloudPopup" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:8002;background:rgba(13,21,32,0.97);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:0 8px 32px rgba(0,0,0,0.7);backdrop-filter:blur(10px);min-width:320px;max-width:95vw;cursor:grab;user-select:none;touch-action:none">
+<div id="cloudPopup" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:8002;background:rgba(13,21,32,0.97);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:0 8px 32px rgba(0,0,0,0.7);backdrop-filter:blur(10px);min-width:340px;width:min(460px,94vw);max-height:78vh;overflow-y:auto;cursor:grab;user-select:none;touch-action:none">
     <button onclick="document.getElementById('cloudPopup').style.display='none'" style="position:absolute;top:8px;right:10px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
-    <div style="font-size:0.65rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">☁️ Cloud Forecast</div>
+    <div style="font-size:0.65rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">☁️ Sky &amp; Weather</div>
+    <div id="metarContent" style="font-family:'Share Tech Mono',monospace;font-size:0.78rem;color:var(--text);margin-bottom:12px"></div>
+    <div style="font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Forecast (GFS)</div>
     <div id="cloudContent" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text)">Loading...</div>
 </div>
 
@@ -1196,6 +1198,7 @@ async function load(){
         lastCanopyWind = { speed: d.canopy.speed, direction: d.canopy.direction };
         window._lastWinds = d.winds;
         window._lastClouds = d.clouds || null;
+        window._lastMetar = d.metar || null;
         if (document.getElementById("cloudPopup").style.display !== "none") renderCloudPopup();
         updateWindSummary(d);
         if (landingSpot) drawPattern();
@@ -3103,7 +3106,59 @@ function toggleCloudPopup(){
     renderCloudPopup();
 }
 
+function renderMetarBox(){
+    const el = document.getElementById("metarContent");
+    if (!el) return;
+    const m = window._lastMetar;
+    const off = parseInt(document.getElementById("hour").value) || 0;
+    if (!m){
+        el.innerHTML = `<div style="color:var(--muted);font-size:0.7rem">${off !== 0 ? "Live METAR is only shown for the current hour." : "No METAR for this DZ (add an ICAO station to see live observations)."}</div>`;
+        return;
+    }
+    const catCol = {VFR:"#39ff89",MVFR:"#4aa3ff",IFR:"#ff4f4f",LIFR:"#ff66ff"}[m.flt_cat] || "var(--muted)";
+    const ft = n => n == null ? "—" : n.toLocaleString() + " ft";
+    const ageCol = m.age_min != null && m.age_min > 60 ? "#ffaa00" : "var(--muted)";
+    let h = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+        <b style="color:var(--accent);font-size:0.95rem">${m.icao}</b>
+        ${m.flt_cat ? `<span style="border:1px solid ${catCol};color:${catCol};border-radius:4px;padding:1px 7px;font-weight:700">${m.flt_cat}</span>` : ""}
+        <span style="color:${ageCol};font-size:0.68rem">${m.age_min != null ? "obs " + m.age_min + " min ago" : ""}</span></div>`;
+    // Sky layers in pilot language
+    if (m.layers.length){
+        h += '<div style="margin-bottom:8px">';
+        for (const l of m.layers){
+            const low = l.base_ft != null && l.base_ft < 14000;
+            const isCeil = (l.cover === "BKN" || l.cover === "OVC" || l.cover === "VV") && l.base_ft === m.ceiling_ft;
+            const col = isCeil ? "#ffaa00" : (low ? "var(--text)" : "var(--muted)");
+            h += `<div style="color:${col};font-size:0.9rem;line-height:1.5">${l.word} at ${ft(l.base_ft)}${isCeil ? ' <span style="font-size:0.62rem;border:1px solid #ffaa00;border-radius:3px;padding:0 4px">CEILING</span>' : ""}</div>`;
+        }
+        h += '</div>';
+    } else {
+        h += '<div style="color:#39ff89;font-size:0.9rem;margin-bottom:8px">Sky clear — no ceiling</div>';
+    }
+    const cell = (label, val, col) => `<div><div style="color:var(--muted);font-size:0.58rem;letter-spacing:0.1em;text-transform:uppercase">${label}</div><div style="color:${col||"var(--text)"};font-size:0.82rem">${val}</div></div>`;
+    const visCol = m.vis_mi != null && m.vis_mi < 3 ? "#ff4f4f" : (m.vis_mi != null && m.vis_mi < 5 ? "#ffaa00" : "var(--text)");
+    const gustSpread = m.gust != null && m.wspd != null ? m.gust - m.wspd : 0;
+    const windTxt = m.wspd == null ? "—" : (m.wspd < 1 ? "Calm" : `${m.vrb ? "VRB" : Math.round(m.wdir) + "°"} ${Math.round(m.wspd)}${m.gust ? "G" + Math.round(m.gust) : ""} kt`);
+    h += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:8px 12px;margin-bottom:8px">
+        ${cell("Visibility", m.vis_txt != null ? m.vis_txt + " mi" : "—", visCol)}
+        ${cell("Wind", windTxt, gustSpread >= 10 ? "#ffaa00" : null)}
+        ${cell("Temp / Dew", m.temp_f != null ? `${m.temp_f}° / ${m.dew_f}°F` : "—")}
+        ${cell("Altimeter", m.altim_inhg != null ? m.altim_inhg.toFixed(2) + " inHg" : "—")}
+        ${m.wx ? cell("Weather", m.wx, "#4aa3ff") : ""}
+    </div>`;
+    // Plain-language flags
+    const notes = [];
+    if (m.ceiling_ft != null && m.ceiling_ft < 14000) notes.push(`Cloud deck at ${ft(m.ceiling_ft)} — below exit altitude`);
+    if (m.vis_mi != null && m.vis_mi < 3) notes.push(`Low visibility (${m.vis_txt} mi)`);
+    if (gustSpread >= 10) notes.push(`Gusty — ${Math.round(gustSpread)} kt over the steady wind`);
+    if (m.spread_c != null && m.spread_c <= 2 && !m.layers.length) notes.push("Temp/dew point are close — fog or low cloud possible");
+    if (notes.length) h += `<div style="color:#ffaa00;font-size:0.72rem;line-height:1.5;margin-bottom:8px">${notes.map(n => "⚠ " + n).join("<br>")}</div>`;
+    if (m.raw) h += `<div style="color:var(--muted);font-size:0.62rem;line-height:1.4;word-break:break-word;user-select:text;-webkit-user-select:text">${m.raw}</div>`;
+    el.innerHTML = h;
+}
+
 function renderCloudPopup(){
+    renderMetarBox();
     const el = document.getElementById("cloudContent");
     const clouds = window._lastClouds;
     if (!clouds || !clouds.length){ el.innerHTML = '<span style="color:var(--muted)">No cloud data available</span>'; return; }

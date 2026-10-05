@@ -334,6 +334,7 @@ def fetch_metar(icao):
                         "wspd": wspd_f,
                         "vrb": vrb,
                         "temp": float(temp) if temp is not None else None,
+                        "obs": obs,
                     }
                     _metar_cache[icao] = {"data": result, "expires": now + METAR_TTL}
                     return result
@@ -344,6 +345,64 @@ def fetch_metar(icao):
     except Exception as e:
         print(f"METAR fetch error for {icao}: {e}")
     return None
+
+
+_COVER_WORD = {"FEW": "Few", "SCT": "Scattered", "BKN": "Broken", "OVC": "Overcast", "VV": "Vertical vis"}
+
+def build_metar_info(icao, metar):
+    """Skydiver/pilot-friendly summary of a METAR observation (None if unavailable)."""
+    try:
+        obs = (metar or {}).get("obs")
+        if not obs:
+            return None
+        layers = []
+        for c in obs.get("clouds") or []:
+            cov = str(c.get("cover") or "").upper()
+            base = c.get("base")
+            if cov in ("CLR", "SKC", "NSC", "CAVOK") or not cov:
+                continue
+            layers.append({"cover": cov, "word": _COVER_WORD.get(cov, cov),
+                           "base_ft": int(base) if base is not None else None})
+        ceiling = None
+        for l in layers:
+            if l["cover"] in ("BKN", "OVC", "VV") and l["base_ft"] is not None:
+                ceiling = l["base_ft"] if ceiling is None else min(ceiling, l["base_ft"])
+        visib = obs.get("visib")
+        vis_txt = str(visib) if visib is not None else None
+        try:
+            vis_mi = float(str(visib).replace("+", "")) if visib is not None else None
+        except ValueError:
+            vis_mi = None
+        temp, dewp = obs.get("temp"), obs.get("dewp")
+        altim = obs.get("altim")
+        obs_t = obs.get("obsTime")
+        age = None
+        if obs_t:
+            age = max(0, int((datetime.now(timezone.utc).timestamp() - float(obs_t)) / 60))
+        gust = obs.get("wgst")
+        return {
+            "icao": icao,
+            "name": obs.get("name"),
+            "raw": obs.get("rawOb"),
+            "flt_cat": obs.get("fltCat"),
+            "age_min": age,
+            "layers": layers,
+            "ceiling_ft": ceiling,
+            "vis_mi": vis_mi,
+            "vis_txt": vis_txt,
+            "temp_f": round(temp * 9/5 + 32) if temp is not None else None,
+            "dew_f": round(dewp * 9/5 + 32) if dewp is not None else None,
+            "spread_c": round(temp - dewp, 1) if temp is not None and dewp is not None else None,
+            "altim_inhg": round(altim * 0.02953, 2) if altim is not None else None,
+            "wspd": metar.get("wspd"),
+            "wdir": None if metar.get("vrb") else metar.get("wdir"),
+            "vrb": bool(metar.get("vrb")),
+            "gust": float(gust) if gust is not None else None,
+            "wx": obs.get("wxString"),
+        }
+    except Exception as e:
+        print(f"METAR info error: {e}")
+        return None
 
 
 def fetch_forecast(lat, lon, hour_offset=0):
@@ -1931,6 +1990,7 @@ def data():
             "direction": winds.get(14000, {}).get("direction", 0),
         },
         "time_label": time_label,
+        "metar": build_metar_info(icao, fetch_metar(icao)) if (icao and hour_offset == 0) else None,
         "winds_spread": winds_spread_out,
         "clouds": build_cloud_forecast(
             {"source":"openmeteo_ensemble","models":{"gfs_seamless": fetch_cloud_data(lat, lon) or {}}},

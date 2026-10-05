@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.13">
+<meta name="app-version" content="4.5.14">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.13";
+    const CURRENT_VERSION = "4.5.14";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -3180,8 +3180,8 @@ function renderCloudPopup(){
         const hr = t.getHours();
         const ampm = hr >= 12 ? 'PM' : 'AM';
         const h12 = hr % 12 || 12;
-        const dayStr = b.offset_h === 0 ? document.getElementById("timeLabel").innerText : `${h12}${ampm}`;
-        html += `<td style="text-align:center;padding:3px 8px;color:var(--muted);font-size:0.65rem;white-space:nowrap">${dayStr}</td>`;
+        const dayStr = b.offset_h === 0 ? (forecastOffsetH === 0 ? "Now" : `${h12}${ampm}`) : `${h12}${ampm}`;
+        html += `<td style="text-align:center;padding:3px 3px;color:var(--muted);font-size:0.7rem;white-space:nowrap">${dayStr}</td>`;
     }
     html += '</tr>';
 
@@ -3190,7 +3190,7 @@ function renderCloudPopup(){
     html += '<td style="padding:3px 6px;color:var(--muted);font-size:0.6rem"></td>';
     for (const b of clouds){
         const iconColor = b.precip > 30 ? '#4488ff' : b.cover > 70 ? 'var(--muted)' : '#ffdd88';
-        html += `<td style="text-align:center;padding:4px 8px;font-size:1.4rem">${skyIcon(b.sky, b.cover)}</td>`;
+        html += `<td style="text-align:center;padding:4px 2px;font-size:1.4rem">${skyIcon(b.sky, b.cover)}</td>`;
     }
     html += '</tr>';
 

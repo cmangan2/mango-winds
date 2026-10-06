@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.20">
+<meta name="app-version" content="4.5.21">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.20";
+    const CURRENT_VERSION = "4.5.21";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -1202,21 +1202,27 @@ async function load(){
         const cosLatC = Math.cos(lat*Math.PI/180);
         const wFromRad = windDir*Math.PI/180;
         const wVx = windSpd*Math.sin(wFromRad), wVy = windSpd*Math.cos(wFromRad);
-        const polyPoints = [], reaches = [];
-        for (let i=0; i<72; i++){
-            const theta=(i/72)*2*Math.PI, ux=Math.sin(theta), uy=Math.cos(theta);
+        // Wind-adjusted reach in each direction (meters east/north of the DZ)
+        const N_DIR = 144, pts = [];
+        for (let i=0; i<N_DIR; i++){
+            const theta=(i/N_DIR)*2*Math.PI, ux=Math.sin(theta), uy=Math.cos(theta);
             const groundSpd = canopyAirspeed + (wVx*ux + wVy*uy);
-            // Directions where the wind leaves you almost no ground speed aren't a place to aim for: taper the reach
-            // to zero there so strong winds pinch the shape at the DZ instead of leaving small upwind "lobes".
-            const taper = Math.min(1, Math.max(0, (groundSpd - 0.25*canopyAirspeed) / (0.15*canopyAirspeed)));
-            const reach = Math.max(groundSpd, 0) * descentTime * taper;
-            polyPoints.push([lat+(uy*reach)/111000, lon+(ux*reach)/(111000*cosLatC)]);
-            reaches.push(reach);
+            const reach = Math.max(groundSpd*descentTime, glideR*0.1);
+            pts.push([ux*reach, uy*reach]);
         }
+        // In strong wind the upwind side pinches into two small lobes. Fill the notch and make the upwind edge a
+        // straight line (perpendicular to the wind) through the most upwind point, with the shape built off that edge.
+        const shapePts = flattenUpwindEdge(pts, wVx, wVy);
+        const wMag = Math.hypot(wVx, wVy) || 1, dwX = wVx/wMag, dwY = wVy/wMag;   // unit vector toward the fast (downwind) side
+        let reachMax = 0, reachMin = 0;
+        const polyPoints = shapePts.map(q => {
+            reachMax = Math.max(reachMax, q[0]*dwX + q[1]*dwY);
+            reachMin = Math.max(reachMin, -(q[0]*dwX + q[1]*dwY));
+            return [lat + q[1]/111000, lon + q[0]/(111000*cosLatC)];
+        });
         polyPoints.push(polyPoints[0]);
         canopyCircleShifted = L.polygon(polyPoints,{color:'#39ff89',weight:3,opacity:0.85,fill:true,fillColor:'#39ff89',fillOpacity:0.08,interactive:false}).addTo(map);
         // Wide invisible outline = easy hover/tap target on the circle edge only (inside the circle still passes clicks to the map)
-        const reachMax = Math.max(...reaches), reachMin = Math.min(...reaches);
         const canopyHtml = canopyInfoHtml(d, reachMax, reachMin);
         canopyCircle = L.polyline(polyPoints,{color:'#39ff89',weight:24,opacity:0.001,interactive:true,className:'canopy-edge'}).addTo(map);
         canopyCircle.bindPopup(()=>canopyInfoHtml(d, reachMax, reachMin),{className:'canopy-pop',maxWidth:300,autoPan:true});
@@ -1687,6 +1693,25 @@ function openQuickStart(){
     m.style.display="flex"; m.style.alignItems="center"; m.style.justifyContent="center";
 }
 
+function flattenUpwindEdge(pts, wVx, wVy){
+    const wMag = Math.hypot(wVx, wVy);
+    if (wMag < 0.1) return pts;
+    // convex hull (monotone chain)
+    const sorted = pts.slice().sort((a,b)=> a[0]-b[0] || a[1]-b[1]);
+    const cross = (o,a,b)=> (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0]);
+    const lower = [], upper = [];
+    for (const q of sorted){ while (lower.length>=2 && cross(lower[lower.length-2], lower[lower.length-1], q) <= 0) lower.pop(); lower.push(q); }
+    for (let i=sorted.length-1; i>=0; i--){ const q=sorted[i]; while (upper.length>=2 && cross(upper[upper.length-2], upper[upper.length-1], q) <= 0) upper.pop(); upper.push(q); }
+    const hull = lower.slice(0,-1).concat(upper.slice(0,-1));
+    const area = poly => { let a=0; for (let i=0;i<poly.length;i++){ const p=poly[i], q=poly[(i+1)%poly.length]; a += p[0]*q[1]-q[0]*p[1]; } return Math.abs(a)/2; };
+    // Weak wind: the shape is already a smooth convex blob — leave it alone
+    if (area(hull) < area(pts) * 1.003) return pts;
+    // The hull's straight edge spans the two lobe tips, so it runs perpendicular to the wind through the most upwind point
+    const out = hull;
+    // Re-order by bearing from the DZ so the polygon draws cleanly
+    return out.sort((a,b)=> Math.atan2(a[0],a[1]) - Math.atan2(b[0],b[1]));
+}
+
 const CANOPY_RETURN_ALT_FT = 500;   // reach circle = how far you can fly from opening down to this altitude over the DZ
 function canopyInfoHtml(d, reachMax, reachMin){
     const c = window._canopyCfg;
@@ -1711,7 +1736,7 @@ function canopyInfoHtml(d, reachMax, reachMin){
     h += '<div style="border-top:1px solid var(--border);margin:5px 0"></div>';
     h += row("Wind used", `${Math.round(d.canopy.direction)}° @ ${d.canopy.speed.toFixed(1)} kt`);
     h += row("Downwind reach", mi(reachMax));
-    h += row("Upwind reach", reachMin < 1 ? "none (too windy)" : mi(reachMin));
+    h += row("Upwind reach", mi(reachMin));
     h += '</div>';
     return h;
 }

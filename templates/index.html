@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.23">
+<meta name="app-version" content="4.5.24">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.23";
+    const CURRENT_VERSION = "4.5.24";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -304,7 +304,7 @@ select:focus { border-color: var(--accent); }
         </div>
         <div style="overflow-y:auto;padding:14px 20px;flex:1;-webkit-overflow-scrolling:touch">
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F4CD;</div><div><div class="wc-title">Getting Started</div><div class="wc-text">Pick your <b>dropzone</b> (or choose <b>Add my dropzone&hellip;</b> to add yours with an optional METAR station). On a phone the panel is a <b>drawer</b> at the bottom: tap or drag the handle to open and close it.</div></div></div>
-            <div class="wc-section"><div class="wc-icon" style="color:var(--canopy)">&#9675;</div><div><div class="wc-title">Canopy Circle</div><div class="wc-text">The <b>dashed white circle</b> is a <b>1,200 ft pattern-start circle</b> at the DZ center. The <b>green circle</b> is how far out you can open (3,000 ft by default) and still fly back to reach the edge of that circle at <b>1,000 ft</b> to start your pattern. Wind shifts it upwind. <b>Hover</b> (desktop) or <b>tap</b> (phone) the green edge to see the canopy settings and wind behind it.</div></div></div>
+            <div class="wc-section"><div class="wc-icon" style="color:var(--canopy)">&#9675;</div><div><div class="wc-title">Canopy Circle</div><div class="wc-text">The <b>dashed white circle</b> is a <b>1,200 ft pattern-start circle</b> at the DZ center. The <b>green circle</b> is how far out you can open (3,000 ft by default) and still fly back to reach the edge of that circle at <b>1,000 ft</b> to start your pattern. Wind stretches it toward the upwind side and squeezes it on the downwind side; where the wind is strongest the edge hugs the white circle. <b>Hover</b> (desktop) or <b>tap</b> (phone) the green edge to see the canopy settings and wind behind it.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--muted)">&#x2699;&#xFE0F;</div><div><div class="wc-title">Canopy Settings</div><div class="wc-text">Tap <b>Canopy Settings</b> and enter <b>canopy size, exit weight, type</b>, opening altitude and (optionally) a known glide ratio. The circle, flight time and descent rate update to match your gear.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F4CA;</div><div><div class="wc-title">Winds by Altitude</div><div class="wc-text">Each row blends <b>GFS, ICON, HRRR, HRDPS and ECMWF</b>, weighted toward the models that agree. The <b>Agree</b> column shows how closely they match. <b>Surface</b> uses the live <b>METAR</b> for the current hour when your DZ has a station. Light, shifty wind below 8 kt shows as <b>Calm</b>. Tap <b>Hide</b> to collapse the table.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--freefall)">&#x1F4A8;</div><div><div class="wc-title">Wind Widget</div><div class="wc-text">The <b>Freefall / Canopy / Surface</b> widget shows drift and wind at a glance. Tap an item for live <b>wind particles</b> on the map. Reopen the widget with the &#x1F4A8; button in the header.</div></div></div>
@@ -1206,22 +1206,26 @@ async function load(){
         const cosLatC = Math.cos(lat*Math.PI/180);
         const wFromRad = windDir*Math.PI/180;
         const wVx = windSpd*Math.sin(wFromRad), wVy = windSpd*Math.cos(wFromRad);
-        // New model: the green edge is how far out you can open and still fly back (3000 -> 1000 ft by default) to
-        // reach the edge of a 1200 ft pattern-start circle centered on the DZ. Flying home in wind, the set of start points is
-        // an exact circle: radius = airspeed*T + pattern radius, centered upwind of the DZ by wind*T.
+        // The green edge is how far out you can open and still fly straight back (3000 -> 1000 ft by default) to the edge of a
+        // 1200 ft pattern-start circle at the DZ. In each direction: start distance = pattern radius + ground speed home * flight time.
+        // Where the wind leaves almost no ground speed the edge sits right on the white circle (tangent to it).
         const FT = 0.3048;
         const flightT = Math.max(1, (canopyOpenAlt - PATTERN_START_ALT_FT) / canopyDescentFps);   // seconds
         const patternR = (PATTERN_CIRCLE_DIA_FT/2) * FT;
-        const cR = canopyAirspeed*flightT + patternR;
-        const cX = wVx*flightT, cY = wVy*flightT;        // wV points toward the wind's FROM side (upwind)
+        const wMagC = Math.hypot(wVx, wVy) || 1, upX = wVx/wMagC, upY = wVy/wMagC;   // unit vector toward the wind's FROM side
         const polyPoints = [];
-        for (let i=0; i<=120; i++){
-            const th=(i/120)*2*Math.PI;
-            polyPoints.push([lat + (cY + cR*Math.cos(th))/111000, lon + (cX + cR*Math.sin(th))/(111000*cosLatC)]);
+        let reachMax = 0, reachMin = 0;
+        const N_DIR = 144;
+        for (let i=0; i<N_DIR; i++){
+            const theta=(i/N_DIR)*2*Math.PI, ux=Math.sin(theta), uy=Math.cos(theta);
+            const groundSpd = canopyAirspeed + (wVx*ux + wVy*uy);          // ground speed flying home from a start point in direction u
+            const reach = patternR + Math.max(groundSpd, 0)*flightT;
+            const ex = ux*reach, ey = uy*reach;
+            reachMax = Math.max(reachMax, ex*upX + ey*upY);
+            reachMin = Math.max(reachMin, -(ex*upX + ey*upY));
+            polyPoints.push([lat + ey/111000, lon + ex/(111000*cosLatC)]);
         }
-        const wMagC = Math.hypot(wVx, wVy), driftM = wMagC*flightT;
-        const reachMax = cR + driftM;                      // farthest start point, upwind of the DZ
-        const reachMin = Math.max(0, cR - driftM);         // farthest start point, downwind of the DZ (0 = none)
+        polyPoints.push(polyPoints[0]);
         const info = { flightT, upwindM: reachMax, downwindM: reachMin };
         canopyCircleShifted = L.polygon(polyPoints,{color:'#39ff89',weight:3,opacity:0.85,fill:true,fillColor:'#39ff89',fillOpacity:0.08,interactive:false}).addTo(map);
         if (patternCircle) patternCircle.remove();
@@ -1719,7 +1723,7 @@ function canopyInfoHtml(d, info){
     h += '<div style="border-top:1px solid var(--border);margin:5px 0"></div>';
     h += row("Wind used", `${Math.round(d.canopy.direction)}° @ ${d.canopy.speed.toFixed(1)} kt`);
     h += row("Upwind of DZ (max)", mi(info.upwindM));
-    h += row("Downwind of DZ (max)", info.downwindM > 1 ? mi(info.downwindM) : "none");
+    h += row("Downwind of DZ (max)", mi(info.downwindM));
     h += '</div>';
     return h;
 }

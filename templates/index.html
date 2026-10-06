@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.18">
+<meta name="app-version" content="4.5.19">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.18";
+    const CURRENT_VERSION = "4.5.19";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -1684,26 +1684,27 @@ function openQuickStart(){
     m.style.display="flex"; m.style.alignItems="center"; m.style.justifyContent="center";
 }
 
+const CANOPY_RETURN_ALT_FT = 500;   // reach circle = how far you can fly from opening down to this altitude over the DZ
 function canopyInfoHtml(d, reachMax, reachMin){
     const c = window._canopyCfg;
     const mi = m => (m/1609.344).toFixed(2) + " mi";
+    const typeNames = {student:"Student", sport:"Sport 9-cell", hp:"High Performance"};
     const t = canopyDescentTime, mm = Math.floor(t/60), ss = Math.round(t%60);
+    // Same defaults the Canopy Settings form starts with, until custom settings are applied
+    const size = c ? c.size : 150, weight = c ? c.weight : 225;
+    const type = c ? c.type : "sport";
+    const openAlt = c ? c.p.openAlt : 3000;
+    const descentFps = (openAlt - CANOPY_RETURN_ALT_FT) / t;
+    const glide = (canopyAirspeedKt * 1.68781) / descentFps;
     const row = (k, v) => `<div style="display:flex;justify-content:space-between;gap:14px"><span style="color:var(--muted)">${k}</span><span>${v}</span></div>`;
-    let h = '<div style="font-family:\'Share Tech Mono\',monospace;font-size:0.75rem;line-height:1.55;min-width:190px">';
-    h += '<div style="color:var(--canopy);font-size:0.62rem;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:5px">Canopy reach settings</div>';
-    if (c){
-        const typeName = {student:"Student",sport:"Sport",performance:"Performance"}[c.type] || c.type;
-        h += row("Canopy", `${c.size} sq ft · ${typeName}`);
-        h += row("Exit weight", `${c.weight} lb`);
-        h += row("Wing loading", c.p.wl.toFixed(2));
-        h += row("Opening alt", `${Math.round(c.p.openAlt).toLocaleString()} ft`);
-        h += row("Descent rate", `${Math.round(c.p.descentFpm)} ft/min`);
-        h += row("Glide ratio", c.p.glideRatio.toFixed(1) + (c.glideInput ? " (entered)" : " (est.)"));
-    } else {
-        h += '<div style="color:var(--muted);margin-bottom:3px">Default canopy (no custom settings applied)</div>';
-    }
-    h += row("Airspeed", `${canopyAirspeedKt.toFixed(1)} kt`);
-    h += row("Flight time", `${mm}:${String(ss).padStart(2,"0")}`);
+    let h = '<div style="font-family:\'Share Tech Mono\',monospace;font-size:0.75rem;line-height:1.55;min-width:200px">';
+    h += `<div style="color:var(--canopy);font-size:0.62rem;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:5px">Canopy reach${c ? "" : " · default settings"}</div>`;
+    h += row("Canopy", `${size} sq ft · ${typeNames[type] || type}`);
+    h += row("Wing loading", (weight / size).toFixed(2));
+    h += row("Glide ratio", glide.toFixed(1) + (c && c.glideInput ? " (entered)" : ""));
+    h += row("Opening alt", `${Math.round(openAlt).toLocaleString()} ft AGL`);
+    h += row("Back over DZ at", `${CANOPY_RETURN_ALT_FT} ft AGL`);
+    h += row("Est. flight time", `${mm}:${String(ss).padStart(2,"0")}`);
     h += '<div style="border-top:1px solid var(--border);margin:5px 0"></div>';
     h += row("Wind used", `${Math.round(d.canopy.direction)}° @ ${d.canopy.speed.toFixed(1)} kt`);
     h += row("Downwind reach", mi(reachMax));
@@ -1724,7 +1725,7 @@ function getCanopyParams(){
     else if (type==="sport"){ airspeedKt=wl<1.0?22:wl<1.3?24:wl<1.6?27:wl<1.9?30:32; descentFpm=850+wl*150; }
     else { airspeedKt=wl<1.5?30:wl<1.8?34:wl<2.1?38:42; descentFpm=900+wl*200; }
     if (glide){ const fps=descentFpm/60; airspeedKt=(glide*fps)/1.68781; }
-    const descentTime=(openAlt-500)/(descentFpm/60);
+    const descentTime=(openAlt-CANOPY_RETURN_ALT_FT)/(descentFpm/60);
     const glideRatio=(airspeedKt*1.68781)/(descentFpm/60);
     return { wl, airspeedKt, descentFpm, descentTime, glideRatio, openAlt };
 }

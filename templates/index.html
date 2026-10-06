@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.22">
+<meta name="app-version" content="4.5.23">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.22";
+    const CURRENT_VERSION = "4.5.23";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -928,7 +928,7 @@ function drawPattern(){
     }
     const downwindHdgDeg = (finalHdg + 180) % 360;
     const baseHdgDeg = (finalHdg + turnDir + 360) % 360;
-    const descentFpm = 2500 / canopyDescentTime * 60;
+    const descentFpm = canopyDescentFps * 60;   // actual descent rate under your canopy
     const tDownwind = (1000-600) / descentFpm * 60;
     const tBase = (600-300) / descentFpm * 60;
     const tFinal = (300-0) / descentFpm * 60;

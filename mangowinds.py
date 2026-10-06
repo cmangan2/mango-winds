@@ -1772,7 +1772,7 @@ def fetch_cloud_data(lat, lon):
         base = "https://api.open-meteo.com/v1/gfs"  # free first
         fields = "cloudcover_low,cloudcover_mid,cloudcover_high,cloudcover,precipitation_probability,visibility,dewpoint_2m,temperature_2m"
         url = (f"{base}?latitude={lat}&longitude={lon}&hourly={fields}"
-               f"&forecast_days=3&timezone=GMT&models=gfs_seamless")
+               f"&forecast_days=5&timezone=GMT&models=gfs_seamless")
         # No key for free API
         r = requests.get(url, timeout=10, headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
         if r.ok:
@@ -1809,6 +1809,8 @@ def build_cloud_forecast(raw, current_hour):
         blocks = []
         for offset in range(0, 5):  # now and each of the next 4 hours
             h = current_hour + offset
+            if h >= len(mh.get("cloudcover", [])):
+                break  # past the end of the forecast: don't invent 'Clear' blocks
             cl  = safe_get("cloudcover_low",  h, 0)
             cm  = safe_get("cloudcover_mid",  h, 0)
             ch  = safe_get("cloudcover_high", h, 0)
@@ -1994,7 +1996,7 @@ def data():
         "winds_spread": winds_spread_out,
         "clouds": build_cloud_forecast(
             {"source":"openmeteo_ensemble","models":{"gfs_seamless": fetch_cloud_data(lat, lon) or {}}},
-            current_hour_index
+            hour  # now + slider offset, so the cloud forecast follows the time slider
         ),
     })
     response.headers["Cache-Control"] = "no-store, max-age=0"

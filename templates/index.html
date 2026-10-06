@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.15">
+<meta name="app-version" content="4.5.16">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.15";
+    const CURRENT_VERSION = "4.5.16";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -105,6 +105,8 @@ body {
         border-radius: 2px; margin: 0 auto 4px; transition: background 0.2s;
     }
     #panel-handle:active .handle-bar { background: var(--accent); }
+    .hbtn { width: 34px !important; height: 34px !important; font-size: 1.05rem !important; border-width: 1.5px !important; }
+    #panel-handle .handle-title { font-size: clamp(0.7rem, 2.9vw, 1rem); white-space: nowrap; letter-spacing: 0.02em; margin-right: 6px; }
     #panel-handle .handle-title { font-weight: 700; font-size: 1rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
     #panel-handle-inner { display: flex; flex-direction: column; align-items: center; width: 100%; }
     #panel-header { display: none; }
@@ -115,6 +117,11 @@ body {
     .wind-card { padding: 8px 10px; }
     .summary-card { padding: 10px 14px; }
     .sc-data { font-size: 0.85rem !important; gap: 10px !important; }
+}
+@media (max-width: 359px) {
+    .hbtn { width: 32px !important; height: 32px !important; }
+    #panel-handle { padding-left: 10px; padding-right: 10px; }
+    #panel-handle .handle-title { font-size: 0.72rem; letter-spacing: 0.02em; }
 }
 @media (min-width: 600px) {
     #panel-handle { display: none; }
@@ -207,11 +214,11 @@ select:focus { border-color: var(--accent); }
 .df-select:focus { border-color: var(--accent); }
 #dfSubmitBtn { margin: 6px 18px 16px; padding: 11px; background: var(--accent); color: var(--bg); border: none; border-radius: 8px; font-family: 'Barlow Condensed', sans-serif; font-size: 1rem; font-weight: 700; letter-spacing: 0.08em; cursor: pointer; transition: opacity 0.15s; -webkit-tap-highlight-color: transparent; }
 #dfSubmitBtn:hover { opacity: 0.85; }
-#refreshBtn { background: none; border: 1px solid var(--muted); color: var(--muted); border-radius: 50%; width: 22px; height: 22px; font-size: 1rem; cursor: pointer; line-height: 1; flex-shrink: 0; transition: border-color 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; padding: 0; }
+#refreshBtn { background: none; border: 1px solid var(--muted); color: var(--muted); border-radius: 50%; width: 30px; height: 30px; font-size: 1.2rem; cursor: pointer; line-height: 1; flex-shrink: 0; transition: border-color 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; padding: 0; }
 #refreshBtn:hover { border-color: var(--accent); color: var(--accent); }
-#statsBtn { background: none; border: 1px solid var(--muted); color: var(--muted); border-radius: 50%; width: 22px; height: 22px; font-size: 0.75rem; cursor: pointer; line-height: 1; flex-shrink: 0; transition: border-color 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; padding: 0; }
+#statsBtn { background: none; border: 1px solid var(--muted); color: var(--muted); border-radius: 50%; width: 30px; height: 30px; font-size: 0.95rem; cursor: pointer; line-height: 1; flex-shrink: 0; transition: border-color 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; padding: 0; }
 #statsBtn:hover { border-color: var(--accent); color: var(--accent); }
-#helpBtn { background: none; border: 1px solid var(--muted); color: var(--muted); border-radius: 50%; width: 22px; height: 22px; font-size: 0.8rem; font-weight: 700; cursor: pointer; line-height: 1; flex-shrink: 0; transition: border-color 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; padding: 0; }
+#helpBtn { background: none; border: 1px solid var(--muted); color: var(--muted); border-radius: 50%; width: 30px; height: 30px; font-size: 1rem; font-weight: 700; cursor: pointer; line-height: 1; flex-shrink: 0; transition: border-color 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; padding: 0; }
 #helpBtn:hover { border-color: var(--accent); color: var(--accent); }
 #defineBtn { margin-top: 6px; width: 100%; padding: 7px 10px; background: var(--card-bg); color: #cc88ff; border: 1px solid #cc88ff; border-radius: 6px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.95rem; cursor: pointer; letter-spacing: 0.06em; transition: background 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; }
 #defineBtn:hover, #defineBtn:active { background: var(--border); color: var(--text); }
@@ -482,12 +489,12 @@ select:focus { border-color: var(--accent); }
                 <div class="handle-bar"></div>
                 <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
                     <span class="handle-title">Mango Wind Hub</span>
-                    <div style="display:flex;gap:6px;align-items:center">
-                        <button onclick="clearAndReload();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.85rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Clear cache & refresh">↺</button>
-                        <button onclick="window.open('/stats','_blank');event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Stats">📊</button>
-                        <button onclick="document.getElementById('windSummary').style.display='block';event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Show wind summary">💨</button>
-                        <button onclick="toggleCloudPopup();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Cloud forecast">☁️</button>
-                        <button onclick="openWelcome();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;font-weight:700;cursor:pointer;line-height:1;padding:0;flex-shrink:0">?</button>
+                    <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+                        <button class="hbtn" onclick="clearAndReload();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.85rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Clear cache & refresh">↺</button>
+                        <button class="hbtn" onclick="window.open('/stats','_blank');event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Stats">📊</button>
+                        <button class="hbtn" onclick="document.getElementById('windSummary').style.display='block';event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Show wind summary">💨</button>
+                        <button class="hbtn" onclick="toggleCloudPopup();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Cloud forecast">☁️</button>
+                        <button class="hbtn" onclick="openWelcome();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;font-weight:700;cursor:pointer;line-height:1;padding:0;flex-shrink:0">?</button>
                     </div>
                 </div>
             </div>
@@ -498,8 +505,8 @@ select:focus { border-color: var(--accent); }
                 <div style="display:flex;gap:6px;align-items:center">
                     <button id="refreshBtn" onclick="clearAndReload()" title="Clear cache & refresh">↺</button>
                     <button id="statsBtn" onclick="window.open('/stats','_blank')" title="Usage stats">📊</button>
-                    <button id="summaryBtn" onclick="document.getElementById('windSummary').style.display='block'" title="Show wind summary" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:22px;height:22px;font-size:0.75rem;cursor:pointer;line-height:1;flex-shrink:0;transition:border-color 0.15s,color 0.15s;-webkit-tap-highlight-color:transparent;padding:0">💨</button>
-                    <button id="cloudBtn" onclick="toggleCloudPopup()" title="Cloud forecast" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:22px;height:22px;font-size:0.75rem;cursor:pointer;line-height:1;flex-shrink:0;transition:border-color 0.15s,color 0.15s;-webkit-tap-highlight-color:transparent;padding:0">☁️</button>
+                    <button id="summaryBtn" onclick="document.getElementById('windSummary').style.display='block'" title="Show wind summary" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:30px;height:30px;font-size:0.95rem;cursor:pointer;line-height:1;flex-shrink:0;transition:border-color 0.15s,color 0.15s;-webkit-tap-highlight-color:transparent;padding:0">💨</button>
+                    <button id="cloudBtn" onclick="toggleCloudPopup()" title="Cloud forecast" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:30px;height:30px;font-size:0.95rem;cursor:pointer;line-height:1;flex-shrink:0;transition:border-color 0.15s,color 0.15s;-webkit-tap-highlight-color:transparent;padding:0">☁️</button>
                     <button id="helpBtn" onclick="openWelcome()" title="Quick Start Guide">?</button>
                 </div>
             </div>

@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.16">
+<meta name="app-version" content="4.5.17">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.16";
+    const CURRENT_VERSION = "4.5.17";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -69,6 +69,12 @@ body {
     overflow: hidden;
     -webkit-tap-highlight-color: transparent;
 }
+.canopy-pop .leaflet-popup-content-wrapper, .canopy-tip.leaflet-tooltip { background: rgba(13,21,32,0.97); color: var(--text); border: 1px solid var(--canopy); border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,0.6); }
+.canopy-pop .leaflet-popup-tip { background: rgba(13,21,32,0.97); border: 1px solid var(--canopy); }
+.canopy-pop .leaflet-popup-content { margin: 10px 12px; }
+.canopy-pop a.leaflet-popup-close-button { color: var(--muted); }
+.canopy-tip.leaflet-tooltip::before { display: none; }
+path.canopy-edge { cursor: pointer; }
 #wrap { display: flex; height: 100vh; height: 100dvh; }
 #map { flex: 1; min-width: 0; }
 #panel {
@@ -1190,15 +1196,25 @@ async function load(){
         const cosLatC = Math.cos(lat*Math.PI/180);
         const wFromRad = windDir*Math.PI/180;
         const wVx = windSpd*Math.sin(wFromRad), wVy = windSpd*Math.cos(wFromRad);
-        const polyPoints = [];
+        const polyPoints = [], reaches = [];
         for (let i=0; i<72; i++){
             const theta=(i/72)*2*Math.PI, ux=Math.sin(theta), uy=Math.cos(theta);
             const groundSpd = canopyAirspeed + (wVx*ux + wVy*uy);
             const reach = Math.max(groundSpd*descentTime, glideR*0.1);
             polyPoints.push([lat+(uy*reach)/111000, lon+(ux*reach)/(111000*cosLatC)]);
+            reaches.push(reach);
         }
         polyPoints.push(polyPoints[0]);
-        canopyCircleShifted = L.polygon(polyPoints,{color:'#39ff89',weight:3,opacity:0.85,fill:true,fillColor:'#39ff89',fillOpacity:0.08}).addTo(map);
+        canopyCircleShifted = L.polygon(polyPoints,{color:'#39ff89',weight:3,opacity:0.85,fill:true,fillColor:'#39ff89',fillOpacity:0.08,interactive:false}).addTo(map);
+        // Wide invisible outline = easy hover/tap target on the circle edge only (inside the circle still passes clicks to the map)
+        const reachMax = Math.max(...reaches), reachMin = Math.min(...reaches);
+        const canopyHtml = canopyInfoHtml(d, reachMax, reachMin);
+        canopyCircle = L.polyline(polyPoints,{color:'#39ff89',weight:24,opacity:0.001,interactive:true,className:'canopy-edge'}).addTo(map);
+        canopyCircle.bindPopup(()=>canopyInfoHtml(d, reachMax, reachMin),{className:'canopy-pop',maxWidth:300,autoPan:true});
+        canopyCircle.on('click',function(e){ if (drawMode||patternMode||freeDrawMode){ e.target.closePopup(); } });
+        if (!L.Browser.mobile){
+            canopyCircle.bindTooltip(()=>canopyHtml,{sticky:true,direction:'top',className:'canopy-pop canopy-tip',opacity:1});
+        }
         if (firstLoad){ fitToCanopy(glideR, polyPoints); firstLoad=false; }
         lastFreefall = { distance: d.freefall.distance, direction: d.freefall.direction };
         lastWind14k = d.wind_14k;
@@ -1662,6 +1678,34 @@ function openQuickStart(){
     m.style.display="flex"; m.style.alignItems="center"; m.style.justifyContent="center";
 }
 
+function canopyInfoHtml(d, reachMax, reachMin){
+    const c = window._canopyCfg;
+    const mi = m => (m/1609.344).toFixed(2) + " mi";
+    const t = canopyDescentTime, mm = Math.floor(t/60), ss = Math.round(t%60);
+    const row = (k, v) => `<div style="display:flex;justify-content:space-between;gap:14px"><span style="color:var(--muted)">${k}</span><span>${v}</span></div>`;
+    let h = '<div style="font-family:\'Share Tech Mono\',monospace;font-size:0.75rem;line-height:1.55;min-width:190px">';
+    h += '<div style="color:var(--canopy);font-size:0.62rem;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:5px">Canopy reach settings</div>';
+    if (c){
+        const typeName = {student:"Student",sport:"Sport",performance:"Performance"}[c.type] || c.type;
+        h += row("Canopy", `${c.size} sq ft · ${typeName}`);
+        h += row("Exit weight", `${c.weight} lb`);
+        h += row("Wing loading", c.p.wl.toFixed(2));
+        h += row("Opening alt", `${Math.round(c.p.openAlt).toLocaleString()} ft`);
+        h += row("Descent rate", `${Math.round(c.p.descentFpm)} ft/min`);
+        h += row("Glide ratio", c.p.glideRatio.toFixed(1) + (c.glideInput ? " (entered)" : " (est.)"));
+    } else {
+        h += '<div style="color:var(--muted);margin-bottom:3px">Default canopy (no custom settings applied)</div>';
+    }
+    h += row("Airspeed", `${canopyAirspeedKt.toFixed(1)} kt`);
+    h += row("Flight time", `${mm}:${String(ss).padStart(2,"0")}`);
+    h += '<div style="border-top:1px solid var(--border);margin:5px 0"></div>';
+    h += row("Wind used", `${Math.round(d.canopy.direction)}° @ ${d.canopy.speed.toFixed(1)} kt`);
+    h += row("Downwind reach", mi(reachMax));
+    h += row("Upwind reach", mi(reachMin));
+    h += '</div>';
+    return h;
+}
+
 function getCanopyParams(){
     const size=parseFloat(document.getElementById("advSize").value)||150;
     const weight=parseFloat(document.getElementById("advWeight").value)||225;
@@ -1685,7 +1729,10 @@ function updateAdvPreview(){
 function toggleAdvBonus(lbl){ const el=document.getElementById("advBonus"),open=el.style.display==="none"||el.style.display===""; el.style.display=open?"flex":"none"; if(open){el.style.flexDirection="column";el.style.gap="10px";} lbl.textContent=(open?"▼":"▶")+" I know more (optional)"; }
 function openAdvancedModal(){ updateAdvPreview(); const am=document.getElementById("advancedModal"); am.style.display="flex"; am.style.alignItems="center"; am.style.justifyContent="center"; }
 function closeAdvancedModal(){ document.getElementById("advancedModal").style.display="none"; }
-function applyAdvancedSettings(){ const p=getCanopyParams(); canopyAirspeedKt=p.airspeedKt; canopyDescentTime=p.descentTime; closeAdvancedModal(); load(); }
+function applyAdvancedSettings(){ const p=getCanopyParams(); canopyAirspeedKt=p.airspeedKt; canopyDescentTime=p.descentTime;
+    window._canopyCfg = { size: parseFloat(document.getElementById("advSize").value)||150, weight: parseFloat(document.getElementById("advWeight").value)||225,
+        type: document.getElementById("advType").value, glideInput: parseFloat(document.getElementById("advGlide").value)||null, p };
+    closeAdvancedModal(); load(); }
 ["advSize","advWeight","advType","advOpenAlt","advGlide"].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener("input",updateAdvPreview); });
 async function clearAndReload(){ try{ await fetch('/clearcache?token=mango'); }catch(e){} load(); }
 function openDefineModal(){ document.getElementById("defineModal").style.display="flex"; document.getElementById("dfDir").focus(); }

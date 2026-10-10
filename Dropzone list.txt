@@ -18,3 +18,5 @@ Skydive Burnaby (Ontario, ON): 42.876005,-79.354754,CYHM
 Skydive Toronto (Toronto, ON): 44.237372,-79.640659,CYLS
 Atlantic School of Skydiving (Debert, NS): 45.269456,-63.483224,CYDI
 Skydive Spaceland Houston (Houston, TX): 29.35873,-95.460307,KPVJ
+Boston Skydive Center (Smithfield, RI USA): 41.92076,-71.49138,KSFZ
+Skydive South Boston (Hanson, MA USA): 42.02341,-70.8395,K28M

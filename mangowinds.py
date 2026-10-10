@@ -1,4 +1,5 @@
 from flask import Flask, render_template, make_response, jsonify, request, redirect
+import threading
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
@@ -13,6 +14,7 @@ app = Flask(__name__)
 # 🗄️ CACHE
 # =====================================================
 _forecast_cache = {}
+_model_locks = {}
 CACHE_TTL = timedelta(minutes=120)  # 2 hour cache to reduce API calls
 CACHE_FILE  = os.environ.get("CACHE_FILE", os.path.join(os.path.dirname(__file__), "winds_cache.json"))
 USER_DZ_FILE    = os.environ.get("USER_DZ_FILE",    os.path.join(os.path.dirname(CACHE_FILE), "user_dropzones.txt"))
@@ -469,11 +471,20 @@ def fetch_forecast(lat, lon, hour_offset=0):
             return base_url
 
         def fetch_one_model(model):
-            model_key = (round(lat, 3), round(lon, 3), hour_offset, model)
+            # Hour-independent key: each response already holds the whole multi-day hourly array, so
+            # scrolling the forecast slider reuses it instead of re-hitting Open-Meteo for every hour.
+            model_key = (round(lat, 3), round(lon, 3), "model", model)
             cached_model = _forecast_cache.get(model_key)
             if cached_model and cached_model["expires"] > now:
                 print(f"Cache HIT {model}")
                 return model, cached_model["data"]
+            with _model_locks.setdefault(model_key, threading.Lock()):
+                cached_model = _forecast_cache.get(model_key)
+                if cached_model and cached_model["expires"] > datetime.now(timezone.utc):
+                    return model, cached_model["data"]
+                return _fetch_one_model_locked(model, model_key, cached_model)
+
+        def _fetch_one_model_locked(model, model_key, cached_model):
             endpoint = model_endpoint(model)
             if model == "hrrr_conus":
                 fcast_days = 1

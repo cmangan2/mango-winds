@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.29">
+<meta name="app-version" content="4.5.30">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.29";
+    const CURRENT_VERSION = "4.5.30";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -3588,7 +3588,7 @@ function initDZ(){
         document.getElementById("jumpRunInfo").style.display="none";
         document.getElementById("replayBtn").style.display="none";
         document.getElementById("clearBtn").style.display="none";
-        clearTimeout(loadTimeout); loadTimeout=setTimeout(load,2000);
+        clearTimeout(loadTimeout); loadTimeout=setTimeout(load,500);
     };
     renderTime();
     sel.onchange=()=>{

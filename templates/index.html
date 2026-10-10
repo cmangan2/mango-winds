@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.26">
+<meta name="app-version" content="4.5.27">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.26";
+    const CURRENT_VERSION = "4.5.27";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -213,9 +213,12 @@ select:focus { border-color: var(--accent); }
 #defineModal { position: fixed; inset: 0; background: rgba(7,11,16,0.88); z-index: 99999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); padding: 16px; }
 #defineBox { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 16px; max-width: 360px; width: 100%; display: flex; flex-direction: column; box-shadow: 0 24px 64px rgba(0,0,0,0.6); overflow: hidden; }
 #defineHeader { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px 12px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 1rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+#sgHeader { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px 12px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 1rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
 #defineCloseBtn { background: none; border: none; color: var(--muted); font-size: 1.1rem; cursor: pointer; padding: 0 4px; line-height: 1; }
+#sgCloseBtn { background: none; border: none; color: var(--muted); font-size: 1.1rem; cursor: pointer; padding: 0 4px; line-height: 1; }
 #defineCloseBtn:hover { color: var(--text); }
 #defineBody { padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; }
+#sgBody { padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; }
 .df-row { display: flex; flex-direction: column; gap: 4px; }
 .df-label { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .df-pair { display: flex; gap: 8px; }
@@ -225,6 +228,7 @@ select:focus { border-color: var(--accent); }
 .df-select { background: var(--card-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.9rem; outline: none; cursor: pointer; flex: 1; appearance: none; }
 .df-select:focus { border-color: var(--accent); }
 #dfSubmitBtn { margin: 6px 18px 16px; padding: 11px; background: var(--accent); color: var(--bg); border: none; border-radius: 8px; font-family: 'Barlow Condensed', sans-serif; font-size: 1rem; font-weight: 700; letter-spacing: 0.08em; cursor: pointer; transition: opacity 0.15s; -webkit-tap-highlight-color: transparent; }
+#sgSubmitBtn { margin: 6px 18px 16px; padding: 11px; background: var(--accent); color: var(--bg); border: none; border-radius: 8px; font-family: 'Barlow Condensed', sans-serif; font-size: 1rem; font-weight: 700; letter-spacing: 0.08em; cursor: pointer; transition: opacity 0.15s; -webkit-tap-highlight-color: transparent; }
 #dfSubmitBtn:hover { opacity: 0.85; }
 #refreshBtn { background: none; border: 1px solid var(--muted); color: var(--muted); border-radius: 50%; width: 30px; height: 30px; font-size: 1.2rem; cursor: pointer; line-height: 1; flex-shrink: 0; transition: border-color 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; padding: 0; }
 #refreshBtn:hover { border-color: var(--accent); color: var(--accent); }
@@ -232,6 +236,10 @@ select:focus { border-color: var(--accent); }
 #statsBtn:hover { border-color: var(--accent); color: var(--accent); }
 #helpBtn { background: none; border: 1px solid var(--muted); color: var(--muted); border-radius: 50%; width: 30px; height: 30px; font-size: 1rem; font-weight: 700; cursor: pointer; line-height: 1; flex-shrink: 0; transition: border-color 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; padding: 0; }
 #helpBtn:hover { border-color: var(--accent); color: var(--accent); }
+#suggestModal { position: fixed; inset: 0; background: rgba(7,11,16,0.88); z-index: 99999; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); padding: 16px; }
+#suggestBox { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 16px; max-width: 360px; width: 100%; display: flex; flex-direction: column; box-shadow: 0 24px 64px rgba(0,0,0,0.6); overflow: hidden; }
+#suggestBtn { margin-top: 6px; width: 100%; padding: 7px 10px; background: var(--card-bg); color: #39ff89; border: 1px solid #39ff89; border-radius: 6px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.95rem; cursor: pointer; letter-spacing: 0.06em; transition: background 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; }
+#suggestBtn:hover, #suggestBtn:active { background: var(--border); color: var(--text); }
 #defineBtn { margin-top: 6px; width: 100%; padding: 7px 10px; background: var(--card-bg); color: #cc88ff; border: 1px solid #cc88ff; border-radius: 6px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.95rem; cursor: pointer; letter-spacing: 0.06em; transition: background 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; }
 #defineBtn:hover, #defineBtn:active { background: var(--border); color: var(--text); }
 #drawBtn { margin-top: 10px; width: 100%; padding: 7px 10px; background: var(--card-bg); color: var(--accent); border: 1px solid var(--accent); border-radius: 6px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.95rem; cursor: pointer; letter-spacing: 0.06em; transition: background 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent; }
@@ -314,7 +322,7 @@ select:focus { border-color: var(--accent); }
             <div class="wc-section"><div class="wc-icon" style="color:var(--muted)">&#x2699;&#xFE0F;</div><div><div class="wc-title">Canopy Settings</div><div class="wc-text">Tap <b>Canopy Settings</b> and enter <b>canopy size, exit weight, type</b>, opening altitude and (optionally) a known glide ratio. The circle, flight time and descent rate update to match your gear.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F4CA;</div><div><div class="wc-title">Winds by Altitude</div><div class="wc-text">Each row blends <b>GFS, ICON, HRRR, HRDPS and ECMWF</b>, weighted toward the models that agree. The <b>Agree</b> column shows how closely they match. <b>Surface</b> uses the live <b>METAR</b> for the current hour when your DZ has a station. Light, shifty wind below 8 kt shows as <b>Calm</b>. Tap <b>Hide</b> to collapse the table.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--freefall)">&#x1F4A8;</div><div><div class="wc-title">Wind Widget</div><div class="wc-text">The <b>Freefall / Canopy / Surface</b> widget shows drift and wind at a glance. Tap an item for live <b>wind particles</b> on the map. Reopen the widget with the &#x1F4A8; button in the header.</div></div></div>
-            <div class="wc-section"><div class="wc-icon" style="color:#fff">&#x270F;&#xFE0F;</div><div><div class="wc-title">Jump Run</div><div class="wc-text"><b>Draw</b> a jump run by dragging on the map, or <b>Define</b> one: enter heading, <b>Prior/Past</b> (distance from the DZ center along that heading) and <b>Offset</b> (N/S/E/W &mdash; pick the direction closest to perpendicular to the run), plus length. A box at the start shows heading, prior/past, offset, estimated ground speed and recommended jumper separation. <b>Replay</b> animates the exits and freefall drift; <b>Clear</b> removes it. Jump runs are not saved.</div></div></div>
+            <div class="wc-section"><div class="wc-icon" style="color:#fff">&#x270F;&#xFE0F;</div><div><div class="wc-title">Jump Run</div><div class="wc-text"><b>Draw</b> a jump run by dragging on the map, <b>Suggest</b> one (enter a heading and it finds the longest run that keeps every landing inside the green circle with a 15% margin), or <b>Define</b> one: enter heading, <b>Prior/Past</b> (distance from the DZ center along that heading) and <b>Offset</b> (N/S/E/W &mdash; pick the direction closest to perpendicular to the run), plus length. A box at the start shows heading, prior/past, offset, estimated ground speed and recommended jumper separation. <b>Replay</b> animates the exits and freefall drift; <b>Clear</b> removes it. Jump runs are not saved.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--red)">&#x1F3AF;</div><div><div class="wc-title">Landing Pattern</div><div class="wc-text">Tap <b>Place Landing Spot</b>, click the map, then choose final heading (into wind or custom) and pattern direction. Wind-adjusted legs at 1,000 / 600 / 300 ft.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x2708;&#xFE0F;</div><div><div class="wc-title">Plane Tracker</div><div class="wc-text"><b>Track Plane</b> follows your DZ&rsquo;s aircraft live with a trail and label. While the page is open, planes that are flying are picked up <b>automatically</b>; tap <b>Stop</b> on one to keep it off. If a plane is off-screen, an <b>arrow</b> at the map edge points to it.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:#00d4ff">&#x1F501;</div><div><div class="wc-title">Last Load &amp; Fetch Plane Data</div><div class="wc-text"><b>Show Last Load</b> draws the most recent flight trail for the planes you choose. <b>Fetch Plane Data</b> pulls the latest flight for selected planes so it&rsquo;s ready to show.</div></div></div>
@@ -385,6 +393,21 @@ select:focus { border-color: var(--accent); }
                 submitDefineJumpRun();
         });
         </script>
+    </div>
+</div>
+
+<div id="suggestModal" onclick="if(event.target===this)closeSuggestModal()">
+    <div id="suggestBox">
+        <div id="sgHeader">
+            <span>🧭 Suggested Jump Run</span>
+            <button id="sgCloseBtn" onclick="closeSuggestModal()">✕</button>
+        </div>
+        <div id="sgBody">
+            <div style="font-size:0.78rem;color:var(--muted);line-height:1.45">Enter the heading you want to fly. We&rsquo;ll find the longest jump run on that heading where every jumper&rsquo;s landing spot (the red boxes) stays inside the green circle with a <b style="color:var(--text)">15% margin</b>.</div>
+            <div class="df-row"><label class="df-label">Jump Run Heading (°)</label><input type="number" id="sgDir" min="0" max="360" placeholder="e.g. 270" class="df-input"></div>
+            <div id="sgError" style="display:none;color:var(--red);font-size:0.8rem;margin-top:2px"></div>
+        </div>
+        <button id="sgSubmitBtn" onclick="submitSuggestedJumpRun()">🧭 Calculate &amp; Draw</button>
     </div>
 </div>
 
@@ -542,6 +565,7 @@ select:focus { border-color: var(--accent); }
                 <div id="btn-scroll" style="overflow-y:auto;max-height:190px;margin-top:2px">
                 <button id="drawBtn" onclick="toggleDrawMode()">✏️ Draw Jump Run</button>
                 <button id="defineBtn" onclick="openDefineModal()">📐 Define Jump Run</button>
+                <button id="suggestBtn" onclick="openSuggestModal()">🧭 Suggested Jump Run</button>
                 <button id="patternBtn" onclick="togglePatternMode()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid #ff4f4f;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🎯 Place Landing Spot</button>
                 <button id="freeDrawBtn" onclick="freeDrawMode ? exitFreeDrawMode() : (freeDrawLayers.length ? clearFreeDrawings() : toggleFreeDrawMode())" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#a78bfa;border:1px solid #a78bfa;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🖊️ Free Draw</button>
                 <button id="trackBtn" onclick="openTrackModal()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#00d4ff;border:1px solid #00d4ff;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">✈️ Track Plane</button>
@@ -716,11 +740,20 @@ function drawJrBox(){
     }
     const spd = lastGndSpeedKts ? lastGndSpeedKts.toFixed(0) + " kt" : "—";
     const sep = recommendedSep(lastGndSpeedKts);
-    // Put the box on the side of the start point facing away from the DZ so it never covers the DZ marker
-    const dzPx = map.latLngToLayerPoint(L.latLng(lat, lon)), stPx = map.latLngToLayerPoint(L.latLng(jrStart));
-    const vx = stPx.x - dzPx.x, vy = stPx.y - dzPx.y;
-    const hPos = vx >= 0 ? "left:14px" : "right:14px";
-    const vPos = vy >= 0 ? "top:14px" : "bottom:14px";
+    // Put the box beside the start point, preferring the side facing away from the DZ; flip sides if it would run off the map or cover the DZ
+    const dzPx = map.latLngToContainerPoint(L.latLng(lat, lon)), stPx = map.latLngToContainerPoint(L.latLng(jrStart));
+    const mapSize = map.getSize(), BW = 150, BH = 125, GAP = 14, EDGE = 6;
+    const awayRight = stPx.x - dzPx.x >= 0, awayDown = stPx.y - dzPx.y >= 0;
+    const tries = [[awayRight, awayDown], [!awayRight, awayDown], [awayRight, !awayDown], [!awayRight, !awayDown]];
+    let pick = tries[0];
+    for (const [r, d] of tries){
+        const x0 = r ? stPx.x + GAP : stPx.x - GAP - BW, y0 = d ? stPx.y + GAP : stPx.y - GAP - BH;
+        const fits = x0 >= EDGE && y0 >= EDGE && x0 + BW <= mapSize.x - EDGE && y0 + BH <= mapSize.y - EDGE;
+        const coversDz = dzPx.x > x0 - 18 && dzPx.x < x0 + BW + 18 && dzPx.y > y0 - 18 && dzPx.y < y0 + BH + 18;
+        if (fits && !coversDz){ pick = [r, d]; break; }
+    }
+    const hPos = pick[0] ? "left:14px" : "right:14px";
+    const vPos = pick[1] ? "top:14px" : "bottom:14px";
     const html = `<div style="position:absolute;${hPos};${vPos};width:max-content;white-space:nowrap;background:rgba(10,14,20,0.92);border:1px solid var(--accent);border-radius:6px;padding:6px 9px;font-family:'Share Tech Mono',monospace;font-size:11px;line-height:1.5;color:#e8eef5;box-shadow:0 2px 8px rgba(0,0,0,0.5);pointer-events:none">`
         + `<b style="color:var(--accent)">JUMP RUN</b><br>Heading: ${hdg.toFixed(0)}°<br>${pp}<br>Offset: ${offTxt}<br>Est. speed: ${spd}<br>Rec. sep: ${sep ? sep + " sec" : "—"}</div>`;
     jrBox = L.marker(jrStart, { icon: L.divIcon({ html, className: '', iconSize: [0,0] }), interactive: false, keyboard: false, zIndexOffset: 1200 }).addTo(map);
@@ -1237,6 +1270,7 @@ async function load(){
             if (sc >= 0) clipped.push(cur);
             if ((sc >= 0) !== (sn >= 0)){ const t = sc/(sc - sn); clipped.push([cur[0] + (nxt[0]-cur[0])*t, cur[1] + (nxt[1]-cur[1])*t]); }
         }
+        window._canopyPolyM = clipped;   // green shape in meters east/north of the DZ (used by Suggested Jump Run)
         let reachMax = 0, reachMin = 0;
         const polyPoints = clipped.map(q => {
             const v = q[0]*upX + q[1]*upY;
@@ -1803,6 +1837,83 @@ function submitDefineJumpRun(){
     jrStart=startPt; jrEnd=offsetLatLon(startPt[0],startPt[1],dir,length);
     closeDefineModal(); drawJumpRun();
     if (window.innerWidth<600&&panelOpen) togglePanel();
+}
+
+// ── SUGGESTED JUMP RUN ──
+const SUGGEST_MARGIN = 0.85;   // landing spots must be inside 85% of the green shape (15% margin)
+function openSuggestModal(){
+    const m = document.getElementById("suggestModal");
+    document.getElementById("sgError").style.display = "none";
+    const inp = document.getElementById("sgDir");
+    if (!inp.value && lastWind14k) inp.value = Math.round((lastWind14k.direction + 360) % 360);   // into the 14k wind
+    m.style.display = "flex"; inp.focus();
+}
+function closeSuggestModal(){ document.getElementById("suggestModal").style.display = "none"; }
+document.addEventListener("keydown", e => { if (e.key === "Enter" && document.getElementById("suggestModal").style.display === "flex") submitSuggestedJumpRun(); });
+
+// Longest stretch of the line {p : p.n = c} inside polygon (even-odd). Returns [tStart, tEnd] along u, or null.
+function chordAlong(poly, u, n, c){
+    const ts = [];
+    for (let i=0; i<poly.length; i++){
+        const a = poly[i], b = poly[(i+1)%poly.length];
+        const da = a[0]*n[0] + a[1]*n[1] - c, db = b[0]*n[0] + b[1]*n[1] - c;
+        if ((da >= 0) === (db >= 0)) continue;
+        const f = da/(da - db);
+        const x = a[0] + (b[0]-a[0])*f, y = a[1] + (b[1]-a[1])*f;
+        ts.push(x*u[0] + y*u[1]);
+    }
+    ts.sort((p,q)=>p-q);
+    let best = null;
+    for (let i=0; i+1<ts.length; i+=2){ if (!best || ts[i+1]-ts[i] > best[1]-best[0]) best = [ts[i], ts[i+1]]; }
+    return best;
+}
+
+// Pure geometry: given the green shape, jumper drift and a heading, return the exit stretch {start,end,offset} in meters (or null)
+function suggestRunGeometry(polyM, driftM, headingDeg){
+    const S = polyM.map(q => [q[0]*SUGGEST_MARGIN - driftM[0], q[1]*SUGGEST_MARGIN - driftM[1]]);   // exit points whose landing stays inside the margin shape
+    const h = headingDeg*Math.PI/180, u = [Math.sin(h), Math.cos(h)], n = [Math.cos(h), -Math.sin(h)];
+    let cMin = Infinity, cMax = -Infinity;
+    for (const q of S){ const v = q[0]*n[0] + q[1]*n[1]; if (v<cMin) cMin=v; if (v>cMax) cMax=v; }
+    let bestC = null, bestLen = 0, bestChord = null;
+    const STEPS = 240;
+    for (let i=1; i<STEPS; i++){
+        const c = cMin + (cMax-cMin)*i/STEPS, ch = chordAlong(S, u, n, c);
+        if (ch && ch[1]-ch[0] > bestLen){ bestLen = ch[1]-ch[0]; bestC = c; bestChord = ch; }
+    }
+    if (!bestChord) return null;
+    // refine around the best offset
+    const span = (cMax-cMin)/STEPS;
+    for (let i=-10; i<=10; i++){
+        const c = bestC + span*i/10, ch = chordAlong(S, u, n, c);
+        if (ch && ch[1]-ch[0] > bestLen){ bestLen = ch[1]-ch[0]; bestC = c; bestChord = ch; }
+    }
+    const pt = t => [u[0]*t + n[0]*bestC, u[1]*t + n[1]*bestC];
+    const TRIM = Math.min(25, bestLen*0.02);   // keep the first/last landing a hair inside the margin line
+    return { start: pt(bestChord[0] + TRIM), end: pt(bestChord[1] - TRIM), lengthM: bestLen - 2*TRIM, offsetM: bestC };
+}
+
+function submitSuggestedJumpRun(){
+    const err = document.getElementById("sgError"); err.style.display = "none";
+    const fail = msg => { err.textContent = msg; err.style.display = "block"; };
+    const dir = parseFloat(document.getElementById("sgDir").value);
+    if (isNaN(dir) || dir < 0 || dir > 360) return fail("Please enter a valid heading (0–360°).");
+    if (!window._canopyPolyM || !lastFreefall || !lastWind14k) return fail("Wind data isn't loaded yet — try again in a moment.");
+    const ff = lastFreefall, ffRad = ff.direction*Math.PI/180;
+    const drift = [Math.sin(ffRad)*ff.distance, Math.cos(ffRad)*ff.distance];
+    const g = suggestRunGeometry(window._canopyPolyM, drift, dir);
+    if (!g || g.lengthM < 150) return fail("No jump run on that heading keeps every landing inside the green circle with 15% margin. Try a different heading.");
+    // Ground speed on this heading (same model as the jump run info box) so the first exit lands on the start of the stretch
+    const airspeed = 85*0.514444, wMs = lastWind14k.speed*0.514444;
+    const diff = ((lastWind14k.direction - dir + 180 + 360) % 360) - 180;
+    const gs = Math.max(airspeed - wMs*Math.cos(diff*Math.PI/180), airspeed*0.4);
+    const h = dir*Math.PI/180, lead = gs*2;                      // exits begin 2 s after the run starts
+    const startM = [g.start[0] - Math.sin(h)*lead, g.start[1] - Math.cos(h)*lead];
+    const cosLat = Math.cos(lat*Math.PI/180);
+    const toLL = q => [lat + q[1]/111000, lon + q[0]/(111000*cosLat)];
+    jrDef = null;
+    jrStart = toLL(startM); jrEnd = toLL(g.end);
+    closeSuggestModal(); drawJumpRun();
+    if (window.innerWidth < 600 && panelOpen) togglePanel();
 }
 
 function initMap(){

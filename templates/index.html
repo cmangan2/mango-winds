@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.34">
+<meta name="app-version" content="4.5.35">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.34";
+    const CURRENT_VERSION = "4.5.35";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -2142,6 +2142,16 @@ async function removeTailFromDz(tail){
         if (trackedPlanes[tail]) stopTrackingTail(tail);
         await fetch('/tails', { method:'DELETE', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ dz, tail }) });
     } catch(e){ console.warn("Remove tail failed:", e); }
+    // Take the row out of the open list right away (refreshModalList only updates buttons)
+    const listEl = document.getElementById("tailListSection");
+    listEl.querySelectorAll("[data-tail]").forEach(r => { if (r.getAttribute("data-tail") === tail) r.remove(); });
+    const dl = document.getElementById("tailSuggestions");
+    dl.querySelectorAll("option").forEach(o => { if (o.value === tail) o.remove(); });
+    const left = listEl.querySelectorAll("[data-tail]").length;
+    if (left === 0){
+        listEl.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:4px 0">No planes registered for this DZ yet.<br>Enter a tail number below to start.</div>';
+    }
+    if (left <= 1) document.getElementById("trackAllBtn").style.display = "none";
     refreshModalList();
 }
 function closeTrackModal(){

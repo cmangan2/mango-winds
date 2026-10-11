@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.32">
+<meta name="app-version" content="4.5.33">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.32";
+    const CURRENT_VERSION = "4.5.33";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -322,7 +322,7 @@ select:focus { border-color: var(--accent); }
             <div class="wc-section"><div class="wc-icon" style="color:var(--muted)">&#x2699;&#xFE0F;</div><div><div class="wc-title">Canopy Settings</div><div class="wc-text">Tap <b>Canopy Settings</b> and enter <b>canopy size, exit weight, type</b>, opening altitude and (optionally) a known glide ratio. The circle, flight time and descent rate update to match your gear.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F4CA;</div><div><div class="wc-title">Winds by Altitude</div><div class="wc-text">Each row blends <b>GFS, ICON, HRRR, HRDPS and ECMWF</b>, weighted toward the models that agree. The <b>Agree</b> column shows how closely they match. <b>Surface</b> uses the live <b>METAR</b> for the current hour when your DZ has a station. Light, shifty wind below 8 kt shows as <b>Calm</b>. Tap <b>Hide</b> to collapse the table.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--freefall)">&#x1F4A8;</div><div><div class="wc-title">Wind Widget</div><div class="wc-text">The <b>Freefall / Canopy / Surface</b> widget shows drift and wind at a glance. Tap an item for live <b>wind particles</b> on the map. Reopen the widget with the &#x1F4A8; button in the header.</div></div></div>
-            <div class="wc-section"><div class="wc-icon" style="color:#fff">&#x270F;&#xFE0F;</div><div><div class="wc-title">Jump Run</div><div class="wc-text"><b>Draw</b> a jump run by dragging on the map, <b>Suggest</b> one (enter a heading and it finds the longest run that keeps every landing inside the green circle with a 15% margin, 45% on the downwind side), or <b>Define</b> one: enter heading, <b>Prior/Past</b> (distance from the DZ center along that heading) and <b>Offset</b> (N/S/E/W &mdash; pick the direction closest to perpendicular to the run), plus length. A box at the start shows heading, prior/past, offset, estimated ground speed and recommended jumper separation (1,500 ft of ground distance between groups, converted to seconds). <b>Replay</b> animates the exits and freefall drift; <b>Clear</b> removes it. Jump runs are not saved.</div></div></div>
+            <div class="wc-section"><div class="wc-icon" style="color:#fff">&#x270F;&#xFE0F;</div><div><div class="wc-title">Jump Run</div><div class="wc-text"><b>Draw</b> a jump run by dragging on the map, <b>Suggest</b> one (enter a heading and it finds the longest run that keeps every landing inside the green circle with a 15% margin, 45% on the downwind side), or <b>Define</b> one: enter heading, <b>Prior/Past</b> (distance from the DZ center along that heading) and <b>Offset</b> (N/S/E/W &mdash; pick the direction closest to perpendicular to the run), plus length. A box at the start (tap and drag it to move it out of the way) shows heading, prior/past, offset, estimated ground speed and recommended jumper separation (1,500 ft of ground distance between groups, converted to seconds). <b>Replay</b> animates the exits and freefall drift; <b>Clear</b> removes it. Jump runs are not saved.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--red)">&#x1F3AF;</div><div><div class="wc-title">Landing Pattern</div><div class="wc-text">Tap <b>Place Landing Spot</b>, click the map, then choose final heading (into wind or custom) and pattern direction. Wind-adjusted legs at 1,000 / 600 / 300 ft.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x2708;&#xFE0F;</div><div><div class="wc-title">Plane Tracker</div><div class="wc-text"><b>Track Plane</b> follows your DZ&rsquo;s aircraft live with a trail and label. While the page is open, planes that are flying are picked up <b>automatically</b>; tap <b>Stop</b> on one to keep it off. If a plane is off-screen, an <b>arrow</b> at the map edge points to it.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:#00d4ff">&#x1F501;</div><div><div class="wc-title">Last Load &amp; Fetch Plane Data</div><div class="wc-text"><b>Show Last Load</b> draws the most recent flight trail for the planes you choose. <b>Fetch Plane Data</b> pulls the latest flight for selected planes so it&rsquo;s ready to show.</div></div></div>
@@ -636,7 +636,7 @@ let firstLoad = true;
 let drawMode = false;
 let freeDrawMode = false, freeDrawing = false, freeDrawLayer = null, freeDrawLayers = [], freeDrawPoints = [];
 let jumpRunLine = null, freefallLine = null;
-let jrStart = null, jrEnd = null, jrDef = null, jrBox = null;
+let jrStart = null, jrEnd = null, jrDef = null, jrBox = null, jrBoxPos = null;
 let lastFreefall = null, lastWind14k = null, lastGndSpeedKts = null;
 let planeMarker = null, planeAnimId = null;
 let animGeneration = 0;
@@ -754,9 +754,43 @@ function drawJrBox(){
     }
     const hPos = pick[0] ? "left:14px" : "right:14px";
     const vPos = pick[1] ? "top:14px" : "bottom:14px";
-    const html = `<div style="position:absolute;${hPos};${vPos};width:max-content;white-space:nowrap;background:rgba(10,14,20,0.92);border:1px solid var(--accent);border-radius:6px;padding:6px 9px;font-family:'Share Tech Mono',monospace;font-size:11px;line-height:1.5;color:#e8eef5;box-shadow:0 2px 8px rgba(0,0,0,0.5);pointer-events:none">`
+    const html = `<div style="position:absolute;${hPos};${vPos};width:max-content;white-space:nowrap;background:rgba(10,14,20,0.92);border:1px solid var(--accent);border-radius:6px;padding:6px 9px;font-family:'Share Tech Mono',monospace;font-size:11px;line-height:1.5;color:#e8eef5;box-shadow:0 2px 8px rgba(0,0,0,0.5);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none">`
         + `<b style="color:var(--accent)">JUMP RUN</b><br>Heading: ${hdg.toFixed(0)}°<br>${pp}<br>Offset: ${offTxt}<br>Est. speed: ${spd}<br>Rec. sep: ${sep ? sep + " sec" : "—"}</div>`;
-    jrBox = L.marker(jrStart, { icon: L.divIcon({ html, className: '', iconSize: [0,0] }), interactive: false, keyboard: false, zIndexOffset: 1200 }).addTo(map);
+    jrBox = L.marker(jrStart, { icon: L.divIcon({ html, className: '', iconSize: [0,0] }), interactive: true, bubblingMouseEvents: false, keyboard: false, zIndexOffset: 1200 }).addTo(map);
+    makeJrBoxDraggable(jrBox.getElement().firstElementChild, jrStart[0] + "," + jrStart[1]);
+}
+
+// Press (click/tap) and drag the jump run box to move it. The position is kept relative to the start point,
+// so it follows the map and survives redraws of the same run; a new jump run start resets it.
+function makeJrBoxDraggable(el, key){
+    if (!el) return;
+    L.DomEvent.disableClickPropagation(el);
+    L.DomEvent.disableScrollPropagation(el);
+    if (jrBoxPos && jrBoxPos.key === key){
+        el.style.left = jrBoxPos.left + "px"; el.style.top = jrBoxPos.top + "px";
+        el.style.right = "auto"; el.style.bottom = "auto";
+    }
+    let sx, sy, ol, ot, dragging = false;
+    el.addEventListener("pointerdown", e => {
+        dragging = true; sx = e.clientX; sy = e.clientY;
+        ol = el.offsetLeft; ot = el.offsetTop;
+        el.style.left = ol + "px"; el.style.top = ot + "px"; el.style.right = "auto"; el.style.bottom = "auto";
+        el.style.cursor = "grabbing";
+        try { el.setPointerCapture(e.pointerId); } catch(_){}
+        e.preventDefault(); e.stopPropagation();
+    });
+    el.addEventListener("pointermove", e => {
+        if (!dragging) return;
+        el.style.left = (ol + e.clientX - sx) + "px"; el.style.top = (ot + e.clientY - sy) + "px";
+        e.preventDefault();
+    });
+    const end = () => {
+        if (!dragging) return;
+        dragging = false; el.style.cursor = "grab";
+        jrBoxPos = { key, left: el.offsetLeft, top: el.offsetTop };
+    };
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
 }
 
 // Recommended exit separation: 1,500 ft of ground distance between groups (USPA SIM 4-7 small-group figure),

@@ -1840,6 +1840,7 @@ function submitDefineJumpRun(){
 // ── SUGGESTED JUMP RUN ──
 const SUGGEST_MARGIN = 0.85;        // landing spots must be inside 85% of the green shape (15% margin)
 const SUGGEST_MARGIN_DOWNWIND = 0.55; // ...and 55% on the downwind side (45% margin), blending in smoothly from crosswind
+const SUGGEST_MIN_LEN_FRAC = 0.6;   // centering on the DZ may shorten the run, but never below 60% of the longest possible run (raise = longer runs, lower = closer to DZ)
 function openSuggestModal(){
     const m = document.getElementById("suggestModal");
     document.getElementById("sgError").style.display = "none";
@@ -1880,19 +1881,24 @@ function suggestRunGeometry(polyM, driftM, headingDeg, up){
     const h = headingDeg*Math.PI/180, u = [Math.sin(h), Math.cos(h)], n = [Math.cos(h), -Math.sin(h)];
     let cMin = Infinity, cMax = -Infinity;
     for (const q of S){ const v = q[0]*n[0] + q[1]*n[1]; if (v<cMin) cMin=v; if (v>cMax) cMax=v; }
-    let bestC = null, bestLen = 0, bestChord = null;
-    const STEPS = 240;
+    // Rather than taking the single longest chord (which sits mid-way through the green shape, stretched upwind of the DZ),
+    // prefer the cross-track line whose LANDINGS fall closest to the DZ center, as long as it keeps at least
+    // SUGGEST_MIN_LEN_FRAC of the longest run available on this heading.
+    const STEPS = 480;
+    const cands = []; let maxLen = 0;
     for (let i=1; i<STEPS; i++){
         const c = cMin + (cMax-cMin)*i/STEPS, ch = chordAlong(S, u, n, c);
-        if (ch && ch[1]-ch[0] > bestLen){ bestLen = ch[1]-ch[0]; bestC = c; bestChord = ch; }
+        if (ch){ const len = ch[1]-ch[0]; cands.push({ c, ch, len }); if (len > maxLen) maxLen = len; }
     }
-    if (!bestChord) return null;
-    // refine around the best offset
-    const span = (cMax-cMin)/STEPS;
-    for (let i=-10; i<=10; i++){
-        const c = bestC + span*i/10, ch = chordAlong(S, u, n, c);
-        if (ch && ch[1]-ch[0] > bestLen){ bestLen = ch[1]-ch[0]; bestC = c; bestChord = ch; }
+    if (!cands.length) return null;
+    const driftCross = driftM[0]*n[0] + driftM[1]*n[1];
+    const landOff = c => c + driftCross;   // cross-track distance of the landing line from DZ center (0 = lands right over the DZ)
+    let best = null;
+    for (const k of cands){
+        if (k.len < maxLen*SUGGEST_MIN_LEN_FRAC) continue;
+        if (!best || Math.abs(landOff(k.c)) < Math.abs(landOff(best.c))) best = k;
     }
+    const bestC = best.c, bestChord = best.ch, bestLen = best.len;
     const pt = t => [u[0]*t + n[0]*bestC, u[1]*t + n[1]*bestC];
     const TRIM = Math.min(25, bestLen*0.02);   // keep the first/last landing a hair inside the margin line
     return { start: pt(bestChord[0] + TRIM), end: pt(bestChord[1] - TRIM), lengthM: bestLen - 2*TRIM, offsetM: bestC };

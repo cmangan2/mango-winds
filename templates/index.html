@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.37">
+<meta name="app-version" content="4.5.38">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.37";
+    const CURRENT_VERSION = "4.5.38";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -2624,30 +2624,28 @@ async function openLastLoadModal(){
     document.getElementById("lastLoadGoBtn").style.display = "none";
     document.getElementById("lastLoadHideBtn").style.display = lastLoadVisible ? "block" : "none";
     const dz = document.getElementById("dz").value;
-    let tails = [], trails = {}, legacy = {};
+    let tails = [], trails = {};
     try {
-        [tails, trails, legacy] = await Promise.all([
+        [tails, trails] = await Promise.all([
             fetch(`/tails?dz=${encodeURIComponent(dz)}`).then(r=>r.json()).catch(()=>[]),
-            fetch(`/adsb_trails?dz=${encodeURIComponent(dz)}&summary=1`).then(r=>r.json()).catch(()=>({})),
-            fetch(`/lastload?dz=${encodeURIComponent(dz)}`).then(r=>r.json()).catch(()=>({}))
+            fetch(`/adsb_trails?dz=${encodeURIComponent(dz)}&summary=1`).then(r=>r.json()).catch(()=>({}))
         ]);
     } catch(e){}
     const planes = [...new Set([...(tails || []), ...Object.keys(trails || {})])];
-    const hasLegacy = !!(legacy && legacy.trail && legacy.trail.length >= 2);
     list.textContent = "";
-    if (!planes.length && !hasLegacy){
+    if (!planes.length){
         list.textContent = "No planes saved for this DZ yet — tap Track Plane and enter a tail number first.";
         return;
     }
     planes.forEach(tail => lastLoadColor(tail));   // fix each plane's colour so the swatch matches its line
-    const anyData = planes.some(t => trails[t] && (trails[t].point_count || 0) >= 2);
-    const row = ({key, title, sub, color, enabled, checked, onMap, end}) => {
+    const row = ({key, title, sub, color, enabled, checked, onMap, end, noData}) => {
         const label = document.createElement("label");
         label.style.cssText = "display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--card-alt);border:1px solid var(--border);border-radius:8px;" +
                               (enabled ? "cursor:pointer" : "opacity:0.5;cursor:default");
         const cb = document.createElement("input");
         cb.type = "checkbox"; cb.value = key; cb.checked = enabled && checked; cb.disabled = !enabled;
         if (end) cb.dataset.end = end;
+        if (noData) cb.dataset.nodata = "1";
         cb.style.cssText = "width:18px;height:18px;accent-color:#00d4ff;flex:none";
         cb.onchange = updateLastLoadCount;
         const swatch = document.createElement("div");
@@ -2673,23 +2671,16 @@ async function openLastLoadModal(){
     planes.forEach(tail => {
         const entry = trails[tail];
         const hasData = !!(entry && (entry.point_count || 0) >= 2);
-        let sub = "No data yet — use Fetch Plane Data first";
+        let sub = "No data yet — will be fetched when you show it";
         if (hasData){
             const when = fmtFlightWhen(entry);
             sub = (when ? `Flight ${when}` : "Cached trail") +
                   (entry.max_alt ? ` · max ${Math.round(entry.max_alt).toLocaleString()} ft` : "");
         }
         const shown = lastLoadVisible && lastLoadShownTails.includes(tail);
-        row({ key: tail, title: tail, sub, color: lastLoadColor(tail), enabled: hasData,
+        row({ key: tail, title: tail, sub, color: lastLoadColor(tail), enabled: true, noData: !hasData,
               checked: lastLoadVisible ? shown : true, onMap: shown, end: entry && entry.flight_end });
     });
-    if (hasLegacy){
-        const when = legacy.timestamp ? new Date(legacy.timestamp).toLocaleString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'}) : "";
-        const shown = lastLoadVisible && !!lastLoadTrailLine;
-        row({ key: "__legacy__", title: "Saved jump run", color: "#ff4f4f", enabled: true,
-              sub: `From live tracking${when ? " · " + when : ""}${legacy.jumprun_coords && legacy.jumprun_coords.length >= 2 ? " · jump run line" : ""}`,
-              checked: lastLoadVisible ? shown : !anyData, onMap: shown });
-    }
     document.getElementById("lastLoadQuick").style.display = "flex";
     document.getElementById("lastLoadGoBtn").style.display = "block";
     updateLastLoadCount();
@@ -2700,10 +2691,28 @@ function closeLastLoadModal(){
 }
 
 async function showSelectedLastLoad(){
-    const picked = [...document.querySelectorAll('#lastLoadList input[type=checkbox]:checked')].map(c => c.value);
+    const boxes = [...document.querySelectorAll('#lastLoadList input[type=checkbox]:checked')];
+    const picked = boxes.map(c => c.value);
     if (!picked.length) return;
+    const needFetch = boxes.filter(c => c.dataset.nodata).map(c => c.value);
     closeLastLoadModal();
-    await showLastLoadFor(picked.filter(k => k !== "__legacy__"), { legacy: picked.includes("__legacy__") });
+    if (needFetch.length){
+        // Planes with no cached trail yet: fetch them first, then draw everything picked
+        showJumpRunStatus(`⏳ Fetching plane data for ${needFetch.join(", ")}…`);
+        const dzName = document.getElementById("dz").value;
+        try {
+            const r = await fetch('/adsb_trails/fetch_now', { method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ dz: dzName, tails: needFetch }) });
+            if (r.ok || r.status === 202){
+                for (let i = 0; i < 80; i++){
+                    await new Promise(res => setTimeout(res, 1500));
+                    const s = await fetch('/adsb_trails/fetch_status').then(x=>x.json()).catch(()=>null);
+                    if (s && !s.running) break;
+                }
+            }
+        } catch(e){}
+    }
+    await showLastLoadFor(picked);
 }
 
 function hideLastLoad(){

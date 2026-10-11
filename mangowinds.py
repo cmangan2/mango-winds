@@ -1641,8 +1641,24 @@ def plane_trace():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/tails", methods=["GET", "POST"])
+@app.route("/tails", methods=["GET", "POST", "DELETE"])
 def tails():
+    if request.method == "DELETE":
+        # Remove a plane from a DZ's saved list (and its cached ADS-B trail if no other DZ uses it)
+        data = request.get_json(silent=True) or {}
+        dz_name = (data.get("dz") or request.args.get("dz", "")).strip()
+        tail = (data.get("tail") or request.args.get("tail", "")).strip().upper()
+        if not dz_name or not tail:
+            return jsonify({"error": "dz and tail required"}), 400
+        _tails_log[dz_name] = [t for t in _tails_log.get(dz_name, []) if t.upper() != tail]
+        save_tails()
+        still_used = any(tail in [x.upper() for x in lst] for lst in _tails_log.values())
+        entry = _adsb_trails.get(tail)
+        if entry and not still_used and entry.get("dz") in (dz_name, None):
+            _adsb_trails.pop(tail, None)
+            save_adsb_trails()
+        return jsonify({"status": "removed", "tails": _tails_log[dz_name]})
+
     if request.method == "GET":
         dz_name = request.args.get("dz", "")
         return jsonify(_tails_log.get(dz_name, []))

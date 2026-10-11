@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.33">
+<meta name="app-version" content="4.5.34">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.33";
+    const CURRENT_VERSION = "4.5.34";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -324,7 +324,7 @@ select:focus { border-color: var(--accent); }
             <div class="wc-section"><div class="wc-icon" style="color:var(--freefall)">&#x1F4A8;</div><div><div class="wc-title">Wind Widget</div><div class="wc-text">The <b>Freefall / Canopy / Surface</b> widget shows drift and wind at a glance. Tap an item for live <b>wind particles</b> on the map. Reopen the widget with the &#x1F4A8; button in the header.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:#fff">&#x270F;&#xFE0F;</div><div><div class="wc-title">Jump Run</div><div class="wc-text"><b>Draw</b> a jump run by dragging on the map, <b>Suggest</b> one (enter a heading and it finds the longest run that keeps every landing inside the green circle with a 15% margin, 45% on the downwind side), or <b>Define</b> one: enter heading, <b>Prior/Past</b> (distance from the DZ center along that heading) and <b>Offset</b> (N/S/E/W &mdash; pick the direction closest to perpendicular to the run), plus length. A box at the start (tap and drag it to move it out of the way) shows heading, prior/past, offset, estimated ground speed and recommended jumper separation (1,500 ft of ground distance between groups, converted to seconds). <b>Replay</b> animates the exits and freefall drift; <b>Clear</b> removes it. Jump runs are not saved.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--red)">&#x1F3AF;</div><div><div class="wc-title">Landing Pattern</div><div class="wc-text">Tap <b>Place Landing Spot</b>, click the map, then choose final heading (into wind or custom) and pattern direction. Wind-adjusted legs at 1,000 / 600 / 300 ft.</div></div></div>
-            <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x2708;&#xFE0F;</div><div><div class="wc-title">Plane Tracker</div><div class="wc-text"><b>Track Plane</b> follows your DZ&rsquo;s aircraft live with a trail and label. While the page is open, planes that are flying are picked up <b>automatically</b>; tap <b>Stop</b> on one to keep it off. If a plane is off-screen, an <b>arrow</b> at the map edge points to it.</div></div></div>
+            <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x2708;&#xFE0F;</div><div><div class="wc-title">Plane Tracker</div><div class="wc-text"><b>Track Plane</b> follows your DZ&rsquo;s aircraft live with a trail and label. While the page is open, planes that are flying are picked up <b>automatically</b>; tap <b>Stop</b> on one to keep it off. The Track Plane list shows every plane saved for the current DZ; tap the <b>✕</b> on a plane to remove it from that list. If a plane is off-screen, an <b>arrow</b> at the map edge points to it.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:#00d4ff">&#x1F501;</div><div><div class="wc-title">Last Load &amp; Fetch Plane Data</div><div class="wc-text"><b>Show Last Load</b> draws the most recent flight trail for the planes you choose. <b>Fetch Plane Data</b> pulls the latest flight for selected planes so it&rsquo;s ready to show.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:#a78bfa">&#x1F58A;&#xFE0F;</div><div><div class="wc-title">Free Draw</div><div class="wc-text">Sketch directly on the map for movement jumps, flocking or any freeform plan. Tap the button to start, again to finish, and once more to clear your drawings.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x23F1;</div><div><div class="wc-title">Forecast Offset</div><div class="wc-text">Slide <b>Forecast Offset</b> up to <b>72 hours</b> ahead. Winds, canopy circle and cloud forecast all follow the slider. The live METAR applies to the current hour only.</div></div></div>
@@ -2112,6 +2112,7 @@ async function openTrackModal(){
                     </div>
                     <button class="track-toggle" onclick="${trackBtnAction}" style="padding:5px 10px;${trackBtnStyle};border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">${trackBtnLabel}</button>
                     <button onclick="showLastLoadForTail('${tail}')" style="padding:5px 8px;background:var(--card-bg);color:var(--muted);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;cursor:pointer">📋</button>
+                    <button onclick="removeTailFromDz('${tail}')" title="Remove from this DZ's list" aria-label="Remove ${tail}" style="padding:5px 9px;background:var(--card-bg);color:var(--red);border:1px solid var(--border);border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;cursor:pointer">✕</button>
                 </div>`;
             }).join('');
 
@@ -2133,6 +2134,15 @@ async function openTrackModal(){
             }
         }
     } catch(e){ console.warn("Could not load tail list:", e); listEl.innerHTML = ''; }
+}
+async function removeTailFromDz(tail){
+    const dz = document.getElementById("dz").value;
+    if (!confirm(`Remove ${tail} from the ${dz} plane list?`)) return;
+    try {
+        if (trackedPlanes[tail]) stopTrackingTail(tail);
+        await fetch('/tails', { method:'DELETE', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ dz, tail }) });
+    } catch(e){ console.warn("Remove tail failed:", e); }
+    refreshModalList();
 }
 function closeTrackModal(){
     document.getElementById("trackModal").style.display = "none";

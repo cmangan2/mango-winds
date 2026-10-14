@@ -1,0 +1,50 @@
+name: Site Health Check
+
+on:
+  schedule:
+    - cron: "17 13 * * *"   # daily, 13:17 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SITE_URL: https://mango-winds.onrender.com
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+    steps:
+      - name: Check live site
+        id: probe
+        run: |
+          # Render free tier can cold-start for ~60s, so allow retries.
+          status="000"
+          for attempt in 1 2 3 4; do
+            status=$(curl -s -o body.html -w "%{http_code}" --max-time 60 "$SITE_URL" || true)
+            [ "$status" = "200" ] && break
+            sleep 20
+          done
+          size=$(wc -c < body.html 2>/dev/null || echo 0)
+          ok=true
+          reason="HTTP $status, ${size} bytes"
+          if [ "$status" != "200" ]; then ok=false; fi
+          if [ "$size" -lt 1000 ]; then ok=false; reason="$reason (body suspiciously small)"; fi
+          if grep -qiE 'application error|service unavailable|maintenance' body.html; then ok=false; reason="$reason (error text in page)"; fi
+          echo "ok=$ok" >> "$GITHUB_OUTPUT"
+          echo "reason=$reason" >> "$GITHUB_OUTPUT"
+
+      - name: Post to Discord
+        if: always()
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then echo "DISCORD_WEBHOOK_URL secret not set; skipping"; exit 0; fi
+          if [ "${{ steps.probe.outputs.ok }}" = "true" ]; then icon="✅"; word="Site is up"; else icon="🚨"; word="Site check FAILED"; fi
+          msg="🪂 **Mango Wind Hub Site Check** — $icon $word\n• ${{ steps.probe.outputs.reason }}\n• $SITE_URL"
+          curl -s -o /dev/null -w "Discord HTTP %{http_code}\n" -X POST "$DISCORD_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\": \"$msg\"}"
+
+      - name: Fail job if site is down
+        if: steps.probe.outputs.ok != 'true'
+        run: exit 1

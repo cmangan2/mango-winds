@@ -75,6 +75,22 @@ def main():
             # 5. recommended separation formula
             check("separation = 1500 ft / ground speed, rounded", pg.evaluate("[60,90,120].map(recommendedSep)") == [15, 10, 7])
             check("no JS errors during session", not errs, str(errs))
+            ctx.close()
+
+            # 6. Phone: dragging the wind summary moves it (no stretching, no popup); a plain tap still opens the detail
+            ctx, pg, errs = new_page(b, 390, 844, touch=True)
+            pg.evaluate("windSummary.style.display='block'"); pg.wait_for_timeout(300)
+            rect = "(()=>{const r=windSummary.getBoundingClientRect();return [Math.round(r.left),Math.round(r.top),Math.round(r.width),Math.round(r.height)]})()"
+            swipe = """([dx, dy]) => { const t = windSummary.querySelector('[title="Tap for canopy detail"]'), r = t.getBoundingClientRect();
+                const x = r.left + r.width/2, y = r.top + r.height/2;
+                const fire = (type, cx, cy) => { const k = new Touch({identifier: 1, target: t, clientX: cx, clientY: cy});
+                    t.dispatchEvent(new TouchEvent(type, {bubbles: true, cancelable: true, touches: type == 'touchend' ? [] : [k], changedTouches: [k]})); };
+                fire('touchstart', x, y); for (let i = 1; i <= 10; i++) fire('touchmove', x + dx*i/10, y + dy*i/10); fire('touchend', x + dx, y + dy); }"""
+            r0 = pg.evaluate(rect); pg.evaluate(swipe, [-30, -200]); r1 = pg.evaluate(rect)
+            check("phone: wind summary drags without resizing", r1[2:] == r0[2:] and r1[1] - r0[1] == -200 and r1[0] - r0[0] == -30, f"{r0} -> {r1}")
+            check("phone: drag doesn't open the detail popup", pg.evaluate("canopyBlock.style.display") == "none")
+            pg.evaluate(swipe, [0, 0])
+            check("phone: tap opens the detail popup", pg.evaluate("canopyBlock.style.display") != "none")
             ctx.close(); b.close()
     finally:
         srv.terminate()

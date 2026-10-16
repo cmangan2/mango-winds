@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.43">
+<meta name="app-version" content="4.5.44">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.43";
+    const CURRENT_VERSION = "4.5.44";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -122,6 +122,8 @@ path.canopy-edge { cursor: pointer; }
     .handle-row .handle-title { flex: 1 0 100%; text-align: left; padding: 2px 0 4px; }
     .handle-btns { width: 100%; justify-content: space-between !important; padding: 0 2px; }
     #cloudPopup, #windSummary { bottom: calc(var(--drawer-h) + 14px) !important; }
+    /* once dragged, the box is placed by top/left; a pinned bottom would stretch it instead of moving it */
+    #cloudPopup.moved, #windSummary.moved { bottom: auto !important; }
     #panel-header { display: none; }
     #panel-body { overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1; }
     select { padding: 10px 12px; font-size: 1rem; }
@@ -321,7 +323,7 @@ select:focus { border-color: var(--accent); }
             <div class="wc-section"><div class="wc-icon" style="color:var(--canopy)">&#9675;</div><div><div class="wc-title">Canopy Circle</div><div class="wc-text">The <b>dashed white circle</b> is a <b>1,200 ft pattern-start circle</b> at the DZ center. The <b>green circle</b> is how far out you can open (3,000 ft by default) and still fly back to reach the edge of that circle at <b>1,000 ft</b> to start your pattern. Wind stretches it toward the upwind side and squeezes it on the downwind side; in strong wind the downwind end is cut flat along a line tangent to the white circle. <b>Hover</b> (desktop) or <b>tap</b> (phone) the green edge to see the canopy settings and wind behind it. The <b>dashed green polygon</b> inside it is your <b>reserve range</b>: opening at 2,000 ft and reaching the same circle at 500 ft. It starts with a PD Optimum 143 at a 2.2:1 glide (change the reserve size/type in Canopy Settings, or hide it); the other reserve flight numbers are estimates. Tap its edge for the reserve details.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--muted)">&#x2699;&#xFE0F;</div><div><div class="wc-title">Canopy Settings</div><div class="wc-text">Tap <b>Canopy Settings</b> and enter <b>canopy size, exit weight, type</b>, opening altitude and (optionally) a known glide ratio. Add your <b>reserve</b> size and type too. The circle, flight time and descent rate update to match your gear. Your settings are <b>saved on this device</b> and kept through app updates; <b>Reset to defaults</b> clears them.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F4CA;</div><div><div class="wc-title">Winds by Altitude</div><div class="wc-text">Each row blends <b>GFS, ICON, HRRR, HRDPS and ECMWF</b>, weighted toward the models that agree. The <b>Agree</b> column shows how closely they match. <b>Surface</b> uses the live <b>METAR</b> for the current hour when your DZ has a station. Light, shifty wind below 8 kt shows as <b>Calm</b>. Tap <b>Hide</b> to collapse the table.</div></div></div>
-            <div class="wc-section"><div class="wc-icon" style="color:var(--freefall)">&#x1F4A8;</div><div><div class="wc-title">Wind Widget</div><div class="wc-text">The <b>Freefall / Canopy / Surface</b> widget shows drift and wind at a glance. Tap an item for live <b>wind particles</b> on the map. Reopen the widget with the &#x1F4A8; button in the header.</div></div></div>
+            <div class="wc-section"><div class="wc-icon" style="color:var(--freefall)">&#x1F4A8;</div><div><div class="wc-title">Wind Widget</div><div class="wc-text">The <b>Freefall / Canopy / Surface</b> widget shows drift and wind at a glance. Tap an item for live <b>wind particles</b> on the map. Press and drag anywhere on the widget to move it out of the way. Reopen the widget with the &#x1F4A8; button in the header.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:#fff">&#x270F;&#xFE0F;</div><div><div class="wc-title">Jump Run</div><div class="wc-text"><b>Draw</b> a jump run by dragging on the map, <b>Suggest</b> one (enter a heading and it finds the longest run that keeps every landing inside the green circle with a 15% margin, 45% on the downwind side), or <b>Define</b> one: enter heading, <b>Prior/Past</b> (distance from the DZ center along that heading) and <b>Offset</b> (N/S/E/W &mdash; pick the direction closest to perpendicular to the run), plus length. A box at the start (tap and drag it to move it out of the way) shows heading, prior/past, offset, estimated ground speed and recommended jumper separation (1,500 ft of ground distance between groups, converted to seconds). <b>Replay</b> animates the exits and freefall drift; <b>Clear</b> removes it. Jump runs are not saved.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--red)">&#x1F3AF;</div><div><div class="wc-title">Landing Pattern</div><div class="wc-text">Tap <b>Place Landing Spot</b>, click the map, then choose final heading (into wind or custom) and pattern direction. Wind-adjusted legs at 1,000 / 600 / 300 ft.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x2708;&#xFE0F;</div><div><div class="wc-title">Plane Tracker</div><div class="wc-text"><b>Track Plane</b> follows your DZ&rsquo;s aircraft live with a trail and label. While the page is open, planes that are flying are picked up <b>automatically</b>, but only planes that have been entered for this DZ before (enter a new tail number once to add it); tap <b>Stop</b> on one to keep it off. The Track Plane list shows every plane saved for the current DZ; tap the <b>✕</b> on a plane to remove it from that list (this doesn&rsquo;t stop tracking; use <b>Stop</b> for that). If a plane is off-screen, an <b>arrow</b> at the map edge points to it.</div></div></div>
@@ -512,22 +514,22 @@ select:focus { border-color: var(--accent); }
 <div id="loader"><div class="spinner"></div></div>
 
 <!-- ── WIND SUMMARY BOX ── -->
-<div id="windSummary" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:8000;background:rgba(13,21,32,0.92);border:1px solid var(--border);border-radius:12px;padding:10px 14px;box-shadow:0 8px 32px rgba(0,0,0,0.6);backdrop-filter:blur(8px);cursor:grab;user-select:none;min-width:280px;white-space:nowrap">
+<div id="windSummary" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:8000;background:rgba(13,21,32,0.92);border:1px solid var(--border);border-radius:12px;padding:10px 14px;box-shadow:0 8px 32px rgba(0,0,0,0.6);backdrop-filter:blur(8px);cursor:grab;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;min-width:280px;white-space:nowrap">
     <button onclick="document.getElementById('windSummary').style.display='none';['canopyBlock','freefallBlock'].forEach(function(id){var b=document.getElementById(id);if(b)b.style.display='none';});if(window._stopWindParticles)_stopWindParticles();" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;line-height:1;padding:0">✕</button>
     <div style="display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:nowrap">
-        <div style="text-align:center;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.15s;-webkit-tap-highlight-color:transparent;touch-action:auto" onclick="toggleDetailPopup('freefallBlock')" title="Tap for freefall detail">
+        <div style="text-align:center;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.15s;-webkit-tap-highlight-color:transparent;touch-action:none" onclick="toggleDetailPopup('freefallBlock')" title="Tap for freefall detail">
             <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--freefall);margin-bottom:3px">Freefall</div>
             <div id="wsBalloonArrow" style="font-size:1.4rem;line-height:1">—</div>
             <div id="wsBalloonVal" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text);margin-top:2px">—</div>
         </div>
         <div style="width:1px;height:40px;background:var(--border)"></div>
-        <div style="text-align:center;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.15s;-webkit-tap-highlight-color:transparent;touch-action:auto" onclick="toggleDetailPopup('canopyBlock')" title="Tap for canopy detail">
+        <div style="text-align:center;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.15s;-webkit-tap-highlight-color:transparent;touch-action:none" onclick="toggleDetailPopup('canopyBlock')" title="Tap for canopy detail">
             <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--canopy);margin-bottom:3px">Canopy</div>
             <div id="wsCanopyArrow" style="font-size:1.4rem;line-height:1">—</div>
             <div id="wsCanopyVal" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text);margin-top:2px">—</div>
         </div>
         <div style="width:1px;height:40px;background:var(--border)"></div>
-        <div style="text-align:center;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.15s;-webkit-tap-highlight-color:transparent;touch-action:auto" onclick="toggleDetailPopup('surfaceBlock')" title="Tap for surface wind animation">
+        <div style="text-align:center;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.15s;-webkit-tap-highlight-color:transparent;touch-action:none" onclick="toggleDetailPopup('surfaceBlock')" title="Tap for surface wind animation">
             <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);margin-bottom:3px">Surface</div>
             <div id="wsSurfaceArrow" style="font-size:1.4rem;line-height:1">—</div>
             <div id="wsSurfaceVal" style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--text);margin-top:2px">—</div>
@@ -1548,15 +1550,14 @@ function updateWindSummary(d){
     const box = document.getElementById("windSummary");
     if (!box) return;
     const DRAG_THRESHOLD = 6; // px moved before we consider it a drag, not a tap
-    let pending=false, dragging=false, startX=0, startY=0, origX=0, origY=0;
+    let pending=false, dragging=false, justDragged=false, startX=0, startY=0, origX=0, origY=0;
     function getPos(e){ return e.touches ? e.touches[0] : e; }
+    // a drag that starts on a section must not also open that section's popup when released
+    box.addEventListener("click", function(e){ if (justDragged){ justDragged=false; e.stopPropagation(); e.preventDefault(); } }, true);
     function onStart(e){
-        // don't start drag if tap is on a clickable section
-        let t = e.target;
-        while (t && t !== box) {
-            if (t.tagName==="BUTTON" || t.getAttribute("onclick") || t.getAttribute("title")) return;
-            t = t.parentElement;
-        }
+        // drag from anywhere except the close button; a tap without movement still opens the section
+        if (e.target.closest && e.target.closest("button")) return;
+        justDragged=false;
         const p=getPos(e); startX=p.clientX; startY=p.clientY;
         const rect=box.getBoundingClientRect(); origX=rect.left; origY=rect.top;
         pending=true; dragging=false;
@@ -1567,13 +1568,15 @@ function updateWindSummary(d){
         const dx=p.clientX-startX, dy=p.clientY-startY;
         if (!dragging && Math.sqrt(dx*dx+dy*dy) > DRAG_THRESHOLD){
             dragging=true;
+            box.classList.add("moved");
             box.style.cursor="grabbing"; box.style.transition="none";
             box.style.left=origX+"px"; box.style.top=origY+"px";
             box.style.bottom="auto"; box.style.transform="none";
         }
         if (dragging){
-            box.style.left=(origX+dx)+"px";
-            box.style.top=(origY+dy)+"px";
+            // keep the whole box on screen
+            box.style.left=Math.max(0, Math.min(window.innerWidth-box.offsetWidth, origX+dx))+"px";
+            box.style.top=Math.max(0, Math.min(window.innerHeight-box.offsetHeight, origY+dy))+"px";
             e.preventDefault();
         }
     }
@@ -1583,6 +1586,7 @@ function updateWindSummary(d){
                 const el=document.getElementById(id);
                 if(el && el.style.display!=='none') positionPopup(el);
             });
+            justDragged=true;
         }
         pending=false; dragging=false; box.style.cursor="grab";
     }
@@ -1781,12 +1785,15 @@ function toggleDetailPopup(id){
     function wireTap(selector, id){
         var el = document.querySelector(selector);
         if (!el) return;
-        var touched = false;
-        el.addEventListener('touchstart', function(){ touched = true; }, {passive:true});
+        var touched = false, sx = 0, sy = 0;
+        el.addEventListener('touchstart', function(e){ touched = true; sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, {passive:true});
         el.addEventListener('touchend', function(e){
             if (!touched) return;
             touched = false;
             e.preventDefault();
+            // finger moved = the widget was dragged, not tapped (same 6 px threshold as the drag code)
+            var t = e.changedTouches[0];
+            if (Math.hypot(t.clientX - sx, t.clientY - sy) > 6) return;
             toggleDetailPopup(id);
         }, {passive:false});
     }
@@ -3470,6 +3477,7 @@ function clearTracking(){
             dragging=true;
             const p=getPos(e); startX=p.clientX; startY=p.clientY;
             const rect=box.getBoundingClientRect(); origX=rect.left; origY=rect.top;
+            box.classList.add("moved");
             box.style.cursor="grabbing"; box.style.transition="none";
             box.style.left=origX+"px"; box.style.top=origY+"px";
             box.style.bottom="auto"; box.style.transform="none";

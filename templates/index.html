@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.40">
+<meta name="app-version" content="4.5.41">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.40";
+    const CURRENT_VERSION = "4.5.41";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -342,7 +342,7 @@ select:focus { border-color: var(--accent); }
         </div>
         <div style="padding:14px 18px;display:flex;flex-direction:column;gap:12px">
             <div class="df-row"><label class="df-label">Canopy Size (sq ft)</label><input type="number" id="advSize" min="50" max="400" placeholder="e.g. 150" class="df-input" value="150"></div>
-            <div class="df-row"><label class="df-label">Exit Weight (lbs)</label><input type="number" id="advWeight" min="100" max="400" placeholder="e.g. 225" class="df-input" value="225"></div>
+            <div class="df-row"><label class="df-label">Exit Weight (lbs)</label><input type="number" id="advWeight" min="100" max="400" placeholder="e.g. 240" class="df-input" value="240"></div>
             <div class="df-row"><label class="df-label">Canopy Type</label>
                 <select id="advType" class="df-select">
                     <option value="student">Student / Rental (7-cell)</option>
@@ -1832,7 +1832,7 @@ function canopyInfoHtml(d, info){
     const mi = m => (m/1609.344).toFixed(2) + " mi";
     const typeNames = {student:"Student", sport:"Sport 9-cell", hp:"High Performance"};
     // Same defaults the Canopy Settings form starts with, until custom settings are applied
-    const size = c ? c.size : 150, weight = c ? c.weight : 225;
+    const size = c ? c.size : 150, weight = c ? c.weight : 240;
     const type = c ? c.type : "sport";
     const t = info.flightT, mm = Math.floor(t/60), ss = Math.round(t%60);
     const glide = (canopyAirspeedKt * 1.68781) / canopyDescentFps;
@@ -1878,7 +1878,7 @@ function reserveInfoHtml(d, info){
 
 function getCanopyParams(){
     const size=parseFloat(document.getElementById("advSize").value)||150;
-    const weight=parseFloat(document.getElementById("advWeight").value)||225;
+    const weight=parseFloat(document.getElementById("advWeight").value)||240;
     const type=document.getElementById("advType").value;
     const openAlt=parseFloat(document.getElementById("advOpenAlt").value)||3000;
     const glide=parseFloat(document.getElementById("advGlide").value)||null;
@@ -1906,12 +1906,14 @@ function computeReserve(size, weight, type, glide){
 }
 function currentReserve(){
     const c = window._canopyCfg;
-    return computeReserve(reserveCfg.size, c ? c.weight : 225, reserveCfg.type, reserveCfg.glideInput);
+    return computeReserve(reserveCfg.size, c ? c.weight : 240, reserveCfg.type, reserveCfg.glideInput);
 }
+// Start from the Canopy Settings form defaults (so the default circle matches what the form shows)
+function initCanopyDefaults(){ const p=getCanopyParams(); canopyAirspeedKt=p.airspeedKt; canopyDescentTime=p.descentTime; canopyDescentFps=p.descentFpm/60; canopyOpenAlt=p.openAlt; }
 function updateAdvPreview(){
     const p=getCanopyParams();
     document.getElementById("advPreview").innerHTML=`WL: ${p.wl.toFixed(2)} lbs/sqft<br>Airspeed: ${p.airspeedKt.toFixed(1)} kt<br>Descent: ${p.descentFpm.toFixed(0)} ft/min<br>Flight time: ${p.descentTime.toFixed(0)} sec<br>Glide ratio: ${p.glideRatio.toFixed(2)}:1`;
-    const rs=parseFloat(document.getElementById("advResSize").value)||143, rw=parseFloat(document.getElementById("advWeight").value)||225;
+    const rs=parseFloat(document.getElementById("advResSize").value)||143, rw=parseFloat(document.getElementById("advWeight").value)||240;
     const r=computeReserve(rs, rw, document.getElementById("advResType").value, parseFloat(document.getElementById("advResGlide").value)||null);
     document.getElementById("advPreview").innerHTML += `<br><span style="color:#39ff89">Reserve WL: ${r.wl.toFixed(2)} · glide ${r.glideRatio.toFixed(2)}:1 · ${r.airspeedKt.toFixed(0)} kt</span>`;
 }
@@ -1919,7 +1921,7 @@ function toggleAdvBonus(lbl){ const el=document.getElementById("advBonus"),open=
 function openAdvancedModal(){ updateAdvPreview(); const am=document.getElementById("advancedModal"); am.style.display="flex"; am.style.alignItems="center"; am.style.justifyContent="center"; }
 function closeAdvancedModal(){ document.getElementById("advancedModal").style.display="none"; }
 function applyAdvancedSettings(){ const p=getCanopyParams(); canopyAirspeedKt=p.airspeedKt; canopyDescentTime=p.descentTime; canopyDescentFps=p.descentFpm/60; canopyOpenAlt=p.openAlt;
-    window._canopyCfg = { size: parseFloat(document.getElementById("advSize").value)||150, weight: parseFloat(document.getElementById("advWeight").value)||225,
+    window._canopyCfg = { size: parseFloat(document.getElementById("advSize").value)||150, weight: parseFloat(document.getElementById("advWeight").value)||240,
         type: document.getElementById("advType").value, glideInput: parseFloat(document.getElementById("advGlide").value)||null, p };
     reserveCfg = { size: parseFloat(document.getElementById("advResSize").value)||143, type: document.getElementById("advResType").value,
         glideInput: parseFloat(document.getElementById("advResGlide").value)||null, show: document.getElementById("advResShow").checked };
@@ -3728,7 +3730,7 @@ function initDZ(){
     });
     sel.value=defaultDz; wSel.value=defaultDz;
     lat=dz[defaultDz][0]; lon=dz[defaultDz][1];
-    initMap(); load();
+    initCanopyDefaults(); initMap(); load();
     document.getElementById("hour").oninput=()=>{
         renderTime();
         if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}

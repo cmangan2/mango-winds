@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.39">
+<meta name="app-version" content="4.5.40">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.39";
+    const CURRENT_VERSION = "4.5.40";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -318,7 +318,7 @@ select:focus { border-color: var(--accent); }
         </div>
         <div style="overflow-y:auto;padding:14px 20px;flex:1;-webkit-overflow-scrolling:touch">
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F4CD;</div><div><div class="wc-title">Getting Started</div><div class="wc-text">Pick your <b>dropzone</b> (or choose <b>Add my dropzone&hellip;</b> to add yours with an optional METAR station). On a phone the panel is a <b>drawer</b> at the bottom: tap or drag the handle to open and close it.</div></div></div>
-            <div class="wc-section"><div class="wc-icon" style="color:var(--canopy)">&#9675;</div><div><div class="wc-title">Canopy Circle</div><div class="wc-text">The <b>dashed white circle</b> is a <b>1,200 ft pattern-start circle</b> at the DZ center. The <b>green circle</b> is how far out you can open (3,000 ft by default) and still fly back to reach the edge of that circle at <b>1,000 ft</b> to start your pattern. Wind stretches it toward the upwind side and squeezes it on the downwind side; in strong wind the downwind end is cut flat along a line tangent to the white circle. <b>Hover</b> (desktop) or <b>tap</b> (phone) the green edge to see the canopy settings and wind behind it. The <b>dashed green polygon</b> inside it is your <b>reserve range</b>: opening at 2,000 ft and reaching the same circle at 500 ft. It starts with a PD Optimum 143 (change the reserve size/type in Canopy Settings, or hide it); the reserve flight numbers are estimates, so enter a known glide ratio if you have one. Tap its edge for the reserve details.</div></div></div>
+            <div class="wc-section"><div class="wc-icon" style="color:var(--canopy)">&#9675;</div><div><div class="wc-title">Canopy Circle</div><div class="wc-text">The <b>dashed white circle</b> is a <b>1,200 ft pattern-start circle</b> at the DZ center. The <b>green circle</b> is how far out you can open (3,000 ft by default) and still fly back to reach the edge of that circle at <b>1,000 ft</b> to start your pattern. Wind stretches it toward the upwind side and squeezes it on the downwind side; in strong wind the downwind end is cut flat along a line tangent to the white circle. <b>Hover</b> (desktop) or <b>tap</b> (phone) the green edge to see the canopy settings and wind behind it. The <b>dashed green polygon</b> inside it is your <b>reserve range</b>: opening at 2,000 ft and reaching the same circle at 500 ft. It starts with a PD Optimum 143 at a 2.2:1 glide (change the reserve size/type in Canopy Settings, or hide it); the other reserve flight numbers are estimates. Tap its edge for the reserve details.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--muted)">&#x2699;&#xFE0F;</div><div><div class="wc-title">Canopy Settings</div><div class="wc-text">Tap <b>Canopy Settings</b> and enter <b>canopy size, exit weight, type</b>, opening altitude and (optionally) a known glide ratio. The circle, flight time and descent rate update to match your gear.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F4CA;</div><div><div class="wc-title">Winds by Altitude</div><div class="wc-text">Each row blends <b>GFS, ICON, HRRR, HRDPS and ECMWF</b>, weighted toward the models that agree. The <b>Agree</b> column shows how closely they match. <b>Surface</b> uses the live <b>METAR</b> for the current hour when your DZ has a station. Light, shifty wind below 8 kt shows as <b>Calm</b>. Tap <b>Hide</b> to collapse the table.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--freefall)">&#x1F4A8;</div><div><div class="wc-title">Wind Widget</div><div class="wc-text">The <b>Freefall / Canopy / Surface</b> widget shows drift and wind at a glance. Tap an item for live <b>wind particles</b> on the map. Reopen the widget with the &#x1F4A8; button in the header.</div></div></div>
@@ -367,7 +367,7 @@ select:focus { border-color: var(--accent); }
                         <option value="standard">Standard 7-cell reserve</option>
                     </select>
                 </div>
-                <div class="df-row"><label class="df-label">Known Reserve Glide Ratio (optional)</label><input type="number" id="advResGlide" min="1" max="6" step="0.1" placeholder="leave blank to estimate" class="df-input"></div>
+                <div class="df-row"><label class="df-label">Known Reserve Glide Ratio (optional)</label><input type="number" id="advResGlide" min="1" max="6" step="0.1" placeholder="leave blank to estimate" class="df-input" value="2.2"></div>
             </div>
             <div id="advPreview" style="background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:'Share Tech Mono',monospace;font-size:0.72rem;color:var(--muted);line-height:1.8"></div>
         </div>
@@ -642,7 +642,7 @@ let canopyDescentFps = 2500 / 158; // ft/s under canopy
 let canopyOpenAlt = 3000;          // ft AGL
 // Reserve (7-cell) range: open at 2,000 ft, reach the pattern-start circle at 500 ft
 const RESERVE_OPEN_ALT_FT = 2000, RESERVE_REACH_ALT_FT = 500;
-let reserveCfg = { size: 143, type: "optimum", glideInput: null, show: true };   // defaults: PD Optimum 143
+let reserveCfg = { size: 143, type: "optimum", glideInput: 2.2, show: true };   // defaults: PD Optimum 143 at 2.2:1 glide
 let reserveCircle = null, reserveEdge = null;
 const PATTERN_START_ALT_FT = 1000;   // altitude you want to be at when you reach the edge of the pattern-start circle
 const PATTERN_CIRCLE_DIA_FT = 1200;  // pattern-start circle, centered on the DZ

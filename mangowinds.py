@@ -115,15 +115,18 @@ def save_api_log():
     except Exception as e:
         print(f"API log save error: {e}")
 
+_api_log_lock = threading.Lock()
+
 def record_api_call(n=1):
     import pytz as _pytz_log
     now_est = datetime.now(timezone.utc).astimezone(_pytz_log.timezone("America/New_York"))
     date = now_est.strftime("%Y-%m-%d")
     hour = str(now_est.hour)
-    if date not in _api_log:
-        _api_log[date] = {}
-    _api_log[date][hour] = _api_log[date].get(hour, 0) + n
-    save_api_log()
+    with _api_log_lock:  # called from parallel fetch threads
+        if date not in _api_log:
+            _api_log[date] = {}
+        _api_log[date][hour] = _api_log[date].get(hour, 0) + n
+        save_api_log()
 
 load_api_log()
 
@@ -174,10 +177,10 @@ def load_cache_from_disk():
                     parts = k.split(",")
                     if len(parts) == 3 and parts[0] == "cloud":
                         key = ("cloud", float(parts[1]), float(parts[2]))
-                    elif len(parts) == 2:
-                        key = (float(parts[0]), float(parts[1]))
+                    elif len(parts) == 4 and parts[0] == "model":
+                        key = (float(parts[1]), float(parts[2]), "model", parts[3])
                     else:
-                        skipped += 1
+                        skipped += 1   # includes the old "lat,lon" format, which lost the model name
                         continue
                     _forecast_cache[key] = {"data": v["data"], "expires": expires}
                     loaded += 1
@@ -189,23 +192,34 @@ def load_cache_from_disk():
         print(f"Cache load error: {e}")
 
 
+_cache_save_lock = threading.Lock()
+
 def save_cache_to_disk():
-    """Persist current cache to disk."""
-    try:
-        serializable = {}
-        for k, v in _forecast_cache.items():
-            if isinstance(k, tuple) and len(k) == 3 and k[0] == "cloud":
-                str_key = f"cloud,{k[1]},{k[2]}"
-            else:
-                str_key = f"{k[0]},{k[1]}"
-            serializable[str_key] = {
-                "data": v["data"],
-                "expires": v["expires"].isoformat()
-            }
-        with open(CACHE_FILE, "w") as f:
-            json.dump(serializable, f)
-    except Exception as e:
-        print(f"Cache save error: {e}")
+    """Persist the raw per-model and cloud responses. The per-hour ensemble entries are just
+    those models bundled together, so they rebuild from the model entries without API calls."""
+    with _cache_save_lock:
+        try:
+            now = datetime.now(timezone.utc)
+            serializable = {}
+            for k, v in list(_forecast_cache.items()):
+                if v["expires"] <= now or not isinstance(k, tuple):
+                    continue
+                if len(k) == 3 and k[0] == "cloud":
+                    str_key = f"cloud,{k[1]},{k[2]}"
+                elif len(k) == 4 and k[2] == "model":
+                    str_key = f"model,{k[0]},{k[1]},{k[3]}"
+                else:
+                    continue
+                serializable[str_key] = {
+                    "data": v["data"],
+                    "expires": v["expires"].isoformat()
+                }
+            tmp = CACHE_FILE + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(serializable, f)
+            os.replace(tmp, CACHE_FILE)  # never leave a half-written cache file
+        except Exception as e:
+            print(f"Cache save error: {e}")
 
 
 load_cache_from_disk()
@@ -478,6 +492,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
             if cached_model and cached_model["expires"] > now:
                 print(f"Cache HIT {model}")
                 return model, cached_model["data"]
+            fetched_any.append(model)
             with _model_locks.setdefault(model_key, threading.Lock()):
                 cached_model = _forecast_cache.get(model_key)
                 if cached_model and cached_model["expires"] > datetime.now(timezone.utc):
@@ -528,27 +543,31 @@ def fetch_forecast(lat, lon, hour_offset=0):
                     return None
                 return None
 
+            def fetch_group(fg):
+                """One field group -> parsed JSON, "429" if rate limited with no paid fallback, None on error."""
+                r = fetch_url(",".join(fg))
+                if not r.ok:
+                    print(f"Open-Meteo {model} {r.status_code}: {r.text[:200]}")
+                    if r.status_code == 429:
+                        r2 = handle_429(r, fg)
+                        return r2.json() if (r2 and r2.ok) else "429"
+                    return None
+                return r.json()
+
             try:
-                # 4 requests per model, each ≤10 vars = 1.0 API call each
-                responses = []
+                # 4 requests per model, each ≤10 vars = 1.0 API call each — sent in parallel so a cold
+                # fetch costs one round trip instead of four
                 field_groups = [wind_fields, wind_fields2, temp_fields, height_fields]
-                for fg in field_groups:
-                    r = fetch_url(",".join(fg))
-                    if not r.ok:
-                        print(f"Open-Meteo {model} {r.status_code}: {r.text[:200]}")
-                        if r.status_code == 429:
-                            r2 = handle_429(r, fg)
-                            if r2 and r2.ok:
-                                r = r2  # use paid response
-                            else:
-                                if cached_model:
-                                    extended = now + timedelta(hours=6)
-                                    _forecast_cache[model_key] = {"data": cached_model["data"], "expires": extended}
-                                    return model, cached_model["data"]
-                                return model, None
-                        else:
-                            return model, None
-                    responses.append(r.json())
+                with ThreadPoolExecutor(max_workers=len(field_groups)) as gex:
+                    responses = list(gex.map(fetch_group, field_groups))
+                if "429" in responses:
+                    if cached_model:
+                        extended = now + timedelta(hours=6)
+                        _forecast_cache[model_key] = {"data": cached_model["data"], "expires": extended}
+                        return model, cached_model["data"]
+                    return model, None
+                if any(r is None for r in responses):
+                    return model, None
                 # Merge all responses
                 mdata = responses[0]
                 for resp in responses[1:]:
@@ -562,6 +581,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
                 return model, None
 
         # Fetch all models in parallel
+        fetched_any = []
         model_data = {}
         with ThreadPoolExecutor(max_workers=len(ensemble_models)) as executor:
             futures = {executor.submit(fetch_one_model, m): m for m in ensemble_models}
@@ -580,7 +600,8 @@ def fetch_forecast(lat, lon, hour_offset=0):
         # Record is now done per-fetch inside fetch_url
         result = {"source": "openmeteo_ensemble", "models": model_data}
         _forecast_cache[dz_key] = {"data": result, "expires": now + CACHE_TTL}
-        save_cache_to_disk()
+        if fetched_any:
+            save_cache_to_disk()
         return result
     except Exception as e:
         print(f"Open-Meteo ensemble error: {e}")
@@ -1806,6 +1827,7 @@ def fetch_cloud_data(lat, lon):
             data = r.json()
             _forecast_cache[cloud_key] = {"data": data, "expires": now + CACHE_TTL}
             record_api_call(1)
+            save_cache_to_disk()
             return data
     except Exception as e:
         print(f"Cloud fetch error: {e}")
@@ -1911,7 +1933,14 @@ def data():
     if hour_offset == 0:  # only count current-hour loads, not forecast scrolling
         record_visit(dz_name)
 
-    raw = fetch_forecast(lat, lon, hour_offset)
+    # Forecast, METAR and cloud data come from three different services — fetch them at the same time
+    with ThreadPoolExecutor(max_workers=3) as dex:
+        f_raw = dex.submit(fetch_forecast, lat, lon, hour_offset)
+        f_metar = dex.submit(fetch_metar, icao) if (icao and hour_offset == 0) else None
+        f_cloud = dex.submit(fetch_cloud_data, lat, lon)
+        raw = f_raw.result()
+        metar = f_metar.result() if f_metar else None
+        cloud_raw = f_cloud.result()
     fw_result = format_winds(raw, hour, lat, lon)
     if isinstance(fw_result, tuple) and len(fw_result) == 4:
         winds, canopy_confidence, freefall_confidence, winds_spread_out = fw_result
@@ -1926,7 +1955,6 @@ def data():
     # Override SFC with live METAR for current conditions
     # If METAR returns calm (0kt) fall back to Open-Meteo lowest level
     if hour_offset == 0 and icao and winds:
-        metar = fetch_metar(icao)
         if metar:
             metar_spd = round(metar["wspd"], 1)
             # max_speed = highest of METAR and any model surface speed
@@ -2019,10 +2047,10 @@ def data():
             "direction": winds.get(14000, {}).get("direction", 0),
         },
         "time_label": time_label,
-        "metar": build_metar_info(icao, fetch_metar(icao)) if (icao and hour_offset == 0) else None,
+        "metar": build_metar_info(icao, metar) if (icao and hour_offset == 0) else None,
         "winds_spread": winds_spread_out,
         "clouds": build_cloud_forecast(
-            {"source":"openmeteo_ensemble","models":{"gfs_seamless": fetch_cloud_data(lat, lon) or {}}},
+            {"source":"openmeteo_ensemble","models":{"gfs_seamless": cloud_raw or {}}},
             hour  # now + slider offset, so the cloud forecast follows the time slider
         ),
     })
@@ -2252,6 +2280,43 @@ def index():
     resp.headers["Pragma"] = "no-cache"
     resp.headers["Expires"] = "0"
     return resp
+
+
+# =====================================================
+# 🔥 WARM-UP — fetch the most-used dropzones after a restart so the first visitor doesn't wait
+# =====================================================
+
+def _prewarm_targets(limit=3):
+    names = [k for k in DROPZONES if "skydive new england" in k.lower()][:1]  # the page's default DZ
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).strftime("%Y-%m-%d")
+    recent = {n: sum(c for d, c in days.items() if d >= cutoff) for n, days in _visit_log.items()
+              if n in DROPZONES and isinstance(days, dict)}
+    for n in sorted(recent, key=recent.get, reverse=True):
+        if len(names) >= limit:
+            break
+        if recent[n] > 0 and n not in names:
+            names.append(n)
+    return names
+
+
+def _prewarm():
+    import time
+    time.sleep(3)  # let the server start answering first
+    for name in _prewarm_targets():
+        try:
+            vals = DROPZONES[name]
+            lat, lon = vals[0], vals[1]
+            fetch_forecast(lat, lon, 0)  # model cache is per location, so this covers every hour <= 18
+            fetch_cloud_data(lat, lon)
+            if len(vals) > 2 and vals[2]:
+                fetch_metar(vals[2])
+            print(f"Prewarm: {name} ready")
+        except Exception as e:
+            print(f"Prewarm error for {name}: {e}")
+
+
+if os.environ.get("PREWARM", "1") != "0":
+    _threading.Thread(target=_prewarm, daemon=True, name="prewarm").start()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,51 @@
+# Mango Wind Hub — project notes for Claude Code
+
+Flask + Leaflet skydiving wind planning web app by Chris "Mango" Mangano (solo dev, MangoWorks3D, active skydiver).
+Prod: Render, branch `main` (mango-winds.onrender.com). Dev: Render service tracking branch `dev`. Repo: cmangan2/mango-winds.
+Chris likes direct numerical answers, scenario tables and frank recommendations. He tests on his iPhone (mobile web/PWA), so mobile behavior matters as much as desktop.
+
+## Files
+- `mangowinds.py` — whole backend: Open-Meteo ensemble fetch + caching, `/data`, METAR (aviationweather.gov), ADS-B trails/poller, `/tails` (GET/POST/DELETE), `/lastload`, dropzone list (web-form dropzone commits land on `main` via the GitHub API).
+- `templates/index.html` — whole frontend (HTML, CSS, JS in one file). Almost every feature change is here.
+- `static/sw.js` — service worker (cache name carries the version). `static/manifest.json`, icons.
+- `Dropzone list.txt` — DZ list. Runtime data files (`*.json`, user/pending dropzones) are git-ignored.
+- `tests/` — `mock_server.py` (app with canned forecast, no network for weather) and `e2e.py` (Playwright smoke tests).
+
+## Run locally
+```
+pip install -r requirements.txt -r requirements-dev.txt && playwright install chromium
+python mangowinds.py            # http://localhost:5000 (open from the phone via the machine's LAN IP)
+python tests/e2e.py             # browser smoke tests; set LEAFLET_DIR=<folder with leaflet.js/css> if the CDN is unreachable
+```
+Weather needs outbound access to Open-Meteo; ADS-B goes through an adsb-proxy endpoint. Cloud sandboxes can't reach either, so live-data behavior (forecast scrubbing speed, cloud popup, plane tracking, Fetch Plane Data) has only ever been tested against mocks — verify those against real data when working locally.
+Optional env: `OPENMETEO_API_KEY` (paid fallback on 429), `ENV=dev` (dev banner), `*_FILE` overrides for data files.
+
+## Standing workflow (do this unless Chris says otherwise)
+1. Develop on `main`, commit, push `main`.
+2. Merge `main` into `dev` and push `dev` (so the dev site tracks it).
+3. **Bump the app version with every change that gets pushed** — three places must match:
+   `<meta name="app-version">` and `const CURRENT_VERSION` in `templates/index.html`, and `CACHE_NAME = "mwh-v<ver>"` in `static/sw.js`. Currently 4.5.x; patch bump per change.
+4. If a push is rejected, the web-form dropzone commits landed on `main`: `git fetch` then `git rebase origin/main` and push again.
+5. Update the Quick Start (welcome modal "wc-section" blocks in index.html) whenever behavior changes.
+6. Commit message trailer / PR text: follow the attribution lines the session gives.
+
+## Domain model (keep consistent when editing)
+- Wind vector: `wVx = spd*sin(from)`, `wVy = spd*cos(from)` points toward the wind's FROM (upwind) side. Ground speed flying home from a point in direction u = airspeed + wV·u.
+- Canopy model (`getCanopyParams`): airspeed/descent from wing loading by type (student / sport / hp), optional known glide overrides airspeed. Defaults: 150 sq ft, 240 lb exit weight, sport, open 3,000 ft. `initCanopyDefaults()` derives the default globals from the form (so the default circle matches the form).
+- Pattern circle: 1,200 ft diameter dashed white circle at DZ center (`PATTERN_CIRCLE_DIA_FT`). Green polygon = how far you can open and still reach that circle at 1,000 ft (`PATTERN_START_ALT_FT`): r(θ) = patternR + max(groundSpeed,0)·flightTime, 144 directions, with the downwind end clipped flat (half-plane perpendicular to the wind at `patternR + max(A−wind,0)·T`) — only matters when strong wind pinches lobes.
+- Reserve range (dashed green): same shape for a 7-cell reserve opened at 2,000 ft reaching the circle at 500 ft. Defaults: PD Optimum 143, 2.2:1 glide (airspeed derived). Flight numbers other than glide are estimates, not manufacturer data.
+- Landing pattern uses `canopyDescentFps` (open → 500 ft descent time still in `canopyDescentTime`).
+- Suggested Jump Run: longest run on a heading whose simulated landings (exit + freefall drift) stay inside the green shape shrunk by 15% (45% toward straight downwind). Jump-run speed = 85 kt airspeed vs the 14k wind.
+- Recommended jumper separation = 1,500 ft of ground distance ÷ jump-run ground speed (USPA SIM 4-7), rounded to the nearest second.
+- Jump run info box: heading, Prior/Past (along-track from DZ center), Offset (nearest cardinal perpendicular), est. speed, rec. separation; draggable.
+- Canopy Settings (main + reserve) persist in localStorage `mwh-canopy-settings` (per device; survives app updates).
+- Forecast cache is per location/model (not per hour): each Open-Meteo response holds the whole timeline, so scrubbing the slider costs no extra API calls. Slider waits 2 s after the last move before loading.
+- Plane list per DZ lives in `tails.json` (`/tails`); ✕ in the Track Plane list removes from it and does NOT stop tracking. Auto-track only follows planes already entered for that DZ.
+- Cloud forecast: Open-Meteo GFS only, 5 hourly columns following the slider; METAR box only at hour offset 0.
+
+## Gotchas
+- Leaflet popups/markers on mobile: the bottom drawer (`#panel`) is `position: fixed` with `--drawer-h`; floating UI offsets from it. A "drawer disappears on mobile" report was never reproduced (defensive `healDrawer()` exists).
+- Don't use `localStorage` assumptions in tests without a fresh browser context.
+- Playwright tests: a stale mock server on the same port serves old HTML and gives false failures — restart it (kill by PID, not `pkill`).
+- Open-Meteo requests: ≤10 variables each (fractional call counting).
+- `Cache-Control: no-store` on `/`; the service worker still caches static assets by version.

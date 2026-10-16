@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.44">
+<meta name="app-version" content="4.5.45">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.44";
+    const CURRENT_VERSION = "4.5.45";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -330,7 +330,7 @@ select:focus { border-color: var(--accent); }
             <div class="wc-section"><div class="wc-icon" style="color:#00d4ff">&#x1F501;</div><div><div class="wc-title">Last Load &amp; Fetch Plane Data</div><div class="wc-text"><b>Show Last Load</b> draws the most recent flight trail for the planes you choose. <b>Fetch Plane Data</b> pulls the latest flight for selected planes so it&rsquo;s ready to show.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:#a78bfa">&#x1F58A;&#xFE0F;</div><div><div class="wc-title">Free Draw</div><div class="wc-text">Sketch directly on the map for movement jumps, flocking or any freeform plan. Tap the button to start, again to finish, and once more to clear your drawings.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x23F1;</div><div><div class="wc-title">Forecast Offset</div><div class="wc-text">Slide <b>Forecast Offset</b> up to <b>72 hours</b> ahead. Winds, canopy circle and cloud forecast all follow the slider. The live METAR applies to the current hour only.</div></div></div>
-            <div class="wc-section"><div class="wc-icon" style="color:var(--muted)">&#x2601;&#xFE0F;</div><div><div class="wc-title">Sky &amp; Weather</div><div class="wc-text">Tap <b>&#x2601;&#xFE0F;</b> for the live <b>METAR</b> (flight category, ceiling and cloud layers like &ldquo;Broken at 4,000 ft&rdquo;, visibility, wind/gusts, temp/dew point, altimeter) with warnings, plus an <b>hourly cloud forecast</b> for now and the next 4 hours: coverage %, estimated base and rain chance. Drag the box to move it.</div></div></div>
+            <div class="wc-section"><div class="wc-icon" style="color:var(--muted)">&#x2601;&#xFE0F;</div><div><div class="wc-title">Sky &amp; Weather</div><div class="wc-text">Tap <b>&#x2601;&#xFE0F;</b> for the live <b>METAR</b>, decoded into plain language (flight category, ceiling and cloud layers like &ldquo;Broken at 4,000 ft&rdquo;, visibility, wind/gusts, weather like &ldquo;Light rain showers&rdquo;, temp/dew point, altimeter, how old the report is) with warnings, plus an <b>hourly cloud forecast</b> for now and the next 4 hours: coverage %, estimated base and rain chance. Drag the box to move it.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--muted)">&#x1F527;</div><div><div class="wc-title">Header Buttons</div><div class="wc-text"><b>&#x21BA;</b> clear cache and refresh &middot; <b>&#x1F4CA;</b> usage stats &middot; <b>&#x1F4A8;</b> wind widget &middot; <b>&#x2601;&#xFE0F;</b> sky &amp; weather &middot; <b>?</b> this guide.</div></div></div>
         </div>
         <button onclick="document.getElementById('quickStartModal').style.display='none'" style="margin:8px 20px 16px;padding:12px;background:var(--accent);color:var(--bg);border:none;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;cursor:pointer">Got it!</button>
@@ -3518,6 +3518,36 @@ function toggleCloudPopup(){
     renderCloudPopup();
 }
 
+// METAR present-weather codes (e.g. "-SHRA BR") in plain words: "Light rain showers, mist"
+const WX_DESC = {MI:"shallow", BC:"patches of", PR:"partial", DR:"low drifting", BL:"blowing", SH:"showers", TS:"thunderstorm", FZ:"freezing"};
+const WX_PHEN = {DZ:"drizzle", RA:"rain", SN:"snow", SG:"snow grains", IC:"ice crystals", PL:"ice pellets", GR:"hail", GS:"small hail", UP:"unknown precipitation",
+    BR:"mist", FG:"fog", FU:"smoke", VA:"volcanic ash", DU:"dust", SA:"sand", HZ:"haze", PY:"spray", PO:"dust whirls", SQ:"squalls", FC:"funnel cloud", SS:"sandstorm", DS:"duststorm"};
+function decodeWx(wx){
+    if (!wx) return null;
+    return wx.trim().split(/\s+/).map(function(g){
+        if (g === "+FC") return "Tornado / waterspout";
+        let int = "", vc = false;
+        if (g[0] === "-") { int = "light"; g = g.slice(1); } else if (g[0] === "+") { int = "heavy"; g = g.slice(1); }
+        if (g.startsWith("VC")) { vc = true; g = g.slice(2); }
+        const codes = g.match(/../g) || [];
+        let desc = [], phen = [];
+        codes.forEach(function(c){ if (WX_DESC[c]) desc.push(c); else if (WX_PHEN[c]) phen.push(WX_PHEN[c]); });
+        if (!desc.length && !phen.length) return g;
+        let words = phen.join(" and ");
+        if (desc.includes("TS")) words = "thunderstorm" + (words ? " with " + words : "");
+        else if (desc.includes("SH")) words = words ? words + " showers" : "showers";
+        desc.filter(d => d !== "TS" && d !== "SH").forEach(d => { words = WX_DESC[d] + " " + words; });
+        if (int) words = int + " " + words;
+        if (vc) words += " nearby";
+        return words;
+    }).join(", ").replace(/^./, c => c.toUpperCase());
+}
+function metarAge(min){
+    if (min == null) return "";
+    if (min < 60) return "observed " + min + " min ago";
+    return "observed " + Math.floor(min / 60) + " h " + (min % 60) + " min ago";
+}
+
 function renderMetarBox(){
     const el = document.getElementById("metarContent");
     if (!el) return;
@@ -3528,12 +3558,13 @@ function renderMetarBox(){
         return;
     }
     const catCol = {VFR:"#39ff89",MVFR:"#4aa3ff",IFR:"#ff4f4f",LIFR:"#ff66ff"}[m.flt_cat] || "var(--muted)";
+    const catWord = {VFR:"Good visibility, clouds high", MVFR:"Marginal: lower clouds or haze", IFR:"Low clouds / poor visibility", LIFR:"Very low clouds / very poor visibility"}[m.flt_cat] || "";
     const ft = n => n == null ? "—" : n.toLocaleString() + " ft";
     const ageCol = m.age_min != null && m.age_min > 60 ? "#ffaa00" : "var(--muted)";
     let h = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
         <b style="color:var(--accent);font-size:0.95rem">${m.icao}</b>
-        ${m.flt_cat ? `<span style="border:1px solid ${catCol};color:${catCol};border-radius:4px;padding:1px 7px;font-weight:700">${m.flt_cat}</span>` : ""}
-        <span style="color:${ageCol};font-size:0.68rem">${m.age_min != null ? "obs " + m.age_min + " min ago" : ""}</span></div>`;
+        ${m.flt_cat ? `<span style="border:1px solid ${catCol};color:${catCol};border-radius:4px;padding:1px 7px;font-weight:700">${m.flt_cat}</span><span style="color:${catCol};font-size:0.68rem">${catWord}</span>` : ""}</div>
+        <div style="color:var(--muted);font-size:0.68rem;margin:-4px 0 8px">${m.name ? m.name.replace(/, US$/, "") + " · " : ""}<span style="color:${ageCol}">${metarAge(m.age_min)}${m.age_min != null && m.age_min > 60 ? " (old report)" : ""}</span></div>`;
     // Sky layers in pilot language
     if (m.layers.length){
         h += '<div style="margin-bottom:8px">';
@@ -3550,22 +3581,24 @@ function renderMetarBox(){
     const cell = (label, val, col) => `<div><div style="color:var(--muted);font-size:0.58rem;letter-spacing:0.1em;text-transform:uppercase">${label}</div><div style="color:${col||"var(--text)"};font-size:0.82rem">${val}</div></div>`;
     const visCol = m.vis_mi != null && m.vis_mi < 3 ? "#ff4f4f" : (m.vis_mi != null && m.vis_mi < 5 ? "#ffaa00" : "var(--text)");
     const gustSpread = m.gust != null && m.wspd != null ? m.gust - m.wspd : 0;
-    const windTxt = m.wspd == null ? "—" : (m.wspd < 1 ? "Calm" : `${m.vrb ? "VRB" : Math.round(m.wdir) + "°"} ${Math.round(m.wspd)}${m.gust ? "G" + Math.round(m.gust) : ""} kt`);
+    const windTxt = m.wspd == null ? "—" : (m.wspd < 1 ? "Calm" :
+        `${m.vrb ? "Variable" : "From " + String(Math.round(m.wdir)).padStart(3, "0") + "°"}<br>${Math.round(m.wspd)} kt${m.gust ? "<br>gusts " + Math.round(m.gust) + " kt" : ""}`);
+    const wxTxt = decodeWx(m.wx);
+    const visTxt = m.vis_txt == null ? "—" : (m.vis_txt === "10+" ? "10+ miles" : m.vis_txt + (m.vis_mi === 1 ? " mile" : " miles"));
     h += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:8px 12px;margin-bottom:8px">
-        ${cell("Visibility", m.vis_txt != null ? m.vis_txt + " mi" : "—", visCol)}
+        ${cell("Visibility", visTxt, visCol)}
         ${cell("Wind", windTxt, gustSpread >= 10 ? "#ffaa00" : null)}
         ${cell("Temp / Dew", m.temp_f != null ? `${m.temp_f}° / ${m.dew_f}°F` : "—")}
         ${cell("Altimeter", m.altim_inhg != null ? m.altim_inhg.toFixed(2) + " inHg" : "—")}
-        ${m.wx ? cell("Weather", m.wx, "#4aa3ff") : ""}
+        ${wxTxt ? cell("Weather", wxTxt, "#4aa3ff") : ""}
     </div>`;
     // Plain-language flags
     const notes = [];
     if (m.ceiling_ft != null && m.ceiling_ft < 14000) notes.push(`Cloud deck at ${ft(m.ceiling_ft)} — below exit altitude`);
-    if (m.vis_mi != null && m.vis_mi < 3) notes.push(`Low visibility (${m.vis_txt} mi)`);
+    if (m.vis_mi != null && m.vis_mi < 3) notes.push(`Low visibility (${visTxt})`);
     if (gustSpread >= 10) notes.push(`Gusty — ${Math.round(gustSpread)} kt over the steady wind`);
     if (m.spread_c != null && m.spread_c <= 2 && !m.layers.length) notes.push("Temp/dew point are close — fog or low cloud possible");
     if (notes.length) h += `<div style="color:#ffaa00;font-size:0.72rem;line-height:1.5;margin-bottom:8px">${notes.map(n => "⚠ " + n).join("<br>")}</div>`;
-    if (m.raw) h += `<div style="color:var(--muted);font-size:0.62rem;line-height:1.4;word-break:break-word;user-select:text;-webkit-user-select:text">${m.raw}</div>`;
     el.innerHTML = h;
 }
 

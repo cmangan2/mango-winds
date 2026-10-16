@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.41">
+<meta name="app-version" content="4.5.43">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.41";
+    const CURRENT_VERSION = "4.5.43";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -319,7 +319,7 @@ select:focus { border-color: var(--accent); }
         <div style="overflow-y:auto;padding:14px 20px;flex:1;-webkit-overflow-scrolling:touch">
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F4CD;</div><div><div class="wc-title">Getting Started</div><div class="wc-text">Pick your <b>dropzone</b> (or choose <b>Add my dropzone&hellip;</b> to add yours with an optional METAR station). On a phone the panel is a <b>drawer</b> at the bottom: tap or drag the handle to open and close it.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--canopy)">&#9675;</div><div><div class="wc-title">Canopy Circle</div><div class="wc-text">The <b>dashed white circle</b> is a <b>1,200 ft pattern-start circle</b> at the DZ center. The <b>green circle</b> is how far out you can open (3,000 ft by default) and still fly back to reach the edge of that circle at <b>1,000 ft</b> to start your pattern. Wind stretches it toward the upwind side and squeezes it on the downwind side; in strong wind the downwind end is cut flat along a line tangent to the white circle. <b>Hover</b> (desktop) or <b>tap</b> (phone) the green edge to see the canopy settings and wind behind it. The <b>dashed green polygon</b> inside it is your <b>reserve range</b>: opening at 2,000 ft and reaching the same circle at 500 ft. It starts with a PD Optimum 143 at a 2.2:1 glide (change the reserve size/type in Canopy Settings, or hide it); the other reserve flight numbers are estimates. Tap its edge for the reserve details.</div></div></div>
-            <div class="wc-section"><div class="wc-icon" style="color:var(--muted)">&#x2699;&#xFE0F;</div><div><div class="wc-title">Canopy Settings</div><div class="wc-text">Tap <b>Canopy Settings</b> and enter <b>canopy size, exit weight, type</b>, opening altitude and (optionally) a known glide ratio. The circle, flight time and descent rate update to match your gear.</div></div></div>
+            <div class="wc-section"><div class="wc-icon" style="color:var(--muted)">&#x2699;&#xFE0F;</div><div><div class="wc-title">Canopy Settings</div><div class="wc-text">Tap <b>Canopy Settings</b> and enter <b>canopy size, exit weight, type</b>, opening altitude and (optionally) a known glide ratio. Add your <b>reserve</b> size and type too. The circle, flight time and descent rate update to match your gear. Your settings are <b>saved on this device</b> and kept through app updates; <b>Reset to defaults</b> clears them.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F4CA;</div><div><div class="wc-title">Winds by Altitude</div><div class="wc-text">Each row blends <b>GFS, ICON, HRRR, HRDPS and ECMWF</b>, weighted toward the models that agree. The <b>Agree</b> column shows how closely they match. <b>Surface</b> uses the live <b>METAR</b> for the current hour when your DZ has a station. Light, shifty wind below 8 kt shows as <b>Calm</b>. Tap <b>Hide</b> to collapse the table.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--freefall)">&#x1F4A8;</div><div><div class="wc-title">Wind Widget</div><div class="wc-text">The <b>Freefall / Canopy / Surface</b> widget shows drift and wind at a glance. Tap an item for live <b>wind particles</b> on the map. Reopen the widget with the &#x1F4A8; button in the header.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:#fff">&#x270F;&#xFE0F;</div><div><div class="wc-title">Jump Run</div><div class="wc-text"><b>Draw</b> a jump run by dragging on the map, <b>Suggest</b> one (enter a heading and it finds the longest run that keeps every landing inside the green circle with a 15% margin, 45% on the downwind side), or <b>Define</b> one: enter heading, <b>Prior/Past</b> (distance from the DZ center along that heading) and <b>Offset</b> (N/S/E/W &mdash; pick the direction closest to perpendicular to the run), plus length. A box at the start (tap and drag it to move it out of the way) shows heading, prior/past, offset, estimated ground speed and recommended jumper separation (1,500 ft of ground distance between groups, converted to seconds). <b>Replay</b> animates the exits and freefall drift; <b>Clear</b> removes it. Jump runs are not saved.</div></div></div>
@@ -371,7 +371,8 @@ select:focus { border-color: var(--accent); }
             </div>
             <div id="advPreview" style="background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:'Share Tech Mono',monospace;font-size:0.72rem;color:var(--muted);line-height:1.8"></div>
         </div>
-        <button onclick="applyAdvancedSettings()" style="margin:6px 18px 16px;padding:11px;background:var(--accent);color:var(--bg);border:none;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">Apply to Map</button>
+        <button onclick="applyAdvancedSettings()" style="margin:6px 18px 16px;padding:11px;background:var(--accent);color:var(--bg);border:none;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">Apply &amp; Save</button>
+        <button onclick="resetCanopySettings()" style="margin:0 18px 16px;padding:8px;background:none;color:var(--muted);border:1px solid var(--border);border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;letter-spacing:0.06em;cursor:pointer">Reset to defaults</button>
     </div>
 </div>
 
@@ -1909,7 +1910,7 @@ function currentReserve(){
     return computeReserve(reserveCfg.size, c ? c.weight : 240, reserveCfg.type, reserveCfg.glideInput);
 }
 // Start from the Canopy Settings form defaults (so the default circle matches what the form shows)
-function initCanopyDefaults(){ const p=getCanopyParams(); canopyAirspeedKt=p.airspeedKt; canopyDescentTime=p.descentTime; canopyDescentFps=p.descentFpm/60; canopyOpenAlt=p.openAlt; }
+function initCanopyDefaults(){ const saved = loadSavedCanopySettings(); commitCanopyForm(); if (!saved) window._canopyCfg = undefined; }
 function updateAdvPreview(){
     const p=getCanopyParams();
     document.getElementById("advPreview").innerHTML=`WL: ${p.wl.toFixed(2)} lbs/sqft<br>Airspeed: ${p.airspeedKt.toFixed(1)} kt<br>Descent: ${p.descentFpm.toFixed(0)} ft/min<br>Flight time: ${p.descentTime.toFixed(0)} sec<br>Glide ratio: ${p.glideRatio.toFixed(2)}:1`;
@@ -1920,13 +1921,49 @@ function updateAdvPreview(){
 function toggleAdvBonus(lbl){ const el=document.getElementById("advBonus"),open=el.style.display==="none"||el.style.display===""; el.style.display=open?"flex":"none"; if(open){el.style.flexDirection="column";el.style.gap="10px";} lbl.textContent=(open?"▼":"▶")+" I know more (optional)"; }
 function openAdvancedModal(){ updateAdvPreview(); const am=document.getElementById("advancedModal"); am.style.display="flex"; am.style.alignItems="center"; am.style.justifyContent="center"; }
 function closeAdvancedModal(){ document.getElementById("advancedModal").style.display="none"; }
-function applyAdvancedSettings(){ const p=getCanopyParams(); canopyAirspeedKt=p.airspeedKt; canopyDescentTime=p.descentTime; canopyDescentFps=p.descentFpm/60; canopyOpenAlt=p.openAlt;
+// Apply the Canopy Settings form to the app's canopy/reserve model (no reload)
+function commitCanopyForm(){ const p=getCanopyParams(); canopyAirspeedKt=p.airspeedKt; canopyDescentTime=p.descentTime; canopyDescentFps=p.descentFpm/60; canopyOpenAlt=p.openAlt;
     window._canopyCfg = { size: parseFloat(document.getElementById("advSize").value)||150, weight: parseFloat(document.getElementById("advWeight").value)||240,
         type: document.getElementById("advType").value, glideInput: parseFloat(document.getElementById("advGlide").value)||null, p };
     reserveCfg = { size: parseFloat(document.getElementById("advResSize").value)||143, type: document.getElementById("advResType").value,
         glideInput: parseFloat(document.getElementById("advResGlide").value)||null, show: document.getElementById("advResShow").checked };
-    closeAdvancedModal(); load(); }
-["advSize","advWeight","advType","advOpenAlt","advGlide","advResSize","advResType","advResGlide"].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener("input",updateAdvPreview); });
+}
+// Saved on this device (localStorage), so they survive reloads and app updates
+const CANOPY_SAVE_KEY = "mwh-canopy-settings";
+const CANOPY_FIELDS = ["advSize","advWeight","advType","advOpenAlt","advGlide","advResSize","advResType","advResGlide","advResShow"];
+const CANOPY_FORM_DEFAULTS = { advSize:"150", advWeight:"240", advType:"sport", advOpenAlt:"3000", advGlide:"", advResSize:"143", advResType:"optimum", advResGlide:"2.2", advResShow:true };
+function saveCanopySettings(){
+    try {
+        const o = { v:1 };
+        CANOPY_FIELDS.forEach(id => { const el=document.getElementById(id); o[id] = el.type==="checkbox" ? el.checked : el.value; });
+        localStorage.setItem(CANOPY_SAVE_KEY, JSON.stringify(o));
+        return true;
+    } catch(e){ return false; }
+}
+function loadSavedCanopySettings(){
+    try {
+        const raw = localStorage.getItem(CANOPY_SAVE_KEY);
+        if (!raw) return false;
+        const o = JSON.parse(raw);
+        CANOPY_FIELDS.forEach(id => {
+            if (!(id in o)) return;               // fields added in later versions keep their defaults
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (el.type === "checkbox") el.checked = !!o[id];
+            else if (el.tagName === "SELECT"){ if ([...el.options].some(op => op.value === o[id])) el.value = o[id]; }
+            else el.value = String(o[id]);
+        });
+        return true;
+    } catch(e){ return false; }
+}
+function applyAdvancedSettings(){ commitCanopyForm(); saveCanopySettings(); closeAdvancedModal(); load(); }
+function resetCanopySettings(){
+    try { localStorage.removeItem(CANOPY_SAVE_KEY); } catch(e){}
+    CANOPY_FIELDS.forEach(id => { const el=document.getElementById(id); if (el.type==="checkbox") el.checked = CANOPY_FORM_DEFAULTS[id]; else el.value = CANOPY_FORM_DEFAULTS[id]; });
+    commitCanopyForm(); window._canopyCfg = undefined;   // back to the "default settings" state
+    updateAdvPreview(); closeAdvancedModal(); load();
+}
+["advSize","advWeight","advType","advOpenAlt","advGlide","advResSize","advResType","advResGlide","advResShow"].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener("input",updateAdvPreview); });
 async function clearAndReload(){ try{ await fetch('/clearcache?token=mango'); }catch(e){} load(); }
 function openDefineModal(){ document.getElementById("defineModal").style.display="flex"; document.getElementById("dfDir").focus(); }
 function closeDefineModal(){ document.getElementById("defineModal").style.display="none"; document.getElementById("dfError").style.display="none"; }

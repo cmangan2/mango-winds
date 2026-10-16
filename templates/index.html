@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.38">
+<meta name="app-version" content="4.5.39">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.38";
+    const CURRENT_VERSION = "4.5.39";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -318,7 +318,7 @@ select:focus { border-color: var(--accent); }
         </div>
         <div style="overflow-y:auto;padding:14px 20px;flex:1;-webkit-overflow-scrolling:touch">
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F4CD;</div><div><div class="wc-title">Getting Started</div><div class="wc-text">Pick your <b>dropzone</b> (or choose <b>Add my dropzone&hellip;</b> to add yours with an optional METAR station). On a phone the panel is a <b>drawer</b> at the bottom: tap or drag the handle to open and close it.</div></div></div>
-            <div class="wc-section"><div class="wc-icon" style="color:var(--canopy)">&#9675;</div><div><div class="wc-title">Canopy Circle</div><div class="wc-text">The <b>dashed white circle</b> is a <b>1,200 ft pattern-start circle</b> at the DZ center. The <b>green circle</b> is how far out you can open (3,000 ft by default) and still fly back to reach the edge of that circle at <b>1,000 ft</b> to start your pattern. Wind stretches it toward the upwind side and squeezes it on the downwind side; in strong wind the downwind end is cut flat along a line tangent to the white circle. <b>Hover</b> (desktop) or <b>tap</b> (phone) the green edge to see the canopy settings and wind behind it.</div></div></div>
+            <div class="wc-section"><div class="wc-icon" style="color:var(--canopy)">&#9675;</div><div><div class="wc-title">Canopy Circle</div><div class="wc-text">The <b>dashed white circle</b> is a <b>1,200 ft pattern-start circle</b> at the DZ center. The <b>green circle</b> is how far out you can open (3,000 ft by default) and still fly back to reach the edge of that circle at <b>1,000 ft</b> to start your pattern. Wind stretches it toward the upwind side and squeezes it on the downwind side; in strong wind the downwind end is cut flat along a line tangent to the white circle. <b>Hover</b> (desktop) or <b>tap</b> (phone) the green edge to see the canopy settings and wind behind it. The <b>dashed green polygon</b> inside it is your <b>reserve range</b>: opening at 2,000 ft and reaching the same circle at 500 ft. It starts with a PD Optimum 143 (change the reserve size/type in Canopy Settings, or hide it); the reserve flight numbers are estimates, so enter a known glide ratio if you have one. Tap its edge for the reserve details.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--muted)">&#x2699;&#xFE0F;</div><div><div class="wc-title">Canopy Settings</div><div class="wc-text">Tap <b>Canopy Settings</b> and enter <b>canopy size, exit weight, type</b>, opening altitude and (optionally) a known glide ratio. The circle, flight time and descent rate update to match your gear.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F4CA;</div><div><div class="wc-title">Winds by Altitude</div><div class="wc-text">Each row blends <b>GFS, ICON, HRRR, HRDPS and ECMWF</b>, weighted toward the models that agree. The <b>Agree</b> column shows how closely they match. <b>Surface</b> uses the live <b>METAR</b> for the current hour when your DZ has a station. Light, shifty wind below 8 kt shows as <b>Calm</b>. Tap <b>Hide</b> to collapse the table.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--freefall)">&#x1F4A8;</div><div><div class="wc-title">Wind Widget</div><div class="wc-text">The <b>Freefall / Canopy / Surface</b> widget shows drift and wind at a glance. Tap an item for live <b>wind particles</b> on the map. Reopen the widget with the &#x1F4A8; button in the header.</div></div></div>
@@ -356,6 +356,18 @@ select:focus { border-color: var(--accent); }
                     <div class="df-row"><label class="df-label">Opening Altitude (ft AGL)</label><input type="number" id="advOpenAlt" min="1000" max="10000" placeholder="3000" class="df-input" value="3000"></div>
                     <div class="df-row"><label class="df-label">Known Glide Ratio (e.g. 3.0)</label><input type="number" id="advGlide" min="1" max="6" step="0.1" placeholder="leave blank to calculate" class="df-input"></div>
                 </div>
+            </div>
+            <div style="border-top:1px solid var(--border);padding-top:10px;display:flex;flex-direction:column;gap:10px">
+                <div style="font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted)">Reserve (dashed green range)</div>
+                <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--text);cursor:pointer"><input type="checkbox" id="advResShow" checked style="width:18px;height:18px;accent-color:#39ff89"> Show reserve range on map</label>
+                <div class="df-row"><label class="df-label">Reserve Size (sq ft)</label><input type="number" id="advResSize" min="80" max="400" placeholder="e.g. 143" class="df-input" value="143"></div>
+                <div class="df-row"><label class="df-label">Reserve Type</label>
+                    <select id="advResType" class="df-select">
+                        <option value="optimum" selected>PD Optimum (7-cell, high glide)</option>
+                        <option value="standard">Standard 7-cell reserve</option>
+                    </select>
+                </div>
+                <div class="df-row"><label class="df-label">Known Reserve Glide Ratio (optional)</label><input type="number" id="advResGlide" min="1" max="6" step="0.1" placeholder="leave blank to estimate" class="df-input"></div>
             </div>
             <div id="advPreview" style="background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:'Share Tech Mono',monospace;font-size:0.72rem;color:var(--muted);line-height:1.8"></div>
         </div>
@@ -628,6 +640,10 @@ let canopyAirspeedKt = 27;
 let canopyDescentTime = 158;      // seconds, opening alt -> 500 ft (used by the landing pattern)
 let canopyDescentFps = 2500 / 158; // ft/s under canopy
 let canopyOpenAlt = 3000;          // ft AGL
+// Reserve (7-cell) range: open at 2,000 ft, reach the pattern-start circle at 500 ft
+const RESERVE_OPEN_ALT_FT = 2000, RESERVE_REACH_ALT_FT = 500;
+let reserveCfg = { size: 143, type: "optimum", glideInput: null, show: true };   // defaults: PD Optimum 143
+let reserveCircle = null, reserveEdge = null;
 const PATTERN_START_ALT_FT = 1000;   // altitude you want to be at when you reach the edge of the pattern-start circle
 const PATTERN_CIRCLE_DIA_FT = 1200;  // pattern-start circle, centered on the DZ
 let map, marker, canopyCircle, canopyCircleShifted, highLine, patternCircle;
@@ -1266,6 +1282,8 @@ async function load(){
         if (marker) marker.remove();
         if (canopyCircle) canopyCircle.remove();
         if (canopyCircleShifted) canopyCircleShifted.remove();
+        if (reserveCircle){ reserveCircle.remove(); reserveCircle = null; }
+        if (reserveEdge){ reserveEdge.remove(); reserveEdge = null; }
         if (highLine) highLine.remove();
         marker = L.marker([lat, lon]).addTo(map);
         const glideR = d.canopy.glide_radius;
@@ -1283,24 +1301,29 @@ async function load(){
         const flightT = Math.max(1, (canopyOpenAlt - PATTERN_START_ALT_FT) / canopyDescentFps);   // seconds
         const patternR = (PATTERN_CIRCLE_DIA_FT/2) * FT;
         const wMagC = Math.hypot(wVx, wVy) || 1, upX = wVx/wMagC, upY = wVy/wMagC;   // unit vector toward the wind's FROM side
-        const N_DIR = 144, raw = [];
-        for (let i=0; i<N_DIR; i++){
-            const theta=(i/N_DIR)*2*Math.PI, ux=Math.sin(theta), uy=Math.cos(theta);
-            const groundSpd = canopyAirspeed + (wVx*ux + wVy*uy);          // ground speed flying home from a start point in direction u
-            const reach = patternR + Math.max(groundSpd, 0)*flightT;
-            raw.push([ux*reach, uy*reach]);
-        }
-        // Flatten the downwind end: in strong wind the downwind side pinches into two lobes. Cut everything past a straight line
-        // (perpendicular to the wind) at the downwind-most point of the axis through the DZ. With no ground speed home that line is
-        // tangent to the white circle; with more it sits farther out, so shapes without lobes are untouched.
-        const downLineM = patternR + Math.max(canopyAirspeed - wMagC, 0)*flightT;   // distance of the flat edge, downwind of DZ
-        const side = q => q[0]*upX + q[1]*upY + downLineM;                          // >= 0 means inside the kept half-plane
-        const clipped = [];
-        for (let i=0; i<raw.length; i++){
-            const cur = raw[i], nxt = raw[(i+1)%raw.length], sc = side(cur), sn = side(nxt);
-            if (sc >= 0) clipped.push(cur);
-            if ((sc >= 0) !== (sn >= 0)){ const t = sc/(sc - sn); clipped.push([cur[0] + (nxt[0]-cur[0])*t, cur[1] + (nxt[1]-cur[1])*t]); }
-        }
+        // Reach polygon for a canopy with the given airspeed (m/s) and flight time (s) from open to the pattern circle:
+        // radial shape, with the downwind end flattened (in strong wind the downwind side pinches into two lobes; cut everything
+        // past a straight line perpendicular to the wind at the downwind-most point of the axis through the DZ).
+        const N_DIR = 144;
+        const reachPolygon = (airMs, T) => {
+            const raw = [];
+            for (let i=0; i<N_DIR; i++){
+                const theta=(i/N_DIR)*2*Math.PI, ux=Math.sin(theta), uy=Math.cos(theta);
+                const groundSpd = airMs + (wVx*ux + wVy*uy);          // ground speed flying home from a start point in direction u
+                const reach = patternR + Math.max(groundSpd, 0)*T;
+                raw.push([ux*reach, uy*reach]);
+            }
+            const downLineM = patternR + Math.max(airMs - wMagC, 0)*T;   // distance of the flat edge, downwind of DZ
+            const side = q => q[0]*upX + q[1]*upY + downLineM;           // >= 0 means inside the kept half-plane
+            const out = [];
+            for (let i=0; i<raw.length; i++){
+                const cur = raw[i], nxt = raw[(i+1)%raw.length], sc = side(cur), sn = side(nxt);
+                if (sc >= 0) out.push(cur);
+                if ((sc >= 0) !== (sn >= 0)){ const t = sc/(sc - sn); out.push([cur[0] + (nxt[0]-cur[0])*t, cur[1] + (nxt[1]-cur[1])*t]); }
+            }
+            return out;
+        };
+        const clipped = reachPolygon(canopyAirspeed, flightT);
         window._canopyUp = [upX, upY];   // unit vector toward the wind's FROM side
         window._canopyPolyM = clipped;   // green shape in meters east/north of the DZ (used by Suggested Jump Run)
         let reachMax = 0, reachMin = 0;
@@ -1312,6 +1335,25 @@ async function load(){
         polyPoints.push(polyPoints[0]);
         const info = { flightT, upwindM: reachMax, downwindM: reachMin };
         canopyCircleShifted = L.polygon(polyPoints,{color:'#39ff89',weight:3,opacity:0.85,fill:true,fillColor:'#39ff89',fillOpacity:0.08,interactive:false}).addTo(map);
+        if (reserveCircle){ reserveCircle.remove(); reserveCircle = null; }
+        if (reserveEdge){ reserveEdge.remove(); reserveEdge = null; }
+        if (reserveCfg.show){
+            const rv = currentReserve();
+            const rPoly = reachPolygon(rv.airspeedKt * 0.514444, rv.flightT);
+            let rUp = 0, rDown = 0;
+            const rPts = rPoly.map(q => { const v = q[0]*upX + q[1]*upY; rUp = Math.max(rUp, v); rDown = Math.max(rDown, -v);
+                return [lat + q[1]/111000, lon + q[0]/(111000*cosLatC)]; });
+            rPts.push(rPts[0]);
+            const rInfo = { rv, upwindM: rUp, downwindM: rDown };
+            reserveCircle = L.polygon(rPts,{color:'#39ff89',weight:2.5,opacity:0.9,dashArray:'9,7',fill:false,interactive:false}).addTo(map);
+            reserveEdge = L.polyline(rPts,{color:'#39ff89',weight:24,opacity:0.001,interactive:true,className:'canopy-edge'}).addTo(map);
+            reserveEdge.bindPopup(()=>reserveInfoHtml(d, rInfo),{className:'canopy-pop',maxWidth:300,autoPan:true});
+            reserveEdge.on('click',function(e){ if (drawMode||patternMode||freeDrawMode){ e.target.closePopup(); } });
+            if (!L.Browser.mobile){
+                const rHtml = reserveInfoHtml(d, rInfo);
+                reserveEdge.bindTooltip(()=>rHtml,{sticky:true,direction:'top',className:'canopy-pop canopy-tip',opacity:1});
+            }
+        }
         if (patternCircle) patternCircle.remove();
         patternCircle = L.circle([lat, lon],{radius:patternR,color:'#ffffff',weight:2,opacity:0.9,dashArray:'5,5',fill:false,interactive:false}).addTo(map);
         // Wide invisible outline = easy hover/tap target on the circle edge only (inside the circle still passes clicks to the map)
@@ -1812,6 +1854,28 @@ function canopyInfoHtml(d, info){
     return h;
 }
 
+function reserveInfoHtml(d, info){
+    const rv = info.rv, mi = m => (m/1609.344).toFixed(2) + " mi";
+    const typeNames = {optimum:"PD Optimum (7-cell)", standard:"Standard 7-cell"};
+    const t = rv.flightT, mm = Math.floor(t/60), ss = Math.round(t%60);
+    const row = (k, v) => `<div style="display:flex;justify-content:space-between;gap:14px"><span style="color:var(--muted)">${k}</span><span>${v}</span></div>`;
+    let h = '<div style="font-family:\'Share Tech Mono\',monospace;font-size:0.75rem;line-height:1.55;min-width:210px">';
+    h += `<div style="color:#39ff89;font-size:0.62rem;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:5px">Reserve reach (estimated)</div>`;
+    h += row("Reserve", `${reserveCfg.size} sq ft · ${typeNames[reserveCfg.type] || reserveCfg.type}`);
+    h += row("Wing loading", rv.wl.toFixed(2));
+    h += row("Glide ratio", rv.glideRatio.toFixed(1) + (reserveCfg.glideInput ? " (entered)" : ""));
+    h += row("Opening alt", `${RESERVE_OPEN_ALT_FT.toLocaleString()} ft AGL`);
+    h += row("Pattern circle", `${PATTERN_CIRCLE_DIA_FT.toLocaleString()} ft dia at DZ`);
+    h += row("Reach it at", `${RESERVE_REACH_ALT_FT.toLocaleString()} ft AGL`);
+    h += row("Est. flight time", `${mm}:${String(ss).padStart(2,"0")}`);
+    h += '<div style="border-top:1px solid var(--border);margin:5px 0"></div>';
+    h += row("Wind used", `${Math.round(d.canopy.direction)}° @ ${d.canopy.speed.toFixed(1)} kt`);
+    h += row("Upwind of DZ (max)", mi(info.upwindM));
+    h += row("Downwind of DZ (max)", mi(info.downwindM));
+    h += '</div>';
+    return h;
+}
+
 function getCanopyParams(){
     const size=parseFloat(document.getElementById("advSize").value)||150;
     const weight=parseFloat(document.getElementById("advWeight").value)||225;
@@ -1828,9 +1892,28 @@ function getCanopyParams(){
     const glideRatio=(airspeedKt*1.68781)/(descentFpm/60);
     return { wl, airspeedKt, descentFpm, descentTime, glideRatio, openAlt };
 }
+// Estimated 7-cell reserve flight model (no manufacturer data is built in; enter a known glide ratio to override).
+// Opens at 2,000 ft and flies to the 1,200 ft pattern circle by 500 ft. Uses the same exit weight as the main.
+function computeReserve(size, weight, type, glide){
+    const wl = weight / size;
+    let airspeedKt, descentFpm;
+    if (type === "standard"){ airspeedKt = wl<0.9?18:wl<1.1?20:wl<1.3?23:wl<1.5?25:27; descentFpm = 800 + wl*130; }
+    else { airspeedKt = wl<0.9?19:wl<1.1?22:wl<1.3?24:27; descentFpm = 750 + wl*130; }
+    if (glide) airspeedKt = (glide * (descentFpm/60)) / 1.68781;
+    const descentFps = descentFpm / 60;
+    return { wl, airspeedKt, descentFps, glideRatio: (airspeedKt*1.68781)/descentFps,
+             flightT: (RESERVE_OPEN_ALT_FT - RESERVE_REACH_ALT_FT) / descentFps };
+}
+function currentReserve(){
+    const c = window._canopyCfg;
+    return computeReserve(reserveCfg.size, c ? c.weight : 225, reserveCfg.type, reserveCfg.glideInput);
+}
 function updateAdvPreview(){
     const p=getCanopyParams();
     document.getElementById("advPreview").innerHTML=`WL: ${p.wl.toFixed(2)} lbs/sqft<br>Airspeed: ${p.airspeedKt.toFixed(1)} kt<br>Descent: ${p.descentFpm.toFixed(0)} ft/min<br>Flight time: ${p.descentTime.toFixed(0)} sec<br>Glide ratio: ${p.glideRatio.toFixed(2)}:1`;
+    const rs=parseFloat(document.getElementById("advResSize").value)||143, rw=parseFloat(document.getElementById("advWeight").value)||225;
+    const r=computeReserve(rs, rw, document.getElementById("advResType").value, parseFloat(document.getElementById("advResGlide").value)||null);
+    document.getElementById("advPreview").innerHTML += `<br><span style="color:#39ff89">Reserve WL: ${r.wl.toFixed(2)} · glide ${r.glideRatio.toFixed(2)}:1 · ${r.airspeedKt.toFixed(0)} kt</span>`;
 }
 function toggleAdvBonus(lbl){ const el=document.getElementById("advBonus"),open=el.style.display==="none"||el.style.display===""; el.style.display=open?"flex":"none"; if(open){el.style.flexDirection="column";el.style.gap="10px";} lbl.textContent=(open?"▼":"▶")+" I know more (optional)"; }
 function openAdvancedModal(){ updateAdvPreview(); const am=document.getElementById("advancedModal"); am.style.display="flex"; am.style.alignItems="center"; am.style.justifyContent="center"; }
@@ -1838,8 +1921,10 @@ function closeAdvancedModal(){ document.getElementById("advancedModal").style.di
 function applyAdvancedSettings(){ const p=getCanopyParams(); canopyAirspeedKt=p.airspeedKt; canopyDescentTime=p.descentTime; canopyDescentFps=p.descentFpm/60; canopyOpenAlt=p.openAlt;
     window._canopyCfg = { size: parseFloat(document.getElementById("advSize").value)||150, weight: parseFloat(document.getElementById("advWeight").value)||225,
         type: document.getElementById("advType").value, glideInput: parseFloat(document.getElementById("advGlide").value)||null, p };
+    reserveCfg = { size: parseFloat(document.getElementById("advResSize").value)||143, type: document.getElementById("advResType").value,
+        glideInput: parseFloat(document.getElementById("advResGlide").value)||null, show: document.getElementById("advResShow").checked };
     closeAdvancedModal(); load(); }
-["advSize","advWeight","advType","advOpenAlt","advGlide"].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener("input",updateAdvPreview); });
+["advSize","advWeight","advType","advOpenAlt","advGlide","advResSize","advResType","advResGlide"].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener("input",updateAdvPreview); });
 async function clearAndReload(){ try{ await fetch('/clearcache?token=mango'); }catch(e){} load(); }
 function openDefineModal(){ document.getElementById("defineModal").style.display="flex"; document.getElementById("dfDir").focus(); }
 function closeDefineModal(){ document.getElementById("defineModal").style.display="none"; document.getElementById("dfError").style.display="none"; }

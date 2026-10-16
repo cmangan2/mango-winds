@@ -5,6 +5,7 @@ import os, sys, tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 tmp = tempfile.mkdtemp(prefix="mwh-test-")
+os.environ["PREWARM"] = "0"  # no startup weather fetch in tests
 for k, f in (("CACHE_FILE", "winds_cache.json"), ("TAILS_FILE", "tails.json"), ("LASTLOAD_FILE", "lastload.json"),
              ("ADSB_TRAILS_FILE", "adsb_trails.json"), ("VISITS_FILE", "visits.json"), ("API_LOG_FILE", "api_log.json")):
     os.environ[k] = os.path.join(tmp, f)

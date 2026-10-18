@@ -28,6 +28,7 @@ VISITS_FILE   = os.environ.get("VISITS_FILE",   os.path.join(os.path.dirname(__f
 TAILS_FILE    = os.environ.get("TAILS_FILE",    os.path.join(os.path.dirname(__file__), "tails.json"))
 LASTLOAD_FILE    = os.environ.get("LASTLOAD_FILE",    os.path.join(os.path.dirname(__file__), "lastload.json"))
 ADSB_TRAILS_FILE = os.environ.get("ADSB_TRAILS_FILE", os.path.join(os.path.dirname(__file__), "adsb_trails.json"))
+RECORDED_TRACKS_FILE = os.environ.get("RECORDED_TRACKS_FILE", os.path.join(os.path.dirname(ADSB_TRAILS_FILE), "recorded_tracks.json"))
 
 # Last load storage: {dz_name: {trail, jumprun_start, jumprun_end, tail, timestamp}}
 _lastload_log = {}
@@ -2106,17 +2107,32 @@ def _fetch_adsb_trails_impl(dz_filter=None, tails_filter=None):
         if tail in new_trails:
             continue  # already fetched (same tail on multiple DZs)
         try:
-            url = f"https://adsb-proxy.vercel.app/api/plane?tail={tail}&trail=1"
-            r = requests.get(url, timeout=15,
-                             headers={"User-Agent": "MangoWindHub/1.0 adsb-trail-poller"})
-            if not r.ok:
-                print(f"ADS-B poller: {tail} → HTTP {r.status_code}")
-                summary["errors"].append(tail)
-                continue
-            data = r.json()
+            data, failed = {}, False
+            try:
+                url = f"https://adsb-proxy.vercel.app/api/plane?tail={tail}&trail=1"
+                r = requests.get(url, timeout=15,
+                                 headers={"User-Agent": "MangoWindHub/1.0 adsb-trail-poller"})
+                if r.ok:
+                    data = r.json()
+                else:
+                    print(f"ADS-B poller: {tail} → HTTP {r.status_code}")
+                    failed = True
+            except Exception as e:
+                print(f"ADS-B poller: {tail} proxy error: {e}")
+                failed = True
+            if data.get("trail_errors"):
+                print(f"ADS-B poller: {tail} trail sources failed: {data['trail_errors']}")
             # Proxy returns: {tail, icao24, found, trail: [{lat,lon,alt,ts}, ...] (latest flight),
             #                 last_seen, flight_start, flight_end, max_alt, flights_total, ...}
             trail_pts = data.get("trail", [])
+            # Fallback: our own recording from live positions — used when the proxy has no trail,
+            # or when the recorded flight is a newer load than the proxy's (its data can lag)
+            rec = recorded_flight(tail)
+            if rec and (len(trail_pts) <= 1 or rec["flight_start"] > (data.get("flight_end") or 0)):
+                print(f"ADS-B poller: {tail} → using recorded track ({len(rec['points'])} points)")
+                data = {**data, **{k: rec[k] for k in ("flight_start", "flight_end", "max_alt", "last_seen")},
+                        "trail": rec["points"], "flights_total": None, "trail_source": "recorded"}
+                trail_pts = rec["points"]
             if not trail_pts and data.get("lat") is not None:
                 # No trail but live position — wrap it, unless it's FR24's search hit (rounded to
                 # ~0.1°, alt 0: not a real fix) or it would replace a real stored trail
@@ -2136,9 +2152,12 @@ def _fetch_adsb_trails_impl(dz_filter=None, tails_filter=None):
                     "flight_end": data.get("flight_end"),
                     "max_alt": data.get("max_alt"),
                     "flights_total": data.get("flights_total"),
+                    "source": data.get("trail_source") or data.get("source"),
                 }
                 print(f"ADS-B poller: {tail} → {len(trail_pts)} points")
                 summary["saved"][tail] = len(trail_pts)
+            elif failed:
+                summary["errors"].append(tail)
             else:
                 print(f"ADS-B poller: {tail} → no position data")
                 summary["empty"].append(tail)
@@ -2171,6 +2190,128 @@ import threading as _threading
 _adsb_thread = _threading.Thread(target=_adsb_poll_loop, daemon=True, name="adsb-poller")
 _adsb_thread.start()
 print("ADS-B background poller started")
+
+
+# =====================================================
+# 🛰️ TRACK RECORDER — fallback trails built from live positions
+# Polls adsb.lol's live API (adsb.fi if it errors) for every saved plane: every 15 s while
+# airborne, every 60 s otherwise. Takeoff → touchdown becomes a flight; each plane's latest
+# flight is kept (recorded_tracks.json) and used when the proxy can't supply a trail.
+# =====================================================
+REC_AIR_S, REC_IDLE_S = 15, 60
+REC_END_GAP_S = 600          # no airborne fix for this long ends a flight (landed out of coverage)
+REC_FAST_KT = 40             # jump planes never fly slower than this; slower = on the ground
+_rec_lock = _threading.Lock()
+_rec_current = {}            # tail -> [points] of the flight in progress
+_rec_next = {}               # tail -> epoch s of the next check
+_rec_last = {}               # tail -> {"points", "flight_start", "flight_end", "max_alt", "last_seen"}
+
+try:
+    if os.path.exists(RECORDED_TRACKS_FILE):
+        with open(RECORDED_TRACKS_FILE) as f:
+            _rec_last = json.load(f)
+except Exception as e:
+    print(f"Recorded tracks load error: {e}")
+
+
+def _save_recorded():
+    try:
+        tmp = RECORDED_TRACKS_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(_rec_last, f)
+        os.replace(tmp, RECORDED_TRACKS_FILE)
+    except Exception as e:
+        print(f"Recorded tracks save error: {e}")
+
+
+def _flight_summary(pts):
+    alts = [p["alt"] for p in pts]
+    return {"points": pts, "flight_start": pts[0]["ts"], "flight_end": pts[-1]["ts"],
+            "max_alt": max(alts), "last_seen": pts[-1]["ts"]}
+
+
+def _rec_finalize(tail):
+    """Close the flight in progress; keep it only if it looks like a real flight."""
+    pts = _rec_current.pop(tail, None)
+    if not pts:
+        return
+    alts = [p["alt"] for p in pts]
+    if len(pts) >= 8 and pts[-1]["ts"] - pts[0]["ts"] >= 120 and max(alts) - min(alts) >= 400:
+        _rec_last[tail] = _flight_summary(pts)
+        _save_recorded()
+        print(f"Recorder: {tail} flight saved ({len(pts)} points, max {int(max(alts))} ft)")
+
+
+def recorded_flight(tail):
+    """Latest recorded flight for a tail — the one in progress if it has started, else the last one."""
+    with _rec_lock:
+        cur = _rec_current.get(tail)
+        if cur and len(cur) >= 2:
+            return _flight_summary(list(cur))
+        return _rec_last.get(tail)
+
+
+def _live_fix(tail):
+    """-> aircraft dict with a position, None if not seen, or "error" if no source answered."""
+    for url in (f"https://api.adsb.lol/v2/registration/{tail}",
+                f"https://opendata.adsb.fi/api/v2/registration/{tail}"):
+        try:
+            r = requests.get(url, timeout=8, headers={"User-Agent": "MangoWindHub/1.0 track-recorder"})
+            if not r.ok:
+                continue
+            d = r.json()
+            return next((a for a in (d.get("ac") or d.get("aircraft") or []) if a.get("lat") is not None), None)
+        except Exception:
+            continue
+    return "error"
+
+
+def _rec_tick(now):
+    tails = sorted({t.upper() for lst in _tails_log.values() for t in lst if t})
+    for tail in tails:
+        if now < _rec_next.get(tail, 0):
+            continue
+        ac = _live_fix(tail)
+        with _rec_lock:
+            cur = _rec_current.get(tail)
+            if isinstance(ac, dict):
+                alt_baro = ac.get("alt_baro")
+                gs = ac.get("gs") or 0
+                airborne = alt_baro != "ground" and gs >= REC_FAST_KT
+                ts = now - (ac.get("seen_pos") or ac.get("seen") or 0)
+                pt = {"lat": ac["lat"], "lon": ac["lon"], "ts": round(ts, 1),
+                      "alt": 0 if alt_baro == "ground" else (alt_baro or ac.get("alt_geom") or 0)}
+                if airborne:
+                    if cur and ts - cur[-1]["ts"] > REC_END_GAP_S:
+                        _rec_finalize(tail)
+                        cur = None
+                    if not cur:
+                        cur = _rec_current[tail] = []
+                    if not cur or ts > cur[-1]["ts"]:
+                        cur.append(pt)
+                elif cur:
+                    if ts > cur[-1]["ts"]:
+                        cur.append(pt)       # touchdown
+                    _rec_finalize(tail)
+            elif cur and now - cur[-1]["ts"] > REC_END_GAP_S:
+                _rec_finalize(tail)
+            _rec_next[tail] = now + (REC_AIR_S if tail in _rec_current else REC_IDLE_S)
+
+
+def _rec_loop():
+    import time
+    time.sleep(10)
+    while True:
+        try:
+            _rec_tick(time.time())
+        except Exception as e:
+            print(f"Recorder error: {e}")
+        time.sleep(5)
+
+
+if os.environ.get("TRACK_RECORDER", "1") != "0":
+    _threading.Thread(target=_rec_loop, daemon=True, name="track-recorder").start()
+    print("Track recorder started")
 
 
 @app.route("/adsb_trails")

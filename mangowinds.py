@@ -2083,8 +2083,10 @@ def _fetch_adsb_trails_impl(dz_filter=None, tails_filter=None):
     (or just one DZ with dz_filter, or just some planes with tails_filter).
     Hits the adsb-proxy Vercel endpoint (?tail=N12345&trail=1).
     Results are stored in _adsb_trails keyed by tail.
-    Returns {"saved": {tail: point_count}, "empty": [tails with no data], "errors": [tails that failed]}."""
-    summary = {"saved": {}, "empty": [], "errors": []}
+    Always the latest *finished* flight: if a plane is flying now, the load before this one.
+    Returns {"saved": {tail: point_count}, "empty": [tails with no data], "errors": [tails that failed],
+             "flying": [tails in the air right now]}."""
+    summary = {"saved": {}, "empty": [], "errors": [], "flying": []}
     # Build a flat list of (tail, dz_name) pairs across all DZs
     wanted = {t.upper() for t in tails_filter} if tails_filter else None
     pairs = []
@@ -2109,7 +2111,7 @@ def _fetch_adsb_trails_impl(dz_filter=None, tails_filter=None):
         try:
             data, failed = {}, False
             try:
-                url = f"https://adsb-proxy.vercel.app/api/plane?tail={tail}&trail=1"
+                url = f"https://adsb-proxy.vercel.app/api/plane?tail={tail}&trail=1&completed=1"
                 r = requests.get(url, timeout=15,
                                  headers={"User-Agent": "MangoWindHub/1.0 adsb-trail-poller"})
                 if r.ok:
@@ -2125,6 +2127,11 @@ def _fetch_adsb_trails_impl(dz_filter=None, tails_filter=None):
             # Proxy returns: {tail, icao24, found, trail: [{lat,lon,alt,ts}, ...] (latest flight),
             #                 last_seen, flight_start, flight_end, max_alt, flights_total, ...}
             trail_pts = data.get("trail", [])
+            with _rec_lock:
+                rec_flying = tail in _rec_current
+            flying = bool(data.get("flying_now")) or rec_flying
+            if flying:
+                summary["flying"].append(tail)
             # Fallback: our own recording from live positions — used when the proxy has no trail,
             # or when the recorded flight is a newer load than the proxy's (its data can lag)
             rec = recorded_flight(tail)
@@ -2133,7 +2140,7 @@ def _fetch_adsb_trails_impl(dz_filter=None, tails_filter=None):
                 data = {**data, **{k: rec[k] for k in ("flight_start", "flight_end", "max_alt", "last_seen")},
                         "trail": rec["points"], "flights_total": None, "trail_source": "recorded"}
                 trail_pts = rec["points"]
-            if not trail_pts and data.get("lat") is not None:
+            if not trail_pts and data.get("lat") is not None and not flying:
                 # No trail but live position — wrap it, unless it's FR24's search hit (rounded to
                 # ~0.1°, alt 0: not a real fix) or it would replace a real stored trail
                 prev = _adsb_trails.get(tail) or {}
@@ -2243,11 +2250,8 @@ def _rec_finalize(tail):
 
 
 def recorded_flight(tail):
-    """Latest recorded flight for a tail — the one in progress if it has started, else the last one."""
+    """Latest finished recorded flight for a tail (a flight in progress is never returned)."""
     with _rec_lock:
-        cur = _rec_current.get(tail)
-        if cur and len(cur) >= 2:
-            return _flight_summary(list(cur))
         return _rec_last.get(tail)
 
 

@@ -2118,9 +2118,12 @@ def _fetch_adsb_trails_impl(dz_filter=None, tails_filter=None):
             #                 last_seen, flight_start, flight_end, max_alt, flights_total, ...}
             trail_pts = data.get("trail", [])
             if not trail_pts and data.get("lat") is not None:
-                # No trail but live position — wrap it
-                trail_pts = [{"lat": data.get("lat"), "lon": data.get("lon"),
-                               "alt": data.get("alt"), "ts": data.get("timestamp")}]
+                # No trail but live position — wrap it, unless it's FR24's search hit (rounded to
+                # ~0.1°, alt 0: not a real fix) or it would replace a real stored trail
+                prev = _adsb_trails.get(tail) or {}
+                if data.get("source") != "fr24-search" and len(prev.get("points") or []) <= 1:
+                    trail_pts = [{"lat": data.get("lat"), "lon": data.get("lon"),
+                                   "alt": data.get("alt"), "ts": data.get("timestamp")}]
             if trail_pts:
                 new_trails[tail] = {
                     "dz": dz_name,

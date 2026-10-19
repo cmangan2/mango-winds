@@ -8,8 +8,15 @@ tmp = tempfile.mkdtemp(prefix="mwh-test-")
 os.environ["PREWARM"] = "0"  # no startup weather fetch in tests
 os.environ["TRACK_RECORDER"] = "0"  # no live ADS-B polling in tests
 for k, f in (("CACHE_FILE", "winds_cache.json"), ("TAILS_FILE", "tails.json"), ("LASTLOAD_FILE", "lastload.json"),
-             ("ADSB_TRAILS_FILE", "adsb_trails.json"), ("RECORDED_TRACKS_FILE", "recorded_tracks.json"), ("VISITS_FILE", "visits.json"), ("API_LOG_FILE", "api_log.json")):
+             ("ADSB_TRAILS_FILE", "adsb_trails.json"), ("RECORDED_TRACKS_FILE", "recorded_tracks.json"), ("VISITS_FILE", "visits.json"),
+             ("API_LOG_FILE", "api_log.json"), ("DB_FILE", "mwh.db")):
     os.environ[k] = os.path.join(tmp, f)
+os.environ.pop("DATABASE_URL", None)   # always the throwaway SQLite file
+from py_vapid import Vapid01, b64urlencode
+from cryptography.hazmat.primitives import serialization
+_v = Vapid01(); _v.generate_keys()     # throwaway push keys so the alert UI shows
+os.environ["VAPID_PRIVATE_KEY"] = b64urlencode(_v.private_key.private_numbers().private_value.to_bytes(32, "big"))
+os.environ["VAPID_PUBLIC_KEY"] = b64urlencode(_v.public_key.public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint))
 import mangowinds as m
 
 def mk(w10, w80, lv):
@@ -30,4 +37,28 @@ m.fetch_forecast = lambda *a: {"source": "openmeteo_ensemble", "models": {"gfs_s
 m.fetch_metar = lambda icao: None
 m.fetch_cloud_data = lambda *a, **k: None
 m.record_api_call = lambda *a, **k: None
+
+# Sign-in emails and pushes are captured instead of sent; tests read them back here
+_sent = {"codes": {}, "pushes": []}
+def _fake_email(to, code, link):
+    _sent["codes"][to] = {"code": code, "link": link}
+    return True
+m.send_login_email = _fake_email
+def _fake_push(rows, payload):
+    _sent["pushes"].append({"endpoints": [r[0] for r in rows], "payload": payload})
+    return len(rows)
+m.push_send = _fake_push
+
+@m.app.route("/_test/sent")
+def _test_sent():
+    return m.jsonify(_sent)
+
+@m.app.route("/_test/airborne", methods=["POST"])
+def _test_airborne():
+    b = m.request.get_json()
+    m._tails_log.setdefault(b["dz"], []).append(b["tail"])
+    m._push_last_alert.clear()
+    m.notify_airborne(b["tail"], 2300)
+    return m.jsonify({"ok": True})
+
 m.app.run(port=int(sys.argv[1]) if len(sys.argv) > 1 else 5099)

@@ -9,6 +9,9 @@ import os
 from datetime import datetime, timezone, timedelta
 
 app = Flask(__name__)
+# Render terminates HTTPS at its proxy: trust X-Forwarded-Proto/Host so request.is_secure and host_url are right
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # =====================================================
 # 🗄️ CACHE
@@ -2275,6 +2278,7 @@ def _rec_tick(now):
     for tail in tails:
         if now < _rec_next.get(tail, 0):
             continue
+        seen_before = tail in _rec_next     # first check after a restart: a plane already flying isn't a takeoff
         ac = _live_fix(tail)
         with _rec_lock:
             cur = _rec_current.get(tail)
@@ -2291,6 +2295,8 @@ def _rec_tick(now):
                         cur = None
                     if not cur:
                         cur = _rec_current[tail] = []
+                        if seen_before:
+                            notify_airborne(tail, pt["alt"])
                     if not cur or ts > cur[-1]["ts"]:
                         cur.append(pt)
                 elif cur:
@@ -2410,6 +2416,396 @@ def adsb_trails_refresh():
         return jsonify({"ok": True, "trails": len(_adsb_trails), "tails": list(_adsb_trails.keys())})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# =====================================================
+# 🗃️ DATABASE — accounts, synced settings, push subscriptions
+# DATABASE_URL (Supabase Postgres) in production; a local SQLite file when it's unset (dev/tests).
+# SQL is written to run on both: "?" placeholders, ON CONFLICT upserts, TEXT/BIGINT columns.
+# =====================================================
+import sqlite3
+import hashlib
+import secrets
+import smtplib
+import time as _time
+from email.message import EmailMessage
+
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+DB_FILE = os.environ.get("DB_FILE", os.path.join(os.path.dirname(__file__), "mwh.db"))
+_db_tls = threading.local()   # one connection per thread (gunicorn threads + the recorder thread)
+
+_SCHEMA = [
+    "CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, created_at BIGINT NOT NULL, settings TEXT)",
+    "CREATE TABLE IF NOT EXISTS login_codes (email TEXT PRIMARY KEY, code_hash TEXT NOT NULL, link_hash TEXT NOT NULL,"
+    " expires_at BIGINT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, sent_at BIGINT NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at BIGINT NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS push_subs (endpoint TEXT PRIMARY KEY, sub TEXT NOT NULL, user_id TEXT, created_at BIGINT NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS push_dz (endpoint TEXT NOT NULL, dz TEXT NOT NULL, PRIMARY KEY (endpoint, dz))",
+]
+
+
+def _db_conn():
+    c = getattr(_db_tls, "conn", None)
+    if c is None:
+        if DATABASE_URL:
+            import psycopg
+            # prepare_threshold=None: Supabase's transaction pooler (port 6543) can't use prepared statements
+            c = psycopg.connect(DATABASE_URL, autocommit=True, prepare_threshold=None, connect_timeout=10)
+        else:
+            c = sqlite3.connect(DB_FILE, check_same_thread=False, isolation_level=None, timeout=10)
+        _db_tls.conn = c
+    return c
+
+
+def db(sql, args=(), fetch=None):
+    """Run one statement. fetch=None -> rowcount, "one" -> row or None, "all" -> list of rows.
+    A dropped Postgres connection is reopened and the statement retried once."""
+    if DATABASE_URL:
+        sql = sql.replace("?", "%s")
+    for attempt in (0, 1):
+        try:
+            cur = _db_conn().execute(sql, args)
+            if fetch == "one":
+                return cur.fetchone()
+            if fetch == "all":
+                return cur.fetchall()
+            return cur.rowcount
+        except Exception as e:
+            if attempt or not DATABASE_URL or type(e).__name__ not in ("OperationalError", "InterfaceError"):
+                raise
+            try:
+                _db_tls.conn.close()
+            except Exception:
+                pass
+            _db_tls.conn = None
+
+
+def _db_init():
+    if not DATABASE_URL and os.environ.get("RENDER"):
+        print("Accounts/alerts off: DATABASE_URL not set (Render's disk is wiped on deploy, so no SQLite fallback there)")
+        return False
+    try:
+        for s in _SCHEMA:
+            db(s)
+        print(f"Database ready ({'Postgres' if DATABASE_URL else 'SQLite ' + DB_FILE})")
+        return True
+    except Exception as e:
+        print(f"Database init error: {e}")
+        return False
+
+
+DB_OK = _db_init()
+
+
+def _sha(s):
+    return hashlib.sha256(s.encode()).hexdigest()
+
+
+# =====================================================
+# 👤 ACCOUNTS — optional, email sign-in with a 6-digit code (or the link in the same email)
+# The code exists because an iPhone Home Screen app has its own cookies: tapping the link opens
+# Safari and signs Safari in, not the app. Typing the code signs in wherever you typed it.
+# =====================================================
+SESSION_COOKIE = "mwh_session"
+SESSION_DAYS = 180
+CODE_TTL_S = 15 * 60
+CODE_MAX_ATTEMPTS = 5
+CODE_RESEND_S = 45
+SMTP_HOST = os.environ.get("SMTP_HOST", "")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER = os.environ.get("SMTP_USER", "")
+SMTP_PASS = os.environ.get("SMTP_PASS", "")
+MAIL_FROM = os.environ.get("MAIL_FROM", SMTP_USER)
+SETTINGS_KEYS = ("canopy", "dz")       # what a signed-in user's settings may hold
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_login_ip_log = {}                     # ip -> [epoch s of recent code requests]
+
+
+def send_login_email(to, code, link):
+    """-> True if sent. Without SMTP settings the code is printed instead (local dev only)."""
+    if not SMTP_HOST:
+        if DATABASE_URL:
+            print("Login email not sent: SMTP_HOST is not set")
+            return False
+        print(f"[dev] sign-in code for {to}: {code}  {link}")
+        return True
+    msg = EmailMessage()
+    msg["Subject"] = f"Your Mango Wind Hub sign-in code: {code}"
+    msg["From"] = f"Mango Wind Hub <{MAIL_FROM}>"
+    msg["To"] = to
+    msg.set_content(f"Your sign-in code is {code}\n\nType it into Mango Wind Hub, or open this link to sign in "
+                    f"in this browser:\n{link}\n\nThe code expires in 15 minutes. If you didn't ask for it, ignore this email.")
+    msg.add_alternative(f"""<div style="font-family:sans-serif;max-width:420px">
+<p>Your Mango Wind Hub sign-in code is</p>
+<p style="font-size:32px;font-weight:bold;letter-spacing:6px;margin:8px 0">{code}</p>
+<p>Type it into the app. Or <a href="{link}">tap here to sign in in this browser</a>.</p>
+<p style="color:#888;font-size:13px">The code expires in 15 minutes. If you didn't ask for it, ignore this email.</p></div>""",
+                        subtype="html")
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as s:
+            s.starttls()
+            if SMTP_USER:
+                s.login(SMTP_USER, SMTP_PASS)
+            s.send_message(msg)
+        return True
+    except Exception as e:
+        print(f"Login email error: {e}")
+        return False
+
+
+def current_user():
+    tok = request.cookies.get(SESSION_COOKIE)
+    if not tok or not DB_OK:
+        return None
+    row = db("SELECT u.id, u.email, u.settings FROM sessions s JOIN users u ON u.id = s.user_id "
+             "WHERE s.token_hash = ? AND s.expires_at > ?", (_sha(tok), int(_time.time())), "one")
+    if not row:
+        return None
+    return {"id": row[0], "email": row[1], "settings": json.loads(row[2]) if row[2] else {}}
+
+
+def _me_json(user):
+    return {"enabled": DB_OK, "user": {"email": user["email"], "settings": user["settings"]} if user else None}
+
+
+def _start_session(email, resp):
+    """Find or create the user for this email, open a session and set its cookie on resp."""
+    now = int(_time.time())
+    row = db("SELECT id FROM users WHERE email = ?", (email,), "one")
+    if row:
+        uid = row[0]
+    else:
+        uid = secrets.token_hex(16)
+        db("INSERT INTO users (id, email, created_at, settings) VALUES (?, ?, ?, ?)", (uid, email, now, "{}"))
+    db("DELETE FROM login_codes WHERE email = ?", (email,))
+    db("DELETE FROM sessions WHERE expires_at < ?", (now,))
+    tok = secrets.token_urlsafe(32)
+    db("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)", (_sha(tok), uid, now + SESSION_DAYS * 86400))
+    resp.set_cookie(SESSION_COOKIE, tok, max_age=SESSION_DAYS * 86400, httponly=True, samesite="Lax", secure=request.is_secure)
+    return uid
+
+
+@app.route("/auth/me")
+def auth_me():
+    return jsonify(_me_json(current_user()))
+
+
+@app.route("/auth/request", methods=["POST"])
+def auth_request():
+    if not DB_OK:
+        return jsonify({"error": "Accounts aren't available right now."}), 503
+    email = ((request.get_json(silent=True) or {}).get("email") or "").strip().lower()
+    if not _EMAIL_RE.match(email) or len(email) > 200:
+        return jsonify({"error": "That doesn't look like an email address."}), 400
+    now = int(_time.time())
+    ip = request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
+    recent = [t for t in _login_ip_log.get(ip, []) if now - t < 3600]
+    if len(recent) >= 10:
+        return jsonify({"error": "Too many sign-in emails from here. Try again in an hour."}), 429
+    row = db("SELECT sent_at FROM login_codes WHERE email = ?", (email,), "one")
+    if row and now - row[0] < CODE_RESEND_S:
+        return jsonify({"error": "We just sent you a code. Check your email (and spam), or wait a minute to resend."}), 429
+    code = f"{secrets.randbelow(10 ** 6):06d}"
+    link_tok = secrets.token_urlsafe(32)
+    db("INSERT INTO login_codes (email, code_hash, link_hash, expires_at, attempts, sent_at) VALUES (?, ?, ?, ?, 0, ?) "
+       "ON CONFLICT (email) DO UPDATE SET code_hash = excluded.code_hash, link_hash = excluded.link_hash, "
+       "expires_at = excluded.expires_at, attempts = 0, sent_at = excluded.sent_at",
+       (email, _sha(email + ":" + code), _sha(link_tok), now + CODE_TTL_S, now))
+    if not send_login_email(email, code, f"{request.host_url}auth/verify?t={link_tok}"):
+        return jsonify({"error": "Couldn't send the email. Try again in a moment."}), 502
+    _login_ip_log[ip] = recent + [now]
+    return jsonify({"ok": True})
+
+
+@app.route("/auth/verify", methods=["GET", "POST"])
+def auth_verify():
+    if not DB_OK:
+        return jsonify({"error": "Accounts aren't available right now."}), 503
+    now = int(_time.time())
+    if request.method == "GET":   # the link in the email
+        row = db("SELECT email FROM login_codes WHERE link_hash = ? AND expires_at > ?", (_sha(request.args.get("t", "")), now), "one")
+        resp = redirect("/?signedin=1" if row else "/?signin=expired")
+        if row:
+            _start_session(row[0], resp)
+        return resp
+    body = request.get_json(silent=True) or {}
+    email = (body.get("email") or "").strip().lower()
+    code = re.sub(r"\D", "", str(body.get("code") or ""))
+    row = db("SELECT code_hash, expires_at, attempts FROM login_codes WHERE email = ?", (email,), "one")
+    if not row or row[1] <= now or row[2] >= CODE_MAX_ATTEMPTS:
+        return jsonify({"error": "That code has expired. Send a new one."}), 400
+    if not secrets.compare_digest(row[0], _sha(email + ":" + code)):
+        db("UPDATE login_codes SET attempts = attempts + 1 WHERE email = ?", (email,))
+        left = CODE_MAX_ATTEMPTS - row[2] - 1
+        return jsonify({"error": f"Wrong code. {left} tr{'y' if left == 1 else 'ies'} left." if left else "Wrong code. Send a new one."}), 400
+    resp = make_response()
+    uid = _start_session(email, resp)
+    settings = db("SELECT settings FROM users WHERE id = ?", (uid,), "one")[0]
+    resp.set_data(json.dumps(_me_json({"email": email, "settings": json.loads(settings) if settings else {}})))
+    resp.mimetype = "application/json"
+    return resp
+
+
+@app.route("/auth/logout", methods=["POST"])
+def auth_logout():
+    tok = request.cookies.get(SESSION_COOKIE)
+    if tok and DB_OK:
+        db("DELETE FROM sessions WHERE token_hash = ?", (_sha(tok),))
+    resp = jsonify({"ok": True})
+    resp.delete_cookie(SESSION_COOKIE)
+    return resp
+
+
+@app.route("/auth/settings", methods=["PUT"])
+def auth_settings():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Not signed in."}), 401
+    incoming = (request.get_json(silent=True) or {}).get("settings") or {}
+    merged = dict(user["settings"])
+    for k in SETTINGS_KEYS:
+        if k in incoming:
+            if incoming[k] is None:
+                merged.pop(k, None)
+            else:
+                merged[k] = incoming[k]
+    raw = json.dumps(merged)
+    if len(raw) > 20000:
+        return jsonify({"error": "Settings too large."}), 413
+    db("UPDATE users SET settings = ? WHERE id = ?", (raw, user["id"]))
+    return jsonify({"ok": True, "settings": merged})
+
+
+@app.route("/auth/account", methods=["DELETE"])
+def auth_delete_account():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Not signed in."}), 401
+    db("DELETE FROM sessions WHERE user_id = ?", (user["id"],))
+    db("UPDATE push_subs SET user_id = NULL WHERE user_id = ?", (user["id"],))
+    db("DELETE FROM login_codes WHERE email = ?", (user["email"],))
+    db("DELETE FROM users WHERE id = ?", (user["id"],))
+    resp = jsonify({"ok": True})
+    resp.delete_cookie(SESSION_COOKIE)
+    return resp
+
+
+# =====================================================
+# 🔔 WEB PUSH — "plane airborne" alerts, one switch per DZ (any of the DZ's saved planes)
+# Keys: VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY (raw, base64url). The track recorder calls
+# notify_airborne() when a saved plane starts a new flight.
+# =====================================================
+VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
+VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", f"mailto:{MAIL_FROM}" if MAIL_FROM else "https://mango-winds.onrender.com")
+PUSH_REALERT_S = 20 * 60               # one airborne alert per plane per 20 min
+_push_last_alert = {}                  # tail -> epoch s
+
+
+def push_enabled():
+    return DB_OK and bool(VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY)
+
+
+def push_send(rows, payload):
+    """rows: [(endpoint, sub_json)]. Subscriptions the push service says are gone are deleted."""
+    from pywebpush import webpush, WebPushException
+    sent = 0
+    for endpoint, sub in rows:
+        try:
+            webpush(json.loads(sub), json.dumps(payload), vapid_private_key=VAPID_PRIVATE_KEY,
+                    vapid_claims={"sub": VAPID_SUBJECT}, ttl=900, timeout=10)
+            sent += 1
+        except WebPushException as e:
+            code = e.response.status_code if e.response is not None else None
+            if code in (404, 410):
+                db("DELETE FROM push_dz WHERE endpoint = ?", (endpoint,))
+                db("DELETE FROM push_subs WHERE endpoint = ?", (endpoint,))
+            else:
+                print(f"Push error ({code}): {e}")
+        except Exception as e:
+            print(f"Push error: {e}")
+    return sent
+
+
+def notify_airborne(tail, alt_ft):
+    """Alert everyone following a DZ whose plane list has this tail. Runs on its own thread."""
+    if not push_enabled():
+        return
+    now = _time.time()
+    if now - _push_last_alert.get(tail, 0) < PUSH_REALERT_S:
+        return
+    _push_last_alert[tail] = now
+    dzs = [d for d, lst in _tails_log.items() if tail in {t.upper() for t in lst if t}]
+    if not dzs:
+        return
+
+    def run():
+        try:
+            rows = db(f"SELECT s.endpoint, s.sub, d.dz FROM push_subs s JOIN push_dz d ON d.endpoint = s.endpoint "
+                      f"WHERE d.dz IN ({','.join('?' * len(dzs))})", tuple(dzs), "all")
+            by_dz, seen = {}, set()
+            for endpoint, sub, d in rows:
+                if endpoint not in seen:           # following two DZs that share the plane -> one alert
+                    seen.add(endpoint)
+                    by_dz.setdefault(d, []).append((endpoint, sub))
+            for d, subs in by_dz.items():
+                alt = f" · {int(alt_ft):,} ft" if alt_ft and alt_ft > 0 else ""
+                n = push_send(subs, {"title": f"✈️ {tail} is airborne", "body": f"{d}{alt}",
+                                     "tag": f"airborne-{tail}", "url": "/"})
+                print(f"Push: {tail} airborne -> {n}/{len(subs)} devices following {d}")
+        except Exception as e:
+            print(f"Airborne push error: {e}")
+    _threading.Thread(target=run, daemon=True, name="push-airborne").start()
+
+
+@app.route("/push/key")
+def push_key():
+    return jsonify({"key": VAPID_PUBLIC_KEY if push_enabled() else None})
+
+
+@app.route("/push/subscribe", methods=["POST"])
+def push_subscribe():
+    """{subscription, dz, on}: turn this device's alerts for one DZ on or off."""
+    if not push_enabled():
+        return jsonify({"error": "Alerts aren't available right now."}), 503
+    body = request.get_json(silent=True) or {}
+    sub, dz_name, on = body.get("subscription") or {}, (body.get("dz") or "").strip(), bool(body.get("on"))
+    endpoint = sub.get("endpoint") or ""
+    if not endpoint.startswith("https://") or not (sub.get("keys") or {}).get("p256dh") or not dz_name:
+        return jsonify({"error": "Bad subscription."}), 400
+    user = current_user()
+    db("INSERT INTO push_subs (endpoint, sub, user_id, created_at) VALUES (?, ?, ?, ?) "
+       "ON CONFLICT (endpoint) DO UPDATE SET sub = excluded.sub, user_id = COALESCE(excluded.user_id, push_subs.user_id)",
+       (endpoint, json.dumps(sub), user["id"] if user else None, int(_time.time())))
+    if on:
+        db("INSERT INTO push_dz (endpoint, dz) VALUES (?, ?) ON CONFLICT (endpoint, dz) DO NOTHING", (endpoint, dz_name))
+    else:
+        db("DELETE FROM push_dz WHERE endpoint = ? AND dz = ?", (endpoint, dz_name))
+    return push_status_for(endpoint)
+
+
+def push_status_for(endpoint):
+    rows = db("SELECT dz FROM push_dz WHERE endpoint = ?", (endpoint,), "all") if endpoint else []
+    return jsonify({"dzs": [r[0] for r in rows]})
+
+
+@app.route("/push/status", methods=["POST"])
+def push_status():
+    if not push_enabled():
+        return jsonify({"dzs": []})
+    return push_status_for((request.get_json(silent=True) or {}).get("endpoint") or "")
+
+
+@app.route("/push/test", methods=["POST"])
+def push_test():
+    if not push_enabled():
+        return jsonify({"error": "Alerts aren't available right now."}), 503
+    endpoint = (request.get_json(silent=True) or {}).get("endpoint") or ""
+    row = db("SELECT endpoint, sub FROM push_subs WHERE endpoint = ?", (endpoint,), "one")
+    if not row:
+        return jsonify({"error": "This device isn't subscribed."}), 404
+    n = push_send([row], {"title": "🔔 Test alert", "body": "Takeoff alerts are working on this device.", "tag": "test", "url": "/"})
+    return jsonify({"ok": n == 1})
 
 
 # =====================================================

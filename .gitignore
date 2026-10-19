@@ -12,3 +12,5 @@ jumprun.json
 tails.json
 lastload.json
 adsb_trails.json
+*.db
+.env.*

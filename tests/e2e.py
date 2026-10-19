@@ -2,7 +2,7 @@
     pip install -r requirements-dev.txt && playwright install chromium
     python tests/e2e.py
 If the machine can't reach the Leaflet CDN, point LEAFLET_DIR at a folder containing leaflet.js and leaflet.css."""
-import os, subprocess, sys, time, urllib.request
+import json, os, subprocess, sys, time, urllib.request
 from playwright.sync_api import sync_playwright
 
 PORT = 5099
@@ -99,7 +99,44 @@ def main():
             check("phone: drag doesn't open the detail popup", pg.evaluate("canopyBlock.style.display") == "none")
             pg.evaluate(swipe, [0, 0])
             check("phone: tap opens the detail popup", pg.evaluate("canopyBlock.style.display") != "none")
-            ctx.close(); b.close()
+            ctx.close()
+
+            # 7. Accounts: email code sign-in, first sign-in uploads this device's canopy settings, a second device gets them
+            def sent(): return json.loads(urllib.request.urlopen(URL + "_test/sent").read())
+            def sign_in(pg, email):
+                pg.evaluate("openAccountModal()"); pg.fill("#acctEmail", email); pg.click("#acctSendBtn"); pg.wait_for_timeout(500)
+                pg.fill("#acctCode", sent()["codes"][email]["code"]); pg.wait_for_timeout(800)
+            ctxA, pa, errsA = new_page(b)
+            pa.evaluate("openAdvancedModal()"); pa.fill("#advWeight", "210"); pa.evaluate("applyAdvancedSettings()"); pa.wait_for_timeout(500)
+            pa.evaluate("openAccountModal()"); pa.fill("#acctEmail", "jumper@example.com"); pa.click("#acctSendBtn"); pa.wait_for_timeout(500)
+            pa.fill("#acctCode", "000000" if sent()["codes"]["jumper@example.com"]["code"] != "000000" else "111111"); pa.wait_for_timeout(500)
+            check("wrong code is rejected", "Wrong code" in pa.inner_text("#acctMsg") and pa.evaluate("acctUser") is None)
+            pa.fill("#acctCode", sent()["codes"]["jumper@example.com"]["code"]); pa.wait_for_timeout(800)
+            check("sign in with emailed code", pa.evaluate("acctUser && acctUser.email") == "jumper@example.com")
+            check("first sign-in uploads canopy settings", pa.evaluate("fetch('/auth/me').then(r=>r.json()).then(d=>d.user.settings.canopy.advWeight)") == "210")
+            ctxB, pb, errsB = new_page(b)
+            sign_in(pb, "jumper@example.com")
+            check("second device gets synced canopy settings", pb.evaluate("advWeight.value") == "210")
+            pb.evaluate("openAdvancedModal()"); pb.fill("#advWeight", "190"); pb.evaluate("applyAdvancedSettings()"); pb.wait_for_timeout(500)
+            pa.reload(); pa.wait_for_timeout(2500)
+            check("change on one device shows on the other after reload", pa.evaluate("advWeight.value") == "190")
+
+            # 8. Takeoff alerts: the Track Plane modal shows the switch; a subscribed device gets the airborne push for its DZ
+            pa.evaluate("closeWelcome(); openTrackModal()"); pa.wait_for_timeout(800)
+            check("takeoff alert switch shown", pa.evaluate("alertRow.style.display") == "block" and pa.inner_text("#alertToggle") == "OFF")
+            dzname = pa.evaluate("document.getElementById('dz').value")
+            d = pa.evaluate("""(dzn) => fetch('/push/subscribe', {method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({subscription:{endpoint:'https://push.example/abc', keys:{p256dh:'x', auth:'y'}}, dz: dzn, on: true})}).then(r=>r.json())""", dzname)
+            check("push subscribe stores the DZ", d.get("dzs") == [dzname])
+            urllib.request.urlopen(urllib.request.Request(URL + "_test/airborne", data=json.dumps({"dz": dzname, "tail": "N999MW"}).encode(),
+                                                          headers={"Content-Type": "application/json"}))
+            time.sleep(0.8)
+            pushes = sent()["pushes"]
+            check("airborne alert sent to the DZ's subscribers", any("https://push.example/abc" in x["endpoints"] and "N999MW" in x["payload"]["title"] for x in pushes), str(pushes)[:200])
+            pa.evaluate("signOut()"); pa.wait_for_timeout(400)
+            check("sign out", pa.evaluate("fetch('/auth/me').then(r=>r.json()).then(d=>d.user)") is None)
+            check("no JS errors in account/alert flows", not errsA and not errsB, str(errsA + errsB))
+            ctxA.close(); ctxB.close(); b.close()
     finally:
         srv.terminate()
     print(f"\n{sum(results)}/{len(results)} passed")

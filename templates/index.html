@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.51">
+<meta name="app-version" content="4.5.52">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.51";
+    const CURRENT_VERSION = "4.5.52";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -332,7 +332,8 @@ select:focus { border-color: var(--accent); }
             <div class="wc-section"><div class="wc-icon" style="color:var(--freefall)">&#x1F4A8;</div><div><div class="wc-title">Wind Widget</div><div class="wc-text">The <b>Freefall / Canopy / Surface</b> widget shows drift and wind at a glance. Tap an item for live <b>wind particles</b> on the map. Press and drag anywhere on the widget to move it out of the way. Reopen the widget with the &#x1F4A8; button in the header.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:#fff">&#x270F;&#xFE0F;</div><div><div class="wc-title">Jump Run</div><div class="wc-text"><b>Draw</b> a jump run by dragging on the map, <b>Suggest</b> one (enter a heading and it finds the longest run that keeps every landing inside the green circle with a 15% margin, 45% on the downwind side; its Prior/Past and Offset are snapped to the nearest 0.1 mi so they&rsquo;re easy to call out), or <b>Define</b> one: enter heading, <b>Prior/Past</b> (distance from the DZ center along that heading) and <b>Offset</b> (N/S/E/W &mdash; pick the direction closest to perpendicular to the run), plus length. A box at the start (tap and drag it to move it out of the way) shows heading, prior/past, offset, estimated ground speed and recommended jumper separation (1,500 ft of ground distance between groups, converted to seconds). <b>Replay</b> animates the exits and freefall drift; <b>Clear</b> removes it. Jump runs are not saved.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--red)">&#x1F3AF;</div><div><div class="wc-title">Landing Pattern</div><div class="wc-text">Tap <b>Place Landing Spot</b>, click the map, then choose final heading (into wind or custom) and pattern direction. Wind-adjusted legs at 1,000 / 600 / 300 ft.</div></div></div>
-            <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x2708;&#xFE0F;</div><div><div class="wc-title">Plane Tracker</div><div class="wc-text"><b>Track Plane</b> follows your DZ&rsquo;s aircraft live with a trail and label. While the page is open, planes that are flying are picked up <b>automatically</b>, but only planes that have been entered for this DZ before (enter a new tail number once to add it); tap <b>Stop</b> on one to keep it off. The Track Plane list shows every plane saved for the current DZ; tap the <b>✕</b> on a plane to remove it from that list (this doesn&rsquo;t stop tracking; use <b>Stop</b> for that). If a plane is off-screen, an <b>arrow</b> at the map edge points to it.</div></div></div>
+            <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x2708;&#xFE0F;</div><div><div class="wc-title">Plane Tracker</div><div class="wc-text"><b>Track Plane</b> follows your DZ&rsquo;s aircraft live with a trail and label. While the page is open, planes that are flying are picked up <b>automatically</b>, but only planes that have been entered for this DZ before (enter a new tail number once to add it); tap <b>Stop</b> on one to keep it off. The Track Plane list shows every plane saved for the current DZ; tap the <b>✕</b> on a plane to remove it from that list (this doesn&rsquo;t stop tracking; use <b>Stop</b> for that). If a plane is off-screen, an <b>arrow</b> at the map edge points to it. Turn on <b>&#x1F514; Takeoff alerts</b> at the bottom of Track Plane to get a notification when any of this DZ&rsquo;s planes takes off, even with the app closed (on iPhone, add the app to your Home Screen first).</div></div></div>
+            <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F464;</div><div><div class="wc-title">Account (optional)</div><div class="wc-text">Tap <b>&#x1F464;</b> and enter your email to get a 6-digit sign-in code. No password. Signed in, your <b>canopy settings</b> and <b>dropzone</b> sync to every device you sign in on. On iPhone, type the code into the app rather than tapping the email&rsquo;s link (the link signs in Safari, not the Home Screen app). Everything works without an account.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:#00d4ff">&#x1F501;</div><div><div class="wc-title">Last Load &amp; Fetch Plane Data</div><div class="wc-text"><b>Show Last Load</b> draws the most recent flight trail for the planes you choose. <b>Fetch Plane Data</b> pulls the latest flight for selected planes so it&rsquo;s ready to show. If a plane is <b>flying right now</b>, Fetch pulls the <b>load before</b> the one in the air. Trails come from ADS-B Exchange; the server also records every saved plane&rsquo;s flights from live ADS-B and uses that recording when the trail source has nothing (or is behind), so a load that just landed still shows up.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:#a78bfa">&#x1F58A;&#xFE0F;</div><div><div class="wc-title">Free Draw</div><div class="wc-text">Sketch directly on the map for movement jumps, flocking or any freeform plan. Tap the button to start, again to finish, and once more to clear your drawings.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x23F1;</div><div><div class="wc-title">Forecast Offset</div><div class="wc-text">Slide <b>Forecast Offset</b> up to <b>72 hours</b> ahead. Winds, canopy circle and cloud forecast all follow the slider. The live METAR applies to the current hour only.</div></div></div>
@@ -505,6 +506,47 @@ select:focus { border-color: var(--accent); }
         <div style="padding:8px 18px 14px">
             <button onclick="trackAllVisible()" id="trackAllBtn" style="display:none;width:100%;padding:10px;background:rgba(0,212,255,0.12);color:#00d4ff;border:1px solid #00d4ff;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">🔴 Track All Planes</button>
         </div>
+        <!-- Takeoff alerts (web push) for the current DZ -->
+        <div id="alertRow" style="display:none;padding:10px 18px 14px;border-top:1px solid var(--border)">
+            <div style="display:flex;align-items:center;gap:10px">
+                <div style="flex:1">
+                    <div style="font-size:0.88rem;color:var(--text);font-weight:600">🔔 Takeoff alerts</div>
+                    <div id="alertSub" style="font-size:0.72rem;color:var(--muted);margin-top:2px;line-height:1.35">Get a notification when any of this DZ&rsquo;s planes takes off.</div>
+                </div>
+                <button id="alertToggle" onclick="toggleTakeoffAlerts()" style="padding:6px 12px;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.88rem;font-weight:700;letter-spacing:0.05em;cursor:pointer;flex-shrink:0"></button>
+            </div>
+            <button id="alertTestBtn" onclick="sendTestAlert()" style="display:none;margin-top:6px;background:none;border:none;color:#00d4ff;cursor:pointer;padding:0;font-family:'Barlow Condensed',sans-serif;font-size:0.85rem;letter-spacing:0.05em">Send a test alert</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── ACCOUNT MODAL ── -->
+<div id="accountModal" style="display:none;position:fixed;inset:0;background:rgba(7,11,16,0.88);z-index:99999;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px" onclick="if(event.target===this)closeAccountModal()">
+    <div style="background:var(--panel-bg);border:1px solid var(--border);border-radius:16px;max-width:360px;width:100%;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.6);overflow:hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px 12px;border-bottom:1px solid var(--border);font-weight:700;font-size:1rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--accent)">
+            <span>👤 Account</span>
+            <button onclick="closeAccountModal()" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:0 4px">✕</button>
+        </div>
+        <div style="padding:14px 18px 16px;display:flex;flex-direction:column;gap:10px">
+            <div id="acctOff" style="display:none;font-size:0.82rem;color:var(--muted)">Accounts aren&rsquo;t available right now. Your settings are still saved on this device.</div>
+            <div id="acctEmailStep" style="display:none;flex-direction:column;gap:10px">
+                <div style="font-size:0.8rem;color:var(--muted);line-height:1.45">Sign in to keep your <b style="color:var(--text)">canopy settings</b> and <b style="color:var(--text)">dropzone</b> on every device. Optional: everything works without an account. No password; we email you a code.</div>
+                <input type="email" id="acctEmail" placeholder="you@example.com" class="df-input" autocomplete="email" autocapitalize="off">
+                <button id="acctSendBtn" onclick="requestSignInCode()" style="padding:10px;background:var(--accent);color:var(--bg);border:none;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">Email me a code</button>
+            </div>
+            <div id="acctCodeStep" style="display:none;flex-direction:column;gap:10px">
+                <div style="font-size:0.8rem;color:var(--muted);line-height:1.45">We sent a 6-digit code to <b id="acctSentTo" style="color:var(--text)"></b>. Type it here (on iPhone, type it in the app rather than tapping the email&rsquo;s link).</div>
+                <input type="text" id="acctCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" class="df-input" style="letter-spacing:0.3em;font-size:1.2rem;text-align:center">
+                <button id="acctVerifyBtn" onclick="verifySignInCode()" style="padding:10px;background:var(--accent);color:var(--bg);border:none;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">Sign in</button>
+                <button onclick="showAccountStep('email')" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:0;font-family:'Barlow Condensed',sans-serif;font-size:0.85rem;text-decoration:underline">Use a different email / resend</button>
+            </div>
+            <div id="acctSignedIn" style="display:none;flex-direction:column;gap:10px">
+                <div style="font-size:0.82rem;color:var(--muted);line-height:1.45">Signed in as <b id="acctWho" style="color:var(--text)"></b>. Your canopy settings and dropzone sync to every device you sign in on.</div>
+                <button onclick="signOut()" style="padding:9px;background:var(--card-bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:0.92rem;letter-spacing:0.06em;cursor:pointer">Sign out</button>
+                <button onclick="deleteAccount()" style="background:none;border:none;color:var(--red);cursor:pointer;padding:0;font-family:'Barlow Condensed',sans-serif;font-size:0.85rem;letter-spacing:0.04em">Delete my account</button>
+            </div>
+            <div id="acctMsg" style="display:none;font-size:0.8rem"></div>
+        </div>
     </div>
 </div>
 
@@ -556,6 +598,7 @@ select:focus { border-color: var(--accent); }
                         <button class="hbtn" onclick="window.open('/stats','_blank');event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Stats">📊</button>
                         <button class="hbtn" onclick="document.getElementById('windSummary').style.display='block';event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Show wind summary">💨</button>
                         <button class="hbtn" onclick="toggleCloudPopup();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Cloud forecast">☁️</button>
+                        <button class="hbtn" onclick="openAccountModal();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Account">👤</button>
                         <button class="hbtn" onclick="openWelcome();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;font-weight:700;cursor:pointer;line-height:1;padding:0;flex-shrink:0">?</button>
                     </div>
                 </div>
@@ -569,6 +612,7 @@ select:focus { border-color: var(--accent); }
                     <button id="statsBtn" onclick="window.open('/stats','_blank')" title="Usage stats">📊</button>
                     <button id="summaryBtn" onclick="document.getElementById('windSummary').style.display='block'" title="Show wind summary" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:30px;height:30px;font-size:0.95rem;cursor:pointer;line-height:1;flex-shrink:0;transition:border-color 0.15s,color 0.15s;-webkit-tap-highlight-color:transparent;padding:0">💨</button>
                     <button id="cloudBtn" onclick="toggleCloudPopup()" title="Cloud forecast" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:30px;height:30px;font-size:0.95rem;cursor:pointer;line-height:1;flex-shrink:0;transition:border-color 0.15s,color 0.15s;-webkit-tap-highlight-color:transparent;padding:0">☁️</button>
+                    <button id="accountBtn" onclick="openAccountModal()" title="Account" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:30px;height:30px;font-size:0.95rem;cursor:pointer;line-height:1;flex-shrink:0;transition:border-color 0.15s,color 0.15s;-webkit-tap-highlight-color:transparent;padding:0">👤</button>
                     <button id="helpBtn" onclick="openWelcome()" title="Quick Start Guide">?</button>
                 </div>
             </div>
@@ -1951,6 +1995,7 @@ function saveCanopySettings(){
         const o = { v:1 };
         CANOPY_FIELDS.forEach(id => { const el=document.getElementById(id); o[id] = el.type==="checkbox" ? el.checked : el.value; });
         localStorage.setItem(CANOPY_SAVE_KEY, JSON.stringify(o));
+        syncSettingsUp({ canopy: o });
         return true;
     } catch(e){ return false; }
 }
@@ -1973,6 +2018,7 @@ function loadSavedCanopySettings(){
 function applyAdvancedSettings(){ commitCanopyForm(); saveCanopySettings(); closeAdvancedModal(); load(); }
 function resetCanopySettings(){
     try { localStorage.removeItem(CANOPY_SAVE_KEY); } catch(e){}
+    syncSettingsUp({ canopy: null });
     CANOPY_FIELDS.forEach(id => { const el=document.getElementById(id); if (el.type==="checkbox") el.checked = CANOPY_FORM_DEFAULTS[id]; else el.value = CANOPY_FORM_DEFAULTS[id]; });
     commitCanopyForm(); window._canopyCfg = undefined;   // back to the "default settings" state
     updateAdvPreview(); closeAdvancedModal(); load();
@@ -2211,6 +2257,7 @@ async function openTrackModal(){
     document.getElementById("trackError").style.display = "none";
     document.getElementById("autoDetectBanner").style.display = "none";
     document.getElementById("trackAllBtn").style.display = "none";
+    refreshAlertRow();
 
     const dz = document.getElementById("dz").value;
     const listEl = document.getElementById("tailListSection");
@@ -3850,6 +3897,7 @@ function initDZ(){
         if(v==='__add__'){ openCustomDzModal(); return; }
         lat=dz[v][0]; lon=dz[v][1];
         try{ localStorage.setItem("mwh-dz", v); }catch(e){}
+        syncSettingsUp({ dz: v });
         if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}
         if(freefallLine){freefallLine.forEach(l=>l.remove());freefallLine=null;}
         clearTracking(); stopPlane(); jrStart=null; jrEnd=null; jrDef=null;
@@ -3860,11 +3908,152 @@ function initDZ(){
         document.getElementById("clearBtn").style.display="none";
         firstLoad=true; load();
     };
+    initAccount();
 }
 if (document.readyState === "loading"){
     document.addEventListener("DOMContentLoaded", initDZ);
 } else {
     initDZ();
+}
+
+// ── ACCOUNT (optional) ── email code sign-in; signed-in users' canopy settings + DZ live on the server
+let acctUser = null, acctEnabled = false;
+function acctMsg(text, isErr){ const el=document.getElementById("acctMsg"); el.textContent=text||""; el.style.color=isErr?"var(--red)":"#39ff89"; el.style.display=text?"block":"none"; }
+function showAccountStep(step){
+    ["acctOff","acctEmailStep","acctCodeStep","acctSignedIn"].forEach(id => document.getElementById(id).style.display="none");
+    const id = { off:"acctOff", email:"acctEmailStep", code:"acctCodeStep", in:"acctSignedIn" }[step];
+    document.getElementById(id).style.display = step==="off" ? "block" : "flex";
+    if (step==="in") document.getElementById("acctWho").textContent = acctUser.email;
+    acctMsg("");
+}
+function openAccountModal(){
+    const m=document.getElementById("accountModal"); m.style.display="flex";
+    showAccountStep(!acctEnabled ? "off" : acctUser ? "in" : "email");
+    if (!acctUser && acctEnabled) setTimeout(()=>document.getElementById("acctEmail").focus(), 50);
+}
+function closeAccountModal(){ document.getElementById("accountModal").style.display="none"; }
+async function acctPost(url, body, method){
+    const r = await fetch(url, { method: method||"POST", headers:{"Content-Type":"application/json"}, body: body ? JSON.stringify(body) : undefined, credentials:"same-origin" });
+    let d = {}; try { d = await r.json(); } catch(e){}
+    if (!r.ok) throw new Error(d.error || "Something went wrong. Try again.");
+    return d;
+}
+async function requestSignInCode(){
+    const email = document.getElementById("acctEmail").value.trim(), btn = document.getElementById("acctSendBtn");
+    if (!email) return acctMsg("Enter your email.", true);
+    btn.disabled = true; btn.textContent = "Sending…";
+    try {
+        await acctPost("/auth/request", { email });
+        document.getElementById("acctSentTo").textContent = email; document.getElementById("acctCode").value = "";
+        showAccountStep("code"); setTimeout(()=>document.getElementById("acctCode").focus(), 50);
+    } catch(e){ acctMsg(e.message, true); }
+    btn.disabled = false; btn.textContent = "Email me a code";
+}
+async function verifySignInCode(){
+    const email = document.getElementById("acctSentTo").textContent, code = document.getElementById("acctCode").value.trim();
+    if (code.length < 6) return acctMsg("Enter the 6-digit code.", true);
+    try {
+        const d = await acctPost("/auth/verify", { email, code });
+        acctUser = d.user; onSignedIn(true);
+        showAccountStep("in"); acctMsg("Signed in. Your settings will sync.");
+    } catch(e){ acctMsg(e.message, true); }
+}
+document.getElementById("acctCode").addEventListener("input", e => { e.target.value = e.target.value.replace(/\D/g,"").slice(0,6); if (e.target.value.length===6) verifySignInCode(); });
+document.getElementById("acctEmail").addEventListener("keydown", e => { if (e.key==="Enter") requestSignInCode(); });
+async function signOut(){
+    try { await acctPost("/auth/logout"); } catch(e){}
+    acctUser = null; showAccountStep("email"); acctMsg("Signed out. Settings stay on this device.");
+}
+async function deleteAccount(){
+    if (!confirm("Delete your account? Synced settings are erased from the server (this device keeps its own copy).")) return;
+    try { await acctPost("/auth/account", null, "DELETE"); acctUser = null; showAccountStep("email"); acctMsg("Account deleted."); }
+    catch(e){ acctMsg(e.message, true); }
+}
+function localCanopy(){ try { const raw=localStorage.getItem(CANOPY_SAVE_KEY); return raw ? JSON.parse(raw) : null; } catch(e){ return null; } }
+let _syncChain = Promise.resolve();   // one settings write at a time (the server merges each into the stored copy)
+function syncSettingsUp(patch){
+    if (!acctUser) return;
+    _syncChain = _syncChain.then(() => acctPost("/auth/settings", { settings: patch }, "PUT"))
+        .then(d => { if (acctUser) acctUser.settings = d.settings; }).catch(()=>{});
+}
+// Server copy wins for canopy settings; the DZ is only taken from the server at sign-in (each device keeps its own after that)
+function onSignedIn(justNow){
+    const s = acctUser.settings || {}, local = localCanopy(), up = {};
+    if (s.canopy){
+        if (JSON.stringify(s.canopy) !== JSON.stringify(local)){
+            try { localStorage.setItem(CANOPY_SAVE_KEY, JSON.stringify(s.canopy)); } catch(e){}
+            initCanopyDefaults(); updateAdvPreview(); load();
+        }
+    } else if (local) up.canopy = local;   // first sign-in: upload this device's settings
+    if (justNow){
+        const sel = document.getElementById("dz");
+        if (s.dz && dz[s.dz] && s.dz !== sel.value){ sel.value = s.dz; sel.onchange(); }
+        else if (!s.dz) up.dz = sel.value;
+    }
+    if (Object.keys(up).length) syncSettingsUp(up);
+}
+async function initAccount(){
+    const q = new URLSearchParams(location.search), justNow = q.has("signedin");
+    if (q.has("signedin") || q.has("signin")) history.replaceState(null, "", location.pathname);
+    try {
+        const d = await (await fetch("/auth/me", { credentials:"same-origin" })).json();
+        acctEnabled = !!d.enabled; acctUser = d.user;
+        if (acctUser) onSignedIn(justNow);
+        if (q.get("signin") === "expired"){ openAccountModal(); acctMsg("That sign-in link has expired. Send a new code.", true); }
+    } catch(e){}
+}   // called at the end of initDZ, once the DZ list and canopy form are ready
+
+// ── TAKEOFF ALERTS (web push) ── one switch per DZ; the server sends when any of the DZ's saved planes takes off
+let pushKey = undefined;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const isStandalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+function b64urlToBytes(s){ const p="=".repeat((4-s.length%4)%4), b=atob((s+p).replace(/-/g,"+").replace(/_/g,"/")); return Uint8Array.from(b, c=>c.charCodeAt(0)); }
+async function pushSubscription(){ if (!("serviceWorker" in navigator)) return null; const reg = await navigator.serviceWorker.ready; return reg.pushManager.getSubscription(); }
+function setAlertUi(on, sub, busy){
+    const b = document.getElementById("alertToggle");
+    b.disabled = !!busy;
+    b.textContent = busy ? "…" : on ? "ON" : "OFF";
+    b.style.background = on ? "rgba(57,255,137,0.15)" : "var(--card-bg)";
+    b.style.color = on ? "#39ff89" : "var(--muted)";
+    b.style.border = "1px solid " + (on ? "#39ff89" : "var(--border)");
+    if (sub !== undefined) document.getElementById("alertSub").innerHTML = sub;
+    document.getElementById("alertTestBtn").style.display = on ? "inline" : "none";
+}
+async function refreshAlertRow(){
+    const row = document.getElementById("alertRow");
+    if (pushKey === undefined){ try { pushKey = (await (await fetch("/push/key")).json()).key; } catch(e){ pushKey = null; } }
+    if (!pushKey){ row.style.display = "none"; return; }
+    row.style.display = "block";
+    const dzName = document.getElementById("dz").value, base = "Get a notification when any of this DZ&rsquo;s planes takes off.";
+    const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+    if (!supported){
+        document.getElementById("alertToggle").style.display = "none";
+        document.getElementById("alertSub").innerHTML = isIOS && !isStandalone
+            ? "On iPhone, add this app to your Home Screen first (Share &rarr; Add to Home Screen), then turn alerts on from there."
+            : "This browser doesn&rsquo;t support notifications.";
+        return;
+    }
+    document.getElementById("alertToggle").style.display = "";
+    if (Notification.permission === "denied"){ setAlertUi(false, "Notifications are blocked for this site. Allow them in your browser/phone settings to use alerts."); return; }
+    let on = false;
+    try { const sub = await pushSubscription(); if (sub) on = (await acctPost("/push/status", { endpoint: sub.endpoint })).dzs.includes(dzName); } catch(e){}
+    setAlertUi(on, base);
+}
+async function toggleTakeoffAlerts(){
+    const dzName = document.getElementById("dz").value, turnOn = document.getElementById("alertToggle").textContent !== "ON";
+    setAlertUi(!turnOn, undefined, true);
+    try {
+        let sub = await pushSubscription();
+        if (turnOn){
+            if (Notification.permission !== "granted" && (await Notification.requestPermission()) !== "granted"){ await refreshAlertRow(); return; }
+            if (!sub){ const reg = await navigator.serviceWorker.ready; sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64urlToBytes(pushKey) }); }
+        } else if (!sub){ await refreshAlertRow(); return; }
+        const d = await acctPost("/push/subscribe", { subscription: sub.toJSON(), dz: dzName, on: turnOn });
+        setAlertUi(d.dzs.includes(dzName), turnOn ? `On for <b style="color:var(--text)">${dzName}</b>. You&rsquo;ll get a notification when one of its planes takes off.` : "Get a notification when any of this DZ&rsquo;s planes takes off.");
+    } catch(e){ setAlertUi(!turnOn, "Couldn&rsquo;t change alerts: " + e.message); }
+}
+async function sendTestAlert(){
+    try { const sub = await pushSubscription(); if (sub) await acctPost("/push/test", { endpoint: sub.endpoint }); } catch(e){ document.getElementById("alertSub").textContent = e.message; }
 }
 
 // Register service worker for PWA

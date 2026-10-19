@@ -19,6 +19,7 @@ python tests/e2e.py             # browser smoke tests; set LEAFLET_DIR=<folder w
 ```
 Weather needs outbound access to Open-Meteo; ADS-B goes through an adsb-proxy endpoint. Cloud sandboxes can't reach either, so live-data behavior (forecast scrubbing speed, cloud popup, plane tracking, Fetch Plane Data) has only ever been tested against mocks — verify those against real data when working locally.
 Optional env: `OPENMETEO_API_KEY` (paid fallback on 429), `ENV=dev` (dev banner), `*_FILE` overrides for data files.
+Accounts + takeoff alerts env: `DATABASE_URL` (Supabase Postgres, use the **pooler** connection string: Render has no IPv6), `SMTP_HOST/PORT/USER/PASS`, `MAIL_FROM`, `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` (raw base64url). Without `DATABASE_URL` the app uses a local SQLite file (`mwh.db`, dev/tests only); on Render (`RENDER` env set) it switches accounts/alerts off instead, since Render's disk is wiped on deploy. Without SMTP locally, sign-in codes are printed to the console.
 
 ## Standing workflow (do this unless Chris says otherwise)
 1. Develop on `main`, commit, push `main`.
@@ -41,6 +42,8 @@ Optional env: `OPENMETEO_API_KEY` (paid fallback on 429), `ENV=dev` (dev banner)
 - Canopy Settings (main + reserve) persist in localStorage `mwh-canopy-settings` (per device; survives app updates).
 - Forecast cache is per location/model (not per hour): each Open-Meteo response holds the whole timeline, so scrubbing the slider costs no extra API calls. Slider waits 2 s after the last move before loading.
 - Plane list per DZ lives in `tails.json` (`/tails`); ✕ in the Track Plane list removes from it and does NOT stop tracking. Auto-track only follows planes already entered for that DZ.
+- Accounts are optional: email → 6-digit code (or the link in the same email) → `mwh_session` cookie. The code exists because an iPhone Home Screen app has its own cookie jar; the link only signs in Safari. Synced settings: `canopy` (the localStorage canopy object; server copy wins on load) and `dz` (taken from the server only at sign-in). Tables: users, login_codes, sessions, push_subs, push_dz (SQL written to run on both SQLite and Postgres).
+- Takeoff alerts (web push): one switch per DZ at the bottom of Track Plane. The track recorder calls `notify_airborne()` on a new flight it saw start (not on the first check after a restart); one alert per plane per 20 min. iOS needs the app on the Home Screen (16.4+).
 - Cloud forecast: Open-Meteo GFS only, 5 hourly columns following the slider; METAR box only at hour offset 0.
 
 ## Gotchas

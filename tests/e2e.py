@@ -131,6 +131,12 @@ def main():
             check("checkpoints saved on the device", pg.evaluate("JSON.parse(localStorage.getItem('mwh-pattern-settings'))") == {"downwind": 900, "base": 500, "final": 250})
             pg.click("#patternBtn"); pg.wait_for_timeout(200)
             check("drawer button reopens the popup", pg.evaluate("patternModal.style.display") == "flex" and pg.input_value("#patternAltFinal") == "250")
+            hb = pg.locator("#patternHeader").bounding_box(); b0 = pg.locator("#patternBox").bounding_box()
+            pg.mouse.move(hb["x"] + 60, hb["y"] + hb["height"] / 2); pg.mouse.down(); pg.mouse.move(hb["x"] + 20, hb["y"] + hb["height"] / 2 - 250, steps=6); pg.mouse.up(); pg.wait_for_timeout(150)
+            b1 = pg.locator("#patternBox").bounding_box()
+            check("pattern popup drags by its header", round(b1["x"] - b0["x"]) == -40 and round(b1["y"] - b0["y"]) == -250, f"{b0} -> {b1}")
+            pg.evaluate("closePatternModal(); openPatternModal()")
+            check("pattern popup reopens where it was moved", round(pg.locator("#patternBox").bounding_box()["y"]) == round(b1["y"]))
             pg.evaluate("clearPattern(); closePatternModal()")
 
             # 5. recommended separation formula

@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.6.15">
+<meta name="app-version" content="4.6.16">
 <script>
 try {
-    const CURRENT_VERSION = "4.6.15";
+    const CURRENT_VERSION = "4.6.16";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -352,7 +352,7 @@ select:focus { border-color: var(--accent); }
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F4CA;</div><div><div class="wc-title">Winds by Altitude</div><div class="wc-text">Each row blends <b>GFS, ICON, HRRR, HRDPS and ECMWF</b>, weighted toward the models that agree. The <b>Agree</b> column shows how closely they match. <b>Surface</b> uses the live <b>METAR</b> for the current hour when your DZ has a station. Every altitude always shows a direction. When the wind is light and uncertain (a calm or variable METAR, or models that disagree, under 8 kt) the direction is still the weighted model average, marked <b>≈</b> (about) as an estimate. Tap <b>Hide</b> to collapse the table.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--freefall)">&#x1F4A8;</div><div><div class="wc-title">Wind Widget</div><div class="wc-text">The <b>Freefall / Canopy / Surface</b> widget shows drift and wind at a glance. <b>Freefall</b> gives drift for a <b>freefly</b> skydive (45 s of freefall) and a <b>belly</b> skydive (60 s). Tap an item for live <b>wind particles</b> on the map. Press and drag anywhere on the widget to move it out of the way. Reopen the widget with the &#x1F4A8; button in the header.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:#fff">&#x270F;&#xFE0F;</div><div><div class="wc-title">Jump Run</div><div class="wc-text"><b>Draw</b> a jump run by dragging on the map, <b>Suggest</b> one (enter a heading and it finds the longest run that keeps every landing inside the green circle with a 15% margin, 45% on the downwind side; its Prior/Past and Offset are snapped to the nearest 0.1 mi so they&rsquo;re easy to call out), or <b>Define</b> one: enter heading, <b>Prior/Past</b> (distance from the DZ center along that heading) and <b>Offset</b> (N/S/E/W &mdash; pick the direction closest to perpendicular to the run), plus length. A box at the start (tap and drag it to move it out of the way) shows heading, prior/past, offset, estimated ground speed and recommended jumper separation (1,500 ft of ground distance between groups, converted to seconds). The shaded <b>orange box</b> beside the run is where jumpers open: its near edge is <b>40 s</b> of freefall drift, its far edge <b>65 s</b>, and the dashed line down the middle (52.5 s) is where the numbered jumper boxes land. <b>Replay</b> animates the exits and freefall drift; <b>Clear</b> removes it. Jump runs are not saved.</div></div></div>
-            <div class="wc-section"><div class="wc-icon" style="color:var(--red)">&#x1F3AF;</div><div><div class="wc-title">Landing Pattern</div><div class="wc-text">Tap <b>Place Landing Spot</b> and tap the map. A <b>Landing Pattern</b> popup opens: choose final heading (into wind or custom), right or left hand, and your <b>checkpoint altitudes</b> for downwind, base and final (default 1,000 / 600 / 300 ft; saved on this device). Legs are wind-adjusted for your canopy. Reopen the popup with the <b>&#x1F3AF; Landing Pattern</b> button or by tapping the landing spot.</div></div></div>
+            <div class="wc-section"><div class="wc-icon" style="color:var(--red)">&#x1F3AF;</div><div><div class="wc-title">Landing Pattern</div><div class="wc-text">Tap <b>Place Landing Spot</b> and tap the map. A <b>Landing Pattern</b> popup opens: choose final heading (into wind or custom), right or left hand, and your <b>checkpoint altitudes</b> for downwind, base and final (default 1,000 / 600 / 300 ft; saved on this device). Legs are wind-adjusted for your canopy. Drag the popup by its title bar to move it out of the way. Reopen it with the <b>&#x1F3AF; Landing Pattern</b> button or by tapping the landing spot.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x2708;&#xFE0F;</div><div><div class="wc-title">Plane Tracker</div><div class="wc-text"><b>Track Plane</b> follows your DZ&rsquo;s aircraft live with a trail and label. While the page is open, planes that are flying are picked up <b>automatically</b>, but only planes that have been entered for this DZ before (enter a new tail number once to add it); tap <b>Stop</b> on one to keep it off. The Track Plane list shows every plane saved for the current DZ; tap the <b>✕</b> on a plane to remove it from that list (this doesn&rsquo;t stop tracking; use <b>Stop</b> for that). If a plane is off-screen, an <b>arrow</b> at the map edge points to it. Turn on <b>&#x1F514; Takeoff alerts</b> at the bottom of Track Plane to get a notification when any of this DZ&rsquo;s planes takes off, even with the app closed (on iPhone, add the app to your Home Screen first).</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F464;</div><div><div class="wc-title">Account (optional)</div><div class="wc-text">Tap <b>&#x1F464;</b> and enter your email to get a 6-digit sign-in code. No password. Signed in, your <b>canopy settings</b> and <b>dropzone</b> sync to every device you sign in on. On iPhone, type the code into the app rather than tapping the email&rsquo;s link (the link signs in Safari, not the Home Screen app). Everything works without an account.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:#00d4ff">&#x1F501;</div><div><div class="wc-title">Last Load &amp; Fetch Plane Data</div><div class="wc-text"><b>Show Last Load</b> draws the most recent flight trail for the planes you choose. <b>Fetch Plane Data</b> pulls the latest flight for selected planes so it&rsquo;s ready to show. If a plane is <b>flying right now</b>, Fetch pulls the <b>load before</b> the one in the air. Trails come from ADS-B Exchange; the server also records every saved plane&rsquo;s flights from live ADS-B and uses that recording when the trail source has nothing (or is behind), so a load that just landed still shows up.</div></div></div>
@@ -543,9 +543,9 @@ select:focus { border-color: var(--accent); }
 
 <!-- ── LANDING PATTERN MODAL ── -->
 <div id="patternModal" style="display:none;position:fixed;inset:0;background:rgba(7,11,16,0.35);z-index:99999;align-items:flex-end;justify-content:center;padding:16px 16px 24px" onclick="if(event.target===this)closePatternModal()">
-    <div style="background:var(--panel-bg);border:1px solid var(--border);border-radius:16px;max-width:360px;width:100%;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.6);overflow:hidden">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px 12px;border-bottom:1px solid var(--border);font-weight:700;font-size:1rem;letter-spacing:0.06em;text-transform:uppercase;color:#ff4f4f">
-            <span>🎯 Landing Pattern</span>
+    <div id="patternBox" style="background:var(--panel-bg);border:1px solid var(--border);border-radius:16px;max-width:360px;width:100%;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.6);overflow:hidden">
+        <div id="patternHeader" title="Drag to move" style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px 12px;border-bottom:1px solid var(--border);font-weight:700;font-size:1rem;letter-spacing:0.06em;text-transform:uppercase;color:#ff4f4f;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none">
+            <span>🎯 Landing Pattern <span style="color:var(--muted);font-weight:400;letter-spacing:0;font-size:0.9rem">⠿</span></span>
             <button onclick="closePatternModal()" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:0 4px">✕</button>
         </div>
         <div style="padding:14px 18px;display:flex;flex-direction:column;gap:12px">
@@ -1117,6 +1117,29 @@ function openPatternModal(){
     if (window.innerWidth < 600 && panelOpen) togglePanel();   // keep the map (and the pattern) visible on phones
 }
 function closePatternModal(){ document.getElementById("patternModal").style.display = "none"; }
+// Drag the popup by its header (mouse or finger). The offset is kept while the page is open, so it reopens where you left it.
+let patternBoxOffset = { x: 0, y: 0 };
+(function(){
+    const header = document.getElementById("patternHeader"), box = document.getElementById("patternBox");
+    let start = null;
+    const apply = () => { box.style.transform = `translate(${patternBoxOffset.x}px, ${patternBoxOffset.y}px)`; };
+    header.addEventListener("pointerdown", e => {
+        if (e.target.closest("button")) return;   // the ✕ still closes
+        start = { px: e.clientX, py: e.clientY, ox: patternBoxOffset.x, oy: patternBoxOffset.y, r: box.getBoundingClientRect() };
+        try { header.setPointerCapture(e.pointerId); } catch(err){}
+        header.style.cursor = "grabbing"; e.preventDefault();
+    });
+    header.addEventListener("pointermove", e => {
+        if (!start) return;
+        // keep the whole popup on screen
+        const dx = Math.max(-start.r.left, Math.min(window.innerWidth - start.r.right, e.clientX - start.px));
+        const dy = Math.max(-start.r.top, Math.min(window.innerHeight - start.r.bottom, e.clientY - start.py));
+        patternBoxOffset = { x: start.ox + dx, y: start.oy + dy }; apply();
+    });
+    const end = () => { start = null; header.style.cursor = "grab"; };
+    header.addEventListener("pointerup", end); header.addEventListener("pointercancel", end);
+    window.addEventListener("resize", () => { patternBoxOffset = { x: 0, y: 0 }; apply(); });   // rotation etc.: back to the default spot
+})();
 function resetPatternAlts(){ patternAlts = { ...PATTERN_DEFAULTS }; fillPatternAltInputs(); savePatternSettings(); updatePattern(); }
 loadPatternSettings();
 

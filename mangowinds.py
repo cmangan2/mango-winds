@@ -535,8 +535,14 @@ def fetch_forecast(lat, lon, hour_offset=0):
 
     cached = _forecast_cache.get(dz_key)
     if cached and cached["expires"] > now:
-        print(f"Cache HIT for {dz_key}")
-        return cached["data"]
+        # same check as covers() below: the bundled model arrays must reach this hour, on today's UTC calendar
+        idx = now.hour + hour_offset
+        want = (now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=hour_offset)).strftime("%Y-%m-%dT%H:%M")
+        ok = all(idx < len(t) and t[idx] == want for t in
+                 [((md or {}).get("hourly") or {}).get("time") or [] for md in (cached["data"].get("models") or {}).values()])
+        if ok:
+            print(f"Cache HIT for {dz_key}")
+            return cached["data"]
 
     print(f"Fetching Open-Meteo ensemble for hour={hour_offset}")
     try:
@@ -596,29 +602,39 @@ def fetch_forecast(lat, lon, hour_offset=0):
                 return base_url.replace("/v1/forecast", "/v1/gem")
             return base_url
 
+        # /data reads hourly[now.hour + hour_offset], i.e. arrays must start at 00Z today. A cached response
+        # only counts if it has that slot and the slot is the right UTC hour (a response cached before
+        # midnight UTC starts on the previous day; an old 3-day response stops short of the slider's end).
+        need_idx = now.hour + hour_offset
+        need_time = (now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=hour_offset)).strftime("%Y-%m-%dT%H:%M")
+        def covers(mdata):
+            times = ((mdata or {}).get("hourly") or {}).get("time") or []
+            return need_idx < len(times) and times[need_idx] == need_time
+
         def fetch_one_model(model):
             # Hour-independent key: each response already holds the whole multi-day hourly array, so
             # scrolling the forecast slider reuses it instead of re-hitting Open-Meteo for every hour.
             model_key = (round(lat, 3), round(lon, 3), "model", model)
             cached_model = _forecast_cache.get(model_key)
-            if cached_model and cached_model["expires"] > now:
+            if cached_model and cached_model["expires"] > now and covers(cached_model["data"]):
                 print(f"Cache HIT {model}")
                 return model, cached_model["data"]
             fetched_any.append(model)
             with _model_locks.setdefault(model_key, threading.Lock()):
                 cached_model = _forecast_cache.get(model_key)
-                if cached_model and cached_model["expires"] > datetime.now(timezone.utc):
+                if cached_model and cached_model["expires"] > datetime.now(timezone.utc) and covers(cached_model["data"]):
                     return model, cached_model["data"]
                 return _fetch_one_model_locked(model, model_key, cached_model)
 
         def _fetch_one_model_locked(model, model_key, cached_model):
             endpoint = model_endpoint(model)
-            if model == "hrrr_conus":
-                fcast_days = 1
-            elif model in ("nam_conus", "hrdps"):
+            # Days are counted from 00Z today, and the slider reaches now + 71 h, so long-range models need
+            # 4 days (3 ran out at 00Z the day after tomorrow, which is 8 PM EDT: hours past that failed).
+            # HRRR serves offsets ≤ 18 h, which can cross midnight UTC, so it needs 2.
+            if model in ("hrrr_conus", "nam_conus", "hrdps"):
                 fcast_days = 2
             else:
-                fcast_days = 3
+                fcast_days = 4
             model_param = f"&models={API_MODEL_NAME.get(model, model)}"
             # No API key in base_params — free API by default
             base_params = (f"?latitude={lat}&longitude={lon}"

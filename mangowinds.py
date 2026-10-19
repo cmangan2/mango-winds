@@ -1120,6 +1120,35 @@ def canopy_data(wind_speed_kts, wind_dir):
     return glide_radius, wind_drift, wind_dir
 
 
+# =====================================================
+# 🧭 MAGNETIC DECLINATION — World Magnetic Model 2025 (pygeomag, offline)
+# Everything internal (forecast winds, METAR, ADS-B track, map bearings) is TRUE. The frontend shows and
+# accepts magnetic numbers using this: magnetic = true − declination (east positive, west negative).
+# =====================================================
+_decl_cache = {}
+_geomag = None
+
+
+def magnetic_declination(lat, lon):
+    """Degrees, east positive (New England ≈ −14). Rounded to 0.1°; cached per ~1 km."""
+    global _geomag
+    if lat is None or lon is None:
+        return 0.0
+    key = (round(lat, 2), round(lon, 2))
+    if key not in _decl_cache:
+        try:
+            if _geomag is None:
+                from pygeomag import GeoMag
+                _geomag = GeoMag(coefficients_file="wmm/WMM_2025.COF")
+            now = datetime.now(timezone.utc)
+            year = now.year + (now.timetuple().tm_yday - 1) / 365.25
+            _decl_cache[key] = round(_geomag.calculate(glat=lat, glon=lon, alt=0, time=year).d, 1)
+        except Exception as e:
+            print(f"Declination error: {e}")
+            return 0.0
+    return _decl_cache[key]
+
+
 def freefall_distance(wind_speed_kts, wind_dir):
     seconds = 60
     wind_ms = wind_speed_kts * 0.514444
@@ -2364,6 +2393,7 @@ def data():
             models_loaded[m] = (m == "gfs_seamless")
 
     response = jsonify({
+        "declination": magnetic_declination(lat, lon),
         "winds": winds,
         "canopy_confidence":   canopy_confidence,
         "freefall_confidence": freefall_confidence,

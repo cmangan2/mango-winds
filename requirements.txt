@@ -5,3 +5,4 @@ pytz>=2024.1
 psycopg[binary]>=3.2
 pywebpush>=2.0
 tzfpy>=0.15
+pygeomag>=1.1

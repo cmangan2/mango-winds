@@ -19,6 +19,7 @@ python tests/e2e.py             # browser smoke tests; set LEAFLET_DIR=<folder w
 ```
 Weather needs outbound access to Open-Meteo; ADS-B goes through an adsb-proxy endpoint. Cloud sandboxes can't reach either, so live-data behavior (forecast scrubbing speed, cloud popup, plane tracking, Fetch Plane Data) has only ever been tested against mocks — verify those against real data when working locally.
 Optional env: `OPENMETEO_API_KEY` (paid fallback on 429), `ENV=dev` (dev banner), `*_FILE` overrides for data files.
+Admin env: `ADMIN_EMAILS` (comma-separated). A signed-in account with one of these emails gets /admin, /admin/dropzones, /models, /adsb_trails/refresh and a 🛠️ Admin button in the 👤 Account panel. `CACHE_TOKEN` / `ADMIN_TOKEN` still work as `?token=` only when set in the env to something other than the old public defaults (`mango`, `mango-admin-2024`). /clearcache is open to all (once a minute).
 Accounts + takeoff alerts env: `DATABASE_URL` (Supabase Postgres, use the **pooler** connection string: Render has no IPv6), `SMTP_HOST/PORT/USER/PASS`, `MAIL_FROM`, `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` (raw base64url). Without `DATABASE_URL` the app uses a local SQLite file (`mwh.db`, dev/tests only); on Render (`RENDER` env set) it switches accounts/alerts off instead, since Render's disk is wiped on deploy. Without SMTP locally, sign-in codes are printed to the console.
 
 ## Standing workflow (do this unless Chris says otherwise)

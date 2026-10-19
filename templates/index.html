@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.6.1">
+<meta name="app-version" content="4.6.2">
 <script>
 try {
-    const CURRENT_VERSION = "4.6.1";
+    const CURRENT_VERSION = "4.6.2";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -351,7 +351,7 @@ select:focus { border-color: var(--accent); }
             <div class="wc-section"><div class="wc-icon" style="color:var(--muted)">&#x2699;&#xFE0F;</div><div><div class="wc-title">Canopy Settings</div><div class="wc-text">Tap <b>Canopy Settings</b> and enter <b>canopy size, exit weight, type</b>, opening altitude and (optionally) a known glide ratio. Add your <b>reserve</b> size and type too. The circle, flight time and descent rate update to match your gear. Your settings are <b>saved on this device</b> and kept through app updates; <b>Reset to defaults</b> clears them.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F4CA;</div><div><div class="wc-title">Winds by Altitude</div><div class="wc-text">Each row blends <b>GFS, ICON, HRRR, HRDPS and ECMWF</b>, weighted toward the models that agree. The <b>Agree</b> column shows how closely they match. <b>Surface</b> uses the live <b>METAR</b> for the current hour when your DZ has a station. Light, shifty wind below 8 kt shows as <b>Calm</b>. Tap <b>Hide</b> to collapse the table.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--freefall)">&#x1F4A8;</div><div><div class="wc-title">Wind Widget</div><div class="wc-text">The <b>Freefall / Canopy / Surface</b> widget shows drift and wind at a glance. Tap an item for live <b>wind particles</b> on the map. Press and drag anywhere on the widget to move it out of the way. Reopen the widget with the &#x1F4A8; button in the header.</div></div></div>
-            <div class="wc-section"><div class="wc-icon" style="color:#fff">&#x270F;&#xFE0F;</div><div><div class="wc-title">Jump Run</div><div class="wc-text"><b>Draw</b> a jump run by dragging on the map, <b>Suggest</b> one (enter a heading and it finds the longest run that keeps every landing inside the green circle with a 15% margin, 45% on the downwind side; its Prior/Past and Offset are snapped to the nearest 0.1 mi so they&rsquo;re easy to call out), or <b>Define</b> one: enter heading, <b>Prior/Past</b> (distance from the DZ center along that heading) and <b>Offset</b> (N/S/E/W &mdash; pick the direction closest to perpendicular to the run), plus length. A box at the start (tap and drag it to move it out of the way) shows heading, prior/past, offset, estimated ground speed and recommended jumper separation (1,500 ft of ground distance between groups, converted to seconds). <b>Replay</b> animates the exits and freefall drift; <b>Clear</b> removes it. Jump runs are not saved.</div></div></div>
+            <div class="wc-section"><div class="wc-icon" style="color:#fff">&#x270F;&#xFE0F;</div><div><div class="wc-title">Jump Run</div><div class="wc-text"><b>Draw</b> a jump run by dragging on the map, <b>Suggest</b> one (enter a heading and it finds the longest run that keeps every landing inside the green circle with a 15% margin, 45% on the downwind side; its Prior/Past and Offset are snapped to the nearest 0.1 mi so they&rsquo;re easy to call out), or <b>Define</b> one: enter heading, <b>Prior/Past</b> (distance from the DZ center along that heading) and <b>Offset</b> (N/S/E/W &mdash; pick the direction closest to perpendicular to the run), plus length. A box at the start (tap and drag it to move it out of the way) shows heading, prior/past, offset, estimated ground speed and recommended jumper separation (1,500 ft of ground distance between groups, converted to seconds). The shaded <b>orange box</b> beside the run is where jumpers open: its near edge is <b>40 s</b> of freefall drift, its far edge <b>65 s</b>, and the dashed line down the middle (52.5 s) is where the numbered jumper boxes land. <b>Replay</b> animates the exits and freefall drift; <b>Clear</b> removes it. Jump runs are not saved.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--red)">&#x1F3AF;</div><div><div class="wc-title">Landing Pattern</div><div class="wc-text">Tap <b>Place Landing Spot</b>, click the map, then choose final heading (into wind or custom) and pattern direction. Wind-adjusted legs at 1,000 / 600 / 300 ft.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x2708;&#xFE0F;</div><div><div class="wc-title">Plane Tracker</div><div class="wc-text"><b>Track Plane</b> follows your DZ&rsquo;s aircraft live with a trail and label. While the page is open, planes that are flying are picked up <b>automatically</b>, but only planes that have been entered for this DZ before (enter a new tail number once to add it); tap <b>Stop</b> on one to keep it off. The Track Plane list shows every plane saved for the current DZ; tap the <b>✕</b> on a plane to remove it from that list (this doesn&rsquo;t stop tracking; use <b>Stop</b> for that). If a plane is off-screen, an <b>arrow</b> at the map edge points to it. Turn on <b>&#x1F514; Takeoff alerts</b> at the bottom of Track Plane to get a notification when any of this DZ&rsquo;s planes takes off, even with the app closed (on iPhone, add the app to your Home Screen first).</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F464;</div><div><div class="wc-title">Account (optional)</div><div class="wc-text">Tap <b>&#x1F464;</b> and enter your email to get a 6-digit sign-in code. No password. Signed in, your <b>canopy settings</b> and <b>dropzone</b> sync to every device you sign in on. On iPhone, type the code into the app rather than tapping the email&rsquo;s link (the link signs in Safari, not the Home Screen app). Everything works without an account.</div></div></div>
@@ -773,21 +773,31 @@ function groundSpeedForLeg(flyingHdgDeg, altFt){
     return Math.max(canopyMs - hw, canopyMs * 0.3);
 }
 
+// Freefall drift box: jumpers drift between FF_MIN_S and FF_MAX_S seconds' worth of the 4k–14k wind
+// (short vs long freefall, e.g. bigways/tandems vs solos/belly). The numbered boxes land on the centerline.
+const FF_MIN_S = 40, FF_MAX_S = 65, FF_MID_S = (FF_MIN_S + FF_MAX_S) / 2;
+const FF_REF_S = 60;   // the server's freefall.distance is 60 s of drift
+// Drift vector in meters [east, north] for `sec` seconds of freefall (capped so a bad forecast can't fling it off the map)
+function ffDriftM(sec){
+    const ff = lastFreefall, perSec = ff.speed != null ? ff.speed * 0.514444 : ff.distance / FF_REF_S;
+    const d = Math.min(perSec * sec, 8000 * sec / FF_REF_S), r = ff.direction * Math.PI / 180;
+    return [Math.sin(r) * d, Math.cos(r) * d];
+}
+function shiftLL(p, v){ return [p[0] + v[1] / 111000, p[1] + v[0] / (111000 * Math.cos(p[0] * Math.PI / 180))]; }
+
 function drawFreefallParallel(){
     if (!jrStart || !jrEnd) return;
     if (!lastFreefall) { drawJrBox(); return; }
     if (freefallLine) { freefallLine.forEach(l => l.remove()); freefallLine = null; }
     const ff = lastFreefall;
-    const ffDist = Math.min(ff.distance, 8000);
-    const ffRad = ff.direction * Math.PI / 180;
-    const cosLat = Math.cos(jrStart[0] * Math.PI / 180);
-    const dlatFF = Math.cos(ffRad) * ffDist / 111000;
-    const dlonFF = Math.sin(ffRad) * ffDist / (111000 * cosLat);
-    const pStart = [jrStart[0] + dlatFF, jrStart[1] + dlonFF];
-    const pEnd = [jrEnd[0] + dlatFF, jrEnd[1] + dlonFF];
-    const connector = L.polyline([jrStart, pStart], { color: '#ffaa00', weight: 2, opacity: 0.45, dashArray: '5,6' }).addTo(map);
-    const parallel = L.polyline([pStart, pEnd], { color: '#ffaa00', weight: 4, opacity: 0.9 }).addTo(map);
-    freefallLine = [connector, parallel];
+    const vMin = ffDriftM(FF_MIN_S), vMax = ffDriftM(FF_MAX_S), vMid = ffDriftM(FF_MID_S);
+    const box = L.polygon([shiftLL(jrStart, vMin), shiftLL(jrEnd, vMin), shiftLL(jrEnd, vMax), shiftLL(jrStart, vMax)],
+        { color: '#ffaa00', weight: 2, opacity: 0.9, fillColor: '#ffaa00', fillOpacity: 0.18, interactive: false }).addTo(map);
+    const mStart = shiftLL(jrStart, vMid), mEnd = shiftLL(jrEnd, vMid);
+    const center = L.polyline([mStart, mEnd], { color: '#ffaa00', weight: 1.5, opacity: 0.8, dashArray: '4,5', interactive: false }).addTo(map);
+    const connector = L.polyline([jrStart, mStart], { color: '#ffaa00', weight: 2, opacity: 0.45, dashArray: '5,6', interactive: false }).addTo(map);
+    freefallLine = [connector, box, center];
+    const ffMinMi = Math.hypot(...vMin) / 1609.344, ffMaxMi = Math.hypot(...vMax) / 1609.344;
     const jrLenM = distMeters(jrStart, jrEnd);
     const bear = bearing(jrStart, jrEnd);
     let gndKts = '—';
@@ -804,7 +814,7 @@ function drawFreefallParallel(){
     const sepSuggested = recommendedSep(lastGndSpeedKts);
     const sepLine = sepSuggested ? `Rec. Jumper Sep: <span style="color:var(--accent)">${sepSuggested} sec</span>` : "";
     document.getElementById("jumpRunInfo").innerHTML =
-        `JR heading: ${bear.toFixed(0)}°<br>JR length: ${(jrLenM/1609.344).toFixed(2)} mi<br>JR speed: ${gndKts}<br>FF drift: ${(ffDist/1609.344).toFixed(2)} mi @ ${ff.direction.toFixed(0)}°${sepLine ? "<br>" + sepLine : ""}`;
+        `JR heading: ${bear.toFixed(0)}°<br>JR length: ${(jrLenM/1609.344).toFixed(2)} mi<br>JR speed: ${gndKts}<br>FF drift: ${ffMinMi.toFixed(2)}–${ffMaxMi.toFixed(2)} mi @ ${ff.direction.toFixed(0)}° (${FF_MIN_S}–${FF_MAX_S} s)${sepLine ? "<br>" + sepLine : ""}`;
     drawJrBox();
 }
 
@@ -972,8 +982,7 @@ function startPlaneAnimation(){
     const realisticDuration = (jrDist / gndSpeed) * 1000;
     const displayDuration = 10000;
     const timeScale = displayDuration / realisticDuration;
-    const ffDist = lastFreefall.distance;
-    const ffRad = lastFreefall.direction * Math.PI / 180;
+    const vLand = ffDriftM(FF_MID_S);   // everyone lands on the drift box's centerline
     const sepSec = recommendedSep(lastGndSpeedKts) || 8;
     const realisticDropTimes = [];
     for (let t = 2000; t < realisticDuration; t += sepSec * 1000) realisticDropTimes.push(t);
@@ -983,9 +992,7 @@ function startPlaneAnimation(){
             const frac = realisticDropTimes[idx] / realisticDuration;
             const exitLat = jrStart[0] + (jrEnd[0] - jrStart[0]) * frac;
             const exitLon = jrStart[1] + (jrEnd[1] - jrStart[1]) * frac;
-            const dlatFF = Math.cos(ffRad) * ffDist / 111000;
-            const dlonFF = Math.sin(ffRad) * ffDist / (111000 * Math.cos(exitLat * Math.PI / 180));
-            const landLat = exitLat + dlatFF, landLon = exitLon + dlonFF;
+            const [landLat, landLon] = shiftLL([exitLat, exitLon], vLand);
             jumperCounter++;
             const jumper = L.marker([exitLat, exitLon], { icon: parachuteIcon(jumperCounter), zIndexOffset: 900 }).addTo(map);
             jumperMarkers.push(jumper);
@@ -1440,7 +1447,7 @@ async function load(){
             canopyCircle.bindTooltip(()=>canopyHtml,{sticky:true,direction:'top',className:'canopy-pop canopy-tip',opacity:1});
         }
         if (firstLoad){ fitToCanopy(glideR, polyPoints); firstLoad=false; }
-        lastFreefall = { distance: d.freefall.distance, direction: d.freefall.direction };
+        lastFreefall = { distance: d.freefall.distance, direction: d.freefall.direction, speed: d.freefall.speed };
         lastWind14k = d.wind_14k;
         lastCanopyWind = { speed: d.canopy.speed, direction: d.canopy.direction };
         window._lastWinds = d.winds;
@@ -2157,8 +2164,7 @@ function submitSuggestedJumpRun(){
     const dir = parseFloat(document.getElementById("sgDir").value);
     if (isNaN(dir) || dir < 0 || dir > 360) return fail("Please enter a valid heading (0–360°).");
     if (!window._canopyPolyM || !lastFreefall || !lastWind14k) return fail("Wind data isn't loaded yet — try again in a moment.");
-    const ff = lastFreefall, ffRad = ff.direction*Math.PI/180;
-    const drift = [Math.sin(ffRad)*ff.distance, Math.cos(ffRad)*ff.distance];
+    const drift = ffDriftM(FF_MID_S);   // landings on the drift box centerline, same as the numbered boxes
     const g = suggestRunGeometry(window._canopyPolyM, drift, dir, window._canopyUp);
     if (!g || g.lengthM < 150) return fail("No jump run on that heading keeps every landing inside the green circle with the margins (15%, 45% downwind). Try a different heading.");
     // Ground speed on this heading (same model as the jump run info box) so the first exit lands on the start of the stretch

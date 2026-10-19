@@ -80,6 +80,8 @@ def main():
 
             # 5. recommended separation formula
             check("separation = 1500 ft / ground speed, rounded", pg.evaluate("[60,90,120].map(recommendedSep)") == [15, 10, 7])
+            ver = pg.evaluate("document.querySelector('meta[name=app-version]').content")
+            check("version shown in welcome + Quick Start", pg.evaluate("[welcomeVersion.textContent, document.querySelector('#quickStartModal .app-ver-label').textContent]") == ["Version " + ver, "v" + ver])
             check("no JS errors during session", not errs, str(errs))
             ctx.close()
 

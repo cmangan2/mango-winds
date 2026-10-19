@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.6.5">
+<meta name="app-version" content="4.6.6">
 <script>
 try {
-    const CURRENT_VERSION = "4.6.5";
+    const CURRENT_VERSION = "4.6.6";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -359,7 +359,7 @@ select:focus { border-color: var(--accent); }
             <div class="wc-section"><div class="wc-icon" style="color:#a78bfa">&#x1F58A;&#xFE0F;</div><div><div class="wc-title">Free Draw</div><div class="wc-text">Sketch directly on the map for movement jumps, flocking or any freeform plan. Tap the button to start, again to finish, and once more to clear your drawings.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x23F1;</div><div><div class="wc-title">Forecast Offset</div><div class="wc-text">Slide <b>Forecast Offset</b> up to <b>72 hours</b> ahead. Winds, canopy circle and cloud forecast all follow the slider. The live METAR applies to the current hour only.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--muted)">&#x2601;&#xFE0F;</div><div><div class="wc-title">Sky &amp; Weather</div><div class="wc-text">Tap <b>&#x2601;&#xFE0F;</b> for the live <b>METAR</b>, decoded into plain language (flight category, ceiling and cloud layers like &ldquo;Broken at 4,000 ft&rdquo;, visibility, wind/gusts, weather like &ldquo;Light rain showers&rdquo;, temp/dew point, altimeter, how old the report is) with warnings, plus an <b>hourly cloud forecast</b> for now and the next 4 hours: coverage %, estimated base and rain chance. Drag the box to move it.</div></div></div>
-            <div class="wc-section"><div class="wc-icon" style="color:var(--muted)">&#x1F527;</div><div><div class="wc-title">Header Buttons</div><div class="wc-text"><b>&#x21BA;</b> clear cache and refresh &middot; <b>&#x1F4CA;</b> usage stats &middot; <b>&#x1F4A8;</b> wind widget &middot; <b>&#x2601;&#xFE0F;</b> sky &amp; weather &middot; <b>?</b> this guide.</div></div></div>
+            <div class="wc-section"><div class="wc-icon" style="color:var(--muted)">&#x1F527;</div><div><div class="wc-title">Header Buttons</div><div class="wc-text"><b>&#x21BA;</b> clear cache and refresh &middot; <b>&#x1F4CA;</b> stats: which DZs are active now (plane in the air, just landed, or the app in use), visits and each DZ&rsquo;s last flight, in its local time &middot; <b>&#x1F4A8;</b> wind widget &middot; <b>&#x2601;&#xFE0F;</b> sky &amp; weather &middot; <b>?</b> this guide.</div></div></div>
         </div>
         <button onclick="document.getElementById('quickStartModal').style.display='none'" style="margin:8px 20px 16px;padding:12px;background:var(--accent);color:var(--bg);border:none;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;cursor:pointer">Got it!</button>
     </div>

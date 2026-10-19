@@ -145,7 +145,16 @@ def main():
                 trackedPlanes['N1TEST'].data.hdg = 0; updateMultiPlaneInfoPanel(); const b = planeInfo.innerText;
                 trackedPlanes['N1TEST'].data.on_ground = true; updateMultiPlaneInfoPanel(); const c = planeInfo.innerText;
                 delete trackedPlanes['N1TEST']; updateMultiPlaneInfoPanel(); return [a, b, c]; })()""")
-            check("plane row shows heading", "045°" in row[0] and "360°" in row[1] and "°" not in row[2], str(row))
+            exp = pg.evaluate("[String(magDeg(45)).padStart(3,'0') + '°', String(magDeg(0)).padStart(3,'0') + '°']")
+            check("plane row shows magnetic heading", exp[0] in row[0] and exp[1] in row[1] and "°" not in row[2], f"{row} expected {exp}")
+            # Magnetic directions: declination from /data (SNE ≈ 14° W), typed headings are magnetic, map math stays true
+            decl = pg.evaluate("magDecl")
+            check("declination loaded for the DZ (SNE ≈ -14)", -16 < decl < -12, str(decl))
+            check("magnetic = true - declination", pg.evaluate("[magDeg(270), Math.round(toTrue(284))]") == [round(270 - decl) % 360, round(284 + decl) % 360])
+            pg.evaluate("clearJumpRun(); openSuggestModal()"); pg.fill("#sgDir", "300"); pg.click("#sgSubmitBtn"); pg.wait_for_timeout(400)
+            tb = pg.evaluate("[Math.round(bearing(jrStart, jrEnd)), document.querySelector('.leaflet-marker-pane').innerText]")
+            check("typed magnetic jump run heading flies true = mag + decl, box shows the typed number", tb[0] == round(300 + decl) and "Heading: 300° mag" in tb[1], str(tb))
+            pg.evaluate("clearJumpRun()")
 
             # 5. recommended separation formula
             check("separation = 1500 ft / ground speed, rounded", pg.evaluate("[60,90,120].map(recommendedSep)") == [15, 10, 7])

@@ -117,6 +117,22 @@ def main():
             check("suggested jump run works for 4 headings", ok)
             check("suggested prior/past and offset snap to 0.1 mi", snapped)
 
+            # Landing pattern: placing a spot opens the popup; checkpoints are configurable, validated and saved
+            pg.evaluate("closeSuggestModal(); clearJumpRun(); onPatternBtn()")
+            box = pg.locator("#map").bounding_box(); pg.mouse.click(box["x"] + box["width"] * 0.4, box["y"] + box["height"] * 0.5); pg.wait_for_timeout(400)
+            check("placing a landing spot opens the pattern popup", pg.evaluate("patternModal.style.display") == "flex" and pg.evaluate("!!landingSpot"))
+            labels = "Array.from(document.querySelectorAll('.leaflet-marker-pane div')).filter(d=>!d.children.length).map(d=>d.textContent).filter(t=>/^\\d+ft$/.test(t))"
+            check("default checkpoints 1000/600/300", pg.evaluate(labels) == ["1000ft", "600ft", "300ft"], str(pg.evaluate(labels)))
+            pg.fill("#patternAltDownwind", "900"); pg.fill("#patternAltBase", "500"); pg.fill("#patternAltFinal", "250"); pg.wait_for_timeout(300)
+            check("custom checkpoints redraw the pattern", pg.evaluate(labels) == ["900ft", "500ft", "250ft"], str(pg.evaluate(labels)))
+            pg.fill("#patternAltBase", "950"); pg.wait_for_timeout(200)
+            check("out-of-order checkpoints rejected", pg.evaluate("patternError.style.display") == "block" and pg.evaluate("patternAlts.base") == 500)
+            pg.fill("#patternAltBase", "500"); pg.evaluate("closePatternModal()")
+            check("checkpoints saved on the device", pg.evaluate("JSON.parse(localStorage.getItem('mwh-pattern-settings'))") == {"downwind": 900, "base": 500, "final": 250})
+            pg.click("#patternBtn"); pg.wait_for_timeout(200)
+            check("drawer button reopens the popup", pg.evaluate("patternModal.style.display") == "flex" and pg.input_value("#patternAltFinal") == "250")
+            pg.evaluate("clearPattern(); closePatternModal()")
+
             # 5. recommended separation formula
             check("separation = 1500 ft / ground speed, rounded", pg.evaluate("[60,90,120].map(recommendedSep)") == [15, 10, 7])
             ver = pg.evaluate("document.querySelector('meta[name=app-version]').content")

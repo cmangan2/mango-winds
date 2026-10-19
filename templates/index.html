@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.6.16">
+<meta name="app-version" content="4.6.17">
 <script>
 try {
-    const CURRENT_VERSION = "4.6.16";
+    const CURRENT_VERSION = "4.6.17";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -3238,6 +3238,12 @@ function planeTrackIconColored(hdg, onGround, color){
     return L.divIcon({ html: svg, className: "", iconSize: [72,72], iconAnchor: [36,36] });
 }
 
+// Track heading as pilots say it: 3 digits, north = 360 (0 is a real heading, not "missing")
+function fmtHeading(h, onGround){
+    if (h == null || isNaN(h) || onGround) return "—";
+    const r = Math.round(h) % 360;
+    return String(r === 0 ? 360 : r).padStart(3, "0") + "°";
+}
 function updateMultiPlaneInfoPanel(){
     const tails = Object.keys(trackedPlanes);
     if (tails.length === 0){ document.getElementById("planeInfo").style.display = "none"; return; }
@@ -3254,9 +3260,10 @@ function updateMultiPlaneInfoPanel(){
         const alt  = d.alt  ? Math.round(d.alt).toLocaleString() + " ft"  : "—";
         const spd  = d.spd  ? Math.round(d.spd) + " kt" : "—";
         const vert = d.vert ? (d.vert>0?"↑":"↓") + Math.abs(Math.round(d.vert)) + " fpm" : "—";
+        const hdg  = fmtHeading(d.hdg, d.on_ground);
         return `<div style="display:flex;align-items:center;gap:6px;font-size:0.8rem;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05)">
             <span style="color:${s.color};font-weight:bold;min-width:60px;font-family:'Share Tech Mono',monospace">${tail}</span>
-            <span style="color:var(--muted);flex:1">${alt} · ${spd} · ${vert}</span>
+            <span style="color:var(--muted);flex:1;min-width:0;font-size:0.78rem">${[alt, spd, hdg, vert].map(v => `<span style="white-space:nowrap">${v}</span>`).join(" · ")}</span>
             <button onclick="stopTrackingTail('${tail}')" style="padding:2px 6px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:3px;font-size:0.7rem;cursor:pointer">✕</button>
         </div>`;
     }).join('');
@@ -3408,7 +3415,7 @@ function updatePlaneMarker(data){
     const alt  = data.alt  ? Math.round(data.alt).toLocaleString()  + " ft"  : "—";
     const spd  = data.spd  ? Math.round(data.spd)  + " kt"  : "—";
     const vert = data.vert ? (data.vert>0?"↑":"↓") + Math.abs(Math.round(data.vert)).toLocaleString() + " fpm" : "—";
-    const hdg  = data.hdg  ? Math.round(data.hdg) + "°" : "—";
+    const hdg  = fmtHeading(data.hdg, data.on_ground);
     const groundStr = data.on_ground ? ` <span style="color:var(--muted)">— On Ground</span>` : "";
     document.getElementById("planeInfo").style.display = "block";
     document.getElementById("planeInfo").innerHTML =

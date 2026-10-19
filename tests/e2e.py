@@ -139,6 +139,14 @@ def main():
             check("pattern popup reopens where it was moved", round(pg.locator("#patternBox").bounding_box()["y"]) == round(b1["y"]))
             pg.evaluate("clearPattern(); closePatternModal()")
 
+            # Tracked plane row in the drawer shows heading (3 digits, north = 360, none on the ground)
+            row = pg.evaluate("""(() => { trackedPlanes['N1TEST'] = { color:'#00d4ff', trail:[], data:{ alt:9500, spd:105, hdg:45, vert:1200 } };
+                updateMultiPlaneInfoPanel(); const a = planeInfo.innerText;
+                trackedPlanes['N1TEST'].data.hdg = 0; updateMultiPlaneInfoPanel(); const b = planeInfo.innerText;
+                trackedPlanes['N1TEST'].data.on_ground = true; updateMultiPlaneInfoPanel(); const c = planeInfo.innerText;
+                delete trackedPlanes['N1TEST']; updateMultiPlaneInfoPanel(); return [a, b, c]; })()""")
+            check("plane row shows heading", "045°" in row[0] and "360°" in row[1] and "°" not in row[2], str(row))
+
             # 5. recommended separation formula
             check("separation = 1500 ft / ground speed, rounded", pg.evaluate("[60,90,120].map(recommendedSep)") == [15, 10, 7])
             ver = pg.evaluate("document.querySelector('meta[name=app-version]').content")

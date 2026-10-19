@@ -98,6 +98,8 @@ def main():
                 const v = p => [(p.lng - jrStart[1]) * 111000 * Math.cos(jrStart[0]*Math.PI/180), (p.lat - jrStart[0]) * 111000];
                 const s = ffDriftM(1), near = Math.hypot(...v(ll[0])), far = Math.hypot(...v(ll[3])), per = Math.hypot(...s);
                 return [near / per, far / per, Math.hypot(...ffDriftM(FF_MID_S)) / per]; })()""")
+            wv = pg.evaluate("[wsBalloonVal.innerText, (lastFreefall.speed*0.514444*45/1609.344).toFixed(2), (lastFreefall.speed*0.514444*60/1609.344).toFixed(2)]")
+            check("wind widget shows freefly 45 s + belly 60 s drift", f"FF {wv[1]} mi" in wv[0] and f"Belly {wv[2]} mi" in wv[0], str(wv))
             check("drift box spans 40-65 s, landings at 52.5 s", [round(x, 1) for x in fb] == [40.0, 65.0, 52.5], str(fb))
             pg.evaluate("clearJumpRun()")
 

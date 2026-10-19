@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.6.12">
+<meta name="app-version" content="4.6.13">
 <script>
 try {
-    const CURRENT_VERSION = "4.6.12";
+    const CURRENT_VERSION = "4.6.13";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -563,7 +563,6 @@ select:focus { border-color: var(--accent); }
             </div>
             <div id="acctSignedIn" style="display:none;flex-direction:column;gap:10px">
                 <div style="font-size:0.82rem;color:var(--muted);line-height:1.45">Signed in as <b id="acctWho" style="color:var(--text)"></b>. Your canopy settings and dropzone sync to every device you sign in on.</div>
-                <button id="acctAdminBtn" onclick="window.open('/admin','_blank')" style="display:none;padding:9px;background:none;color:#39ff89;border:1px solid #39ff89;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:0.92rem;letter-spacing:0.06em;cursor:pointer">🛠️ Admin</button>
                 <button onclick="signOut()" style="padding:9px;background:var(--card-bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:0.92rem;letter-spacing:0.06em;cursor:pointer">Sign out</button>
                 <button onclick="deleteAccount()" style="background:none;border:none;color:var(--red);cursor:pointer;padding:0;font-family:'Barlow Condensed',sans-serif;font-size:0.85rem;letter-spacing:0.04em">Delete my account</button>
             </div>
@@ -618,6 +617,7 @@ select:focus { border-color: var(--accent); }
                     <div class="handle-btns" style="display:flex;gap:6px;align-items:center;flex-shrink:0">
                         <button class="hbtn" onclick="clearAndReload();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.85rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Clear cache & refresh">↺</button>
                         <button class="hbtn" onclick="window.open('/stats','_blank');event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Stats">📊</button>
+                        <button class="hbtn adminOnly" onclick="location.href='/admin';event.stopPropagation()" style="display:none;background:none;border:1px solid #39ff89;color:#39ff89;border-radius:50%;width:20px;height:20px;font-size:0.7rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Admin">🛠️</button>
                         <button class="hbtn" onclick="document.getElementById('windSummary').style.display='block';event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Show wind summary">💨</button>
                         <button class="hbtn" onclick="toggleCloudPopup();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Cloud forecast">☁️</button>
                         <button class="hbtn" onclick="openAccountModal();event.stopPropagation()" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:20px;height:20px;font-size:0.75rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0" title="Account">👤</button>
@@ -632,6 +632,7 @@ select:focus { border-color: var(--accent); }
                 <div style="display:flex;gap:6px;align-items:center">
                     <button id="refreshBtn" onclick="clearAndReload()" title="Clear cache & refresh">↺</button>
                     <button id="statsBtn" onclick="window.open('/stats','_blank')" title="Usage stats">📊</button>
+                    <button class="adminOnly" onclick="location.href='/admin'" title="Admin" style="display:none;background:none;border:1px solid #39ff89;color:#39ff89;border-radius:50%;width:30px;height:30px;font-size:0.85rem;cursor:pointer;line-height:1;flex-shrink:0;padding:0;-webkit-tap-highlight-color:transparent">🛠️</button>
                     <button id="summaryBtn" onclick="document.getElementById('windSummary').style.display='block'" title="Show wind summary" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:30px;height:30px;font-size:0.95rem;cursor:pointer;line-height:1;flex-shrink:0;transition:border-color 0.15s,color 0.15s;-webkit-tap-highlight-color:transparent;padding:0">💨</button>
                     <button id="cloudBtn" onclick="toggleCloudPopup()" title="Cloud forecast" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:30px;height:30px;font-size:0.95rem;cursor:pointer;line-height:1;flex-shrink:0;transition:border-color 0.15s,color 0.15s;-webkit-tap-highlight-color:transparent;padding:0">☁️</button>
                     <button id="accountBtn" onclick="openAccountModal()" title="Account" style="background:none;border:1px solid var(--muted);color:var(--muted);border-radius:50%;width:30px;height:30px;font-size:0.95rem;cursor:pointer;line-height:1;flex-shrink:0;transition:border-color 0.15s,color 0.15s;-webkit-tap-highlight-color:transparent;padding:0">👤</button>
@@ -3975,8 +3976,7 @@ function showAccountStep(step){
     const id = { off:"acctOff", email:"acctEmailStep", code:"acctCodeStep", in:"acctSignedIn" }[step];
     document.getElementById(id).style.display = step==="off" ? "block" : "flex";
     if (step==="in") document.getElementById("acctWho").textContent = acctUser.email;
-    // only admin accounts (ADMIN_EMAILS on the server) see this; the server checks again on /admin
-    document.getElementById("acctAdminBtn").style.display = (step==="in" && acctUser && acctUser.admin) ? "block" : "none";
+    updateAdminButtons();
     acctMsg("");
 }
 function openAccountModal(){
@@ -4045,12 +4045,19 @@ function onSignedIn(justNow){
     }
     if (Object.keys(up).length) syncSettingsUp(up);
 }
+// 🛠️ header button: only for admin accounts (ADMIN_EMAILS on the server). Hiding it is cosmetic —
+// /admin itself checks the signed-in account on every request.
+function updateAdminButtons(){
+    const show = !!(acctUser && acctUser.admin);
+    document.querySelectorAll(".adminOnly").forEach(b => { b.style.display = show ? "" : "none"; });
+}
 async function initAccount(){
     const q = new URLSearchParams(location.search), justNow = q.has("signedin");
     if (q.has("signedin") || q.has("signin")) history.replaceState(null, "", location.pathname);
     try {
         const d = await (await fetch("/auth/me", { credentials:"same-origin" })).json();
         acctEnabled = !!d.enabled; acctUser = d.user;
+        updateAdminButtons();
         if (acctUser) onSignedIn(justNow);
         if (q.get("signin") === "expired"){ openAccountModal(); acctMsg("That sign-in link has expired. Send a new code.", true); }
     } catch(e){}

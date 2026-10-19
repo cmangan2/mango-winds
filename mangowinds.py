@@ -30,15 +30,9 @@ ADMIN_EMAILS    = {e.strip().lower() for e in os.environ.get("ADMIN_EMAILS", "")
 _ENV_TOKENS     = {t for t in (os.environ.get("CACHE_TOKEN", ""), ADMIN_TOKEN) if t and t not in ("mango", "mango-admin-2024")}
 
 
-# The admin pages are their own installable app ("MWH Admin"): own manifest id + scope (/admin), own icon,
-# so Chrome offers to install it next to the main app instead of saying it's already installed.
+# Admin pages open inside the main app (🛠️ header button, admins only); no separate installable app.
 ADMIN_HEAD = """<meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta name="theme-color" content="#070b10">
-    <link rel="manifest" href="/static/admin-manifest.json">
-    <link rel="icon" href="/static/icon-admin-192.png">
-    <link rel="apple-touch-icon" href="/static/icon-admin-192.png">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="MWH Admin">"""
+    <meta name="theme-color" content="#070b10">"""
 ADMIN_NAV = """<div style="display:flex;gap:14px;flex-wrap:wrap;margin:0 0 12px;font-family:sans-serif;font-size:0.9rem">
     <a style="color:#00d4ff" href="/admin">Dashboard</a><a style="color:#00d4ff" href="/admin/dropzones">Dropzones</a>
     <a style="color:#00d4ff" href="/stats">Public stats</a><a style="color:#00d4ff" href="/">Open app</a>

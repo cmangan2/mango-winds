@@ -23,7 +23,22 @@ CACHE_FILE  = os.environ.get("CACHE_FILE", os.path.join(os.path.dirname(__file__
 USER_DZ_FILE    = os.environ.get("USER_DZ_FILE",    os.path.join(os.path.dirname(CACHE_FILE), "user_dropzones.txt"))
 PENDING_DZ_FILE = os.environ.get("PENDING_DZ_FILE", os.path.join(os.path.dirname(CACHE_FILE), "pending_dropzones.txt"))
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "")
-ADMIN_TOKEN     = os.environ.get("ADMIN_TOKEN", "mango-admin-2024")
+ADMIN_TOKEN     = os.environ.get("ADMIN_TOKEN", "")
+# Admin access: a signed-in account whose email is listed here (comma-separated, Render env), or a
+# token only if it was set in the environment (the old built-in defaults were public in the page/repo)
+ADMIN_EMAILS    = {e.strip().lower() for e in os.environ.get("ADMIN_EMAILS", "").split(",") if e.strip()}
+_ENV_TOKENS     = {t for t in (os.environ.get("CACHE_TOKEN", ""), ADMIN_TOKEN) if t and t not in ("mango", "mango-admin-2024")}
+
+
+def is_admin(token=None):
+    """True for a signed-in admin account (ADMIN_EMAILS), or a token set in the environment."""
+    if token and token in _ENV_TOKENS:
+        return True
+    try:
+        user = current_user()
+    except Exception:
+        return False
+    return bool(user and user["email"].lower() in ADMIN_EMAILS)
 GITHUB_TOKEN    = os.environ.get("GITHUB_TOKEN", "")
 GITHUB_REPO     = os.environ.get("GITHUB_REPO", "cmangan2/mango-winds")
 GH_DZ_FILE      = "Dropzone list.txt"   # path inside the repo
@@ -1455,9 +1470,9 @@ def stats_page():
 @app.route("/admin")
 def admin():
     token = request.args.get("token", "")
-    expected = os.environ.get("CACHE_TOKEN", "mango")
-    if token != expected:
-        return "<h2 style='font-family:monospace;color:red'>Unauthorized</h2>", 403
+    if not is_admin(token):
+        return ("<h2 style='font-family:sans-serif;color:#ff4f4f'>Admin only</h2>"
+                "<p style='font-family:sans-serif'>Sign in to Mango Wind Hub with an admin account (👤 in the app), then open this page from the same browser.</p>"), 403
     # ?count_me=0 stops counting this browser's visits on /stats (testing), ?count_me=1 undoes it
     count_me = request.args.get("count_me")
     resp = make_response(admin_page(token, count_me))
@@ -1472,14 +1487,14 @@ def admin():
 def admin_page(token, count_me=None):
     from urllib.parse import quote
     excluded = (count_me == "0") or (count_me != "1" and request.cookies.get(NOCOUNT_COOKIE) == "1")
-    tq = quote(token)
+    tq = quote(token) if token else ""
     count_me_html = (
         f"<div style='background:#0d1520;border:1px solid #1e3045;border-radius:8px;padding:10px 12px;margin:10px 0'>"
         + (f"<b style='color:#39ff89'>This browser is not counted</b> in visit stats. "
-           f"<a style='color:#00d4ff' href='/admin?token={tq}&count_me=1'>Count it again</a>"
+           f"<a style='color:#00d4ff' href='/admin?{'token=' + tq + '&' if tq else ''}count_me=1'>Count it again</a>"
            if excluded else
            f"<b style='color:#ffaa00'>This browser is counted</b> in visit stats. "
-           f"<a style='color:#00d4ff' href='/admin?token={tq}&count_me=0'>Stop counting me</a> (for testing; do it once in each browser / phone you use)")
+           f"<a style='color:#00d4ff' href='/admin?{'token=' + tq + '&' if tq else ''}count_me=0'>Stop counting me</a> (for testing; do it once in each browser / phone you use)")
         + "</div>")
 
     from datetime import date, timedelta as td
@@ -1655,7 +1670,7 @@ def notify_discord(name, lat, lon, icao, submission_id):
     if not DISCORD_WEBHOOK:
         return
     try:
-        admin_url = f"https://mango-winds.onrender.com/admin/dropzones?token={ADMIN_TOKEN}"
+        admin_url = "https://mango-winds.onrender.com/admin/dropzones" + (f"?token={ADMIN_TOKEN}" if ADMIN_TOKEN else "")
         msg = {"embeds": [{"title": "✈️ New Dropzone Added (Live)", "color": 0x00d4ff,
             "fields": [
                 {"name": "Name", "value": name, "inline": False},
@@ -1769,8 +1784,9 @@ def add_dropzone():
 @app.route("/admin/dropzones")
 def admin_dropzones():
     token = request.args.get("token", "")
-    if token != ADMIN_TOKEN:
-        return "Unauthorized", 403
+    if not is_admin(token):
+        return ("<h2 style='font-family:sans-serif;color:#ff4f4f'>Admin only</h2>"
+                "<p style='font-family:sans-serif'>Sign in to Mango Wind Hub with an admin account (👤 in the app), then open this page from the same browser.</p>"), 403
     pending = load_pending_dzs()
     rows = ""
     for p in pending:
@@ -1808,7 +1824,7 @@ td{{padding:10px 12px;border-bottom:1px solid #1a2535;vertical-align:middle}}
 def admin_dropzone_action():
     from urllib.parse import quote
     token = request.args.get("token", "")
-    if token != ADMIN_TOKEN:
+    if not is_admin(token):
         return "Unauthorized", 403
     sub_id = request.form.get("id", "").strip()
     action = request.form.get("action", "")
@@ -1995,9 +2011,9 @@ def lastload():
 @app.route("/models")
 def models_debug():
     """Hidden read-only view: each model's own surface/low-level winds (not the blended values).
-    /models?token=...&lat=..&lon=..&hour=0  (token = CACHE_TOKEN, same as /clearcache)"""
+    /models?lat=..&lon=..&hour=0 — admin only (signed-in admin account, or ?token= set in the env)"""
     token = request.args.get("token", "")
-    if token != os.environ.get("CACHE_TOKEN", "mango"):
+    if not is_admin(token):
         return jsonify({"error": "unauthorized"}), 403
     lat = request.args.get("lat", 43.371169, type=float)
     lon = request.args.get("lon", -70.925974, type=float)
@@ -2057,12 +2073,17 @@ def models_debug():
                     "models": out})
 
 
+_last_clear = [0.0]
+
+
 @app.route("/clearcache")
 def clearcache():
-    token = request.args.get("token", "")
-    expected = os.environ.get("CACHE_TOKEN", "mango")
-    if token != expected:
-        return jsonify({"error": "unauthorized"}), 403
+    """The app's ↺ button: open to everyone (its old token was in the page source anyway), but at most
+    once a minute so it can't be used to burn the Open-Meteo quota."""
+    import time as _t
+    if _t.time() - _last_clear[0] < 60:
+        return jsonify({"status": "recently cleared"})
+    _last_clear[0] = _t.time()
     _forecast_cache.clear()
     return jsonify({"status": "cache cleared"})
 
@@ -2672,8 +2693,7 @@ def adsb_trails_fetch_status():
 def adsb_trails_refresh():
     """Admin endpoint to manually trigger an ADS-B poll immediately."""
     token = request.args.get("token", "")
-    expected = os.environ.get("CACHE_TOKEN", "mango")
-    if token != expected:
+    if not is_admin(token):
         return jsonify({"error": "unauthorized"}), 403
     try:
         fetch_adsb_trails_now()
@@ -2870,7 +2890,8 @@ def current_user():
 
 
 def _me_json(user):
-    return {"enabled": DB_OK, "user": {"email": user["email"], "settings": user["settings"]} if user else None}
+    return {"enabled": DB_OK, "user": {"email": user["email"], "settings": user["settings"],
+                                       "admin": user["email"].lower() in ADMIN_EMAILS} if user else None}
 
 
 def _start_session(email, resp):

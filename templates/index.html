@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.6.9">
+<meta name="app-version" content="4.6.10">
 <script>
 try {
-    const CURRENT_VERSION = "4.6.9";
+    const CURRENT_VERSION = "4.6.10";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -563,6 +563,7 @@ select:focus { border-color: var(--accent); }
             </div>
             <div id="acctSignedIn" style="display:none;flex-direction:column;gap:10px">
                 <div style="font-size:0.82rem;color:var(--muted);line-height:1.45">Signed in as <b id="acctWho" style="color:var(--text)"></b>. Your canopy settings and dropzone sync to every device you sign in on.</div>
+                <button id="acctAdminBtn" onclick="window.open('/admin','_blank')" style="display:none;padding:9px;background:none;color:#39ff89;border:1px solid #39ff89;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:0.92rem;letter-spacing:0.06em;cursor:pointer">🛠️ Admin</button>
                 <button onclick="signOut()" style="padding:9px;background:var(--card-bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:0.92rem;letter-spacing:0.06em;cursor:pointer">Sign out</button>
                 <button onclick="deleteAccount()" style="background:none;border:none;color:var(--red);cursor:pointer;padding:0;font-family:'Barlow Condensed',sans-serif;font-size:0.85rem;letter-spacing:0.04em">Delete my account</button>
             </div>
@@ -2063,7 +2064,7 @@ function resetCanopySettings(){
     updateAdvPreview(); closeAdvancedModal(); load();
 }
 ["advSize","advWeight","advType","advOpenAlt","advGlide","advResSize","advResType","advResGlide","advResShow"].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener("input",updateAdvPreview); });
-async function clearAndReload(){ try{ await fetch('/clearcache?token=mango'); }catch(e){} load(); }
+async function clearAndReload(){ try{ await fetch('/clearcache'); }catch(e){} load(); }
 function openDefineModal(){ document.getElementById("defineModal").style.display="flex"; document.getElementById("dfDir").focus(); }
 function closeDefineModal(){ document.getElementById("defineModal").style.display="none"; document.getElementById("dfError").style.display="none"; }
 function miToMeters(mi){ return mi*1609.344; }
@@ -3974,6 +3975,8 @@ function showAccountStep(step){
     const id = { off:"acctOff", email:"acctEmailStep", code:"acctCodeStep", in:"acctSignedIn" }[step];
     document.getElementById(id).style.display = step==="off" ? "block" : "flex";
     if (step==="in") document.getElementById("acctWho").textContent = acctUser.email;
+    // only admin accounts (ADMIN_EMAILS on the server) see this; the server checks again on /admin
+    document.getElementById("acctAdminBtn").style.display = (step==="in" && acctUser && acctUser.admin) ? "block" : "none";
     acctMsg("");
 }
 function openAccountModal(){

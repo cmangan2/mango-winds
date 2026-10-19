@@ -28,6 +28,7 @@ GITHUB_TOKEN    = os.environ.get("GITHUB_TOKEN", "")
 GITHUB_REPO     = os.environ.get("GITHUB_REPO", "cmangan2/mango-winds")
 GH_DZ_FILE      = "Dropzone list.txt"   # path inside the repo
 VISITS_FILE   = os.environ.get("VISITS_FILE",   os.path.join(os.path.dirname(__file__), "visits.json"))
+VISITS_SEEN_FILE = os.environ.get("VISITS_SEEN_FILE", os.path.join(os.path.dirname(VISITS_FILE), "visits_seen.json"))
 TAILS_FILE    = os.environ.get("TAILS_FILE",    os.path.join(os.path.dirname(__file__), "tails.json"))
 LASTLOAD_FILE    = os.environ.get("LASTLOAD_FILE",    os.path.join(os.path.dirname(__file__), "lastload.json"))
 ADSB_TRAILS_FILE = os.environ.get("ADSB_TRAILS_FILE", os.path.join(os.path.dirname(__file__), "adsb_trails.json"))
@@ -158,7 +159,7 @@ def save_visits():
     except Exception as e:
         print(f"Visit save error: {e}")
 
-_recent_visits = {}   # dz -> [epoch s] of app loads in the last hour (in memory only)
+_recent_visits = {}   # dz -> {device hash: epoch s of its latest load} for the last hour (in memory only)
 
 def dz_tz(dz_name):
     """The DZ's local time zone (pytz), looked up from its coordinates; Eastern if unknown."""
@@ -176,16 +177,59 @@ def dz_tz(dz_name):
     except Exception:
         return pytz.timezone("America/New_York")
 
-def record_visit(dz_name):
-    # counted on the DZ's own local date (stored history before v4.6.6 is by UTC date)
-    today = datetime.now(dz_tz(dz_name)).strftime("%Y-%m-%d")
-    import time as _t
+# Unique visits: one per device per DZ per local day. Devices are told apart by an anonymous
+# random cookie (VISITOR_COOKIE, set on "/"); only a short hash of it is stored, and only for
+# the last two days. Devices with NOCOUNT_COOKIE (set from /admin) are never counted.
+VISITOR_COOKIE = "mwh_vid"
+NOCOUNT_COOKIE = "mwh_nocount"
+_visit_seen = {}      # dz -> {local date: [device hashes counted that day]}
+_visit_lock = threading.Lock()
+
+try:
+    if os.path.exists(VISITS_SEEN_FILE):
+        with open(VISITS_SEEN_FILE) as f:
+            _visit_seen = json.load(f)
+except Exception as e:
+    print(f"Visit-seen load error: {e}")
+
+
+def _save_visit_seen():
+    try:
+        tmp = VISITS_SEEN_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(_visit_seen, f)
+        os.replace(tmp, VISITS_SEEN_FILE)
+    except Exception as e:
+        print(f"Visit-seen save error: {e}")
+
+
+def record_visit(dz_name, visitor):
+    """Count one visit per device (visitor id) per DZ per DZ-local day.
+    Counts before v4.6.7 are raw data loads and stay as they were."""
+    import hashlib as _h, time as _t
+    tz = dz_tz(dz_name)
+    today = datetime.now(tz).strftime("%Y-%m-%d")
+    yesterday = (datetime.now(tz) - timedelta(days=1)).strftime("%Y-%m-%d")
+    vh = _h.sha256(visitor.encode()).hexdigest()[:16]
     now = _t.time()
-    _recent_visits[dz_name] = [t for t in _recent_visits.get(dz_name, []) if now - t < 3600] + [now]
-    if dz_name not in _visit_log:
-        _visit_log[dz_name] = {}
-    _visit_log[dz_name][today] = _visit_log[dz_name].get(today, 0) + 1
-    save_visits()
+    with _visit_lock:
+        # active-now: unique devices with a load in the last hour
+        recent = {v: t for v, t in _recent_visits.get(dz_name, {}).items() if now - t < 3600}
+        recent[vh] = now
+        _recent_visits[dz_name] = recent
+        days = _visit_seen.setdefault(dz_name, {})
+        for d in list(days):
+            if d not in (today, yesterday):
+                del days[d]
+        seen = days.setdefault(today, [])
+        if vh in seen:
+            return False
+        seen.append(vh)
+        _save_visit_seen()
+        _visit_log.setdefault(dz_name, {})
+        _visit_log[dz_name][today] = _visit_log[dz_name].get(today, 0) + 1
+        save_visits()
+        return True
 
 load_visits()
 
@@ -1235,7 +1279,8 @@ def stats_page():
     total_all = sum(dz_totals.values())
 
     flights = dz_flight_status(now)
-    loads_1h = {dz: len([t for t in ts if now - t < 3600]) for dz, ts in _recent_visits.items()}
+    with _visit_lock:
+        loads_1h = {dz: len([t for t in v.values() if now - t < 3600]) for dz, v in _recent_visits.items()}
 
     # ── Active now: plane in the air, landed within the hour, or app loads in the last hour ──
     active = []
@@ -1255,7 +1300,7 @@ def stats_page():
         elif recent_landing:
             bits.append(f"<span style='color:#00d4ff'>&#x1F6EC; {escape(f['last_tail'])} landed {int(landed_ago // 60)} min ago</span>")
         if n:
-            bits.append(f"<span style='color:#ffaa00'>&#x1F440; {n} app load{'s' if n != 1 else ''} in the last hour</span>")
+            bits.append(f"<span style='color:#ffaa00'>&#x1F440; {n} {'person' if n == 1 else 'people'} using the app in the last hour</span>")
         rank = 0 if flying else 1 if recent_landing else 2
         local_now = datetime.now(tz)
         clock = f"{local_now.strftime('%I:%M %p').lstrip('0').lower()} {local_now.strftime('%Z')}"
@@ -1263,7 +1308,7 @@ def stats_page():
             <div style="display:flex;justify-content:space-between;gap:8px"><b>{escape(dz)}</b><span style="color:#5a7a96;white-space:nowrap">{clock}</span></div>
             <div style="margin-top:3px">{' &middot; '.join(bits)}</div></div>"""))
     active.sort()
-    active_html = "".join(a[3] for a in active) or "<p>No DZ is active right now: no saved plane in the air or landed in the last hour, and no app loads in the last hour.</p>"
+    active_html = "".join(a[3] for a in active) or "<p>No DZ is active right now: no saved plane in the air or landed in the last hour, and nobody using the app for a DZ in the last hour.</p>"
 
     dz_rows = ""
     max_week = max(dz_weekly.values(), default=0) or 1
@@ -1307,7 +1352,7 @@ def stats_page():
 
     <div style="margin:16px 0">
         <div class="stat"><div class="n">{len(active)}</div><div class="l">Active Now</div></div>
-        <div class="stat"><div class="n">{total_week}</div><div class="l">Loads This Week</div></div>
+        <div class="stat"><div class="n">{total_week}</div><div class="l">Visits This Week</div></div>
         <div class="stat"><div class="n">{total_all}</div><div class="l">All Time</div></div>
         <div class="stat"><div class="n">{len(dz_totals)}</div><div class="l">DZs Using It</div></div>
     </div>
@@ -1320,7 +1365,7 @@ def stats_page():
         <tr><th>Dropzone</th><th class="bar"></th><th style="text-align:center">This Week</th><th style="text-align:center">All Time</th></tr>
         {dz_rows}
     </table>
-    <p style="margin-top:16px">A visit = one data load at the current forecast hour. &ldquo;This Week&rdquo; runs Sunday to today in each DZ&rsquo;s local time. Last Flight = when one of the DZ&rsquo;s saved planes last landed.</p>
+    <p style="margin-top:16px">A visit = one device opening a DZ on a given day (local time); reloading or coming back the same day doesn&rsquo;t add more. Counts before Oct 19, 2026 were every data load. &ldquo;This Week&rdquo; runs Sunday to today in each DZ&rsquo;s local time. Last Flight = when one of the DZ&rsquo;s saved planes last landed.</p>
     </body></html>"""
 
 
@@ -1330,6 +1375,29 @@ def admin():
     expected = os.environ.get("CACHE_TOKEN", "mango")
     if token != expected:
         return "<h2 style='font-family:monospace;color:red'>Unauthorized</h2>", 403
+    # ?count_me=0 stops counting this browser's visits on /stats (testing), ?count_me=1 undoes it
+    count_me = request.args.get("count_me")
+    resp = make_response(admin_page(token, count_me))
+    if count_me == "0":
+        resp.set_cookie(NOCOUNT_COOKIE, "1", max_age=5 * 365 * 86400, httponly=True, samesite="Lax",
+                        secure=request.is_secure)
+    elif count_me == "1":
+        resp.delete_cookie(NOCOUNT_COOKIE)
+    return resp
+
+
+def admin_page(token, count_me=None):
+    from urllib.parse import quote
+    excluded = (count_me == "0") or (count_me != "1" and request.cookies.get(NOCOUNT_COOKIE) == "1")
+    tq = quote(token)
+    count_me_html = (
+        f"<div style='background:#0d1520;border:1px solid #1e3045;border-radius:8px;padding:10px 12px;margin:10px 0'>"
+        + (f"<b style='color:#39ff89'>This browser is not counted</b> in visit stats. "
+           f"<a style='color:#00d4ff' href='/admin?token={tq}&count_me=1'>Count it again</a>"
+           if excluded else
+           f"<b style='color:#ffaa00'>This browser is counted</b> in visit stats. "
+           f"<a style='color:#00d4ff' href='/admin?token={tq}&count_me=0'>Stop counting me</a> (for testing; do it once in each browser / phone you use)")
+        + "</div>")
 
     from datetime import date, timedelta as td
     today = date.today()
@@ -1414,7 +1482,8 @@ def admin():
         .stat .n{{font-size:2rem;color:#00d4ff;font-weight:bold}} .stat .l{{font-size:0.75rem;color:#5a7a96;text-transform:uppercase}}
     </style></head><body>
     <h2>Mango Wind Hub — Admin</h2>
-    <p style="color:#5a7a96;font-size:0.8rem">Visit = page load at hour=0 (unique data fetches, not refreshes)</p>
+    {count_me_html}
+    <p style="color:#5a7a96;font-size:0.8rem">Visit = one device opening a DZ per local day (from Oct 19, 2026; earlier = every data load at hour 0)</p>
 
     <div style="margin:16px 0">
         <div class="stat"><div class="n">{total_week}</div><div class="l">This Week</div></div>
@@ -2037,7 +2106,10 @@ def data():
             dz_name = name
             break
     if hour_offset == 0:  # only count current-hour loads, not forecast scrolling
-        record_visit(dz_name)
+        visitor = request.cookies.get(VISITOR_COOKIE)
+        # no cookie = not a browser that loaded the page (curl, bots, the prewarm) -> not counted
+        if visitor and request.cookies.get(NOCOUNT_COOKIE) != "1":
+            record_visit(dz_name, visitor)
 
     # Forecast, METAR and cloud data come from three different services — fetch them at the same time
     with ThreadPoolExecutor(max_workers=3) as dex:
@@ -2969,6 +3041,10 @@ def index():
     dz_frontend = {k: (v[0], v[1]) for k, v in DROPZONES.items()}
     is_dev = os.environ.get("ENV", "production") == "dev"
     resp = make_response(render_template("index.html", dz=dz_frontend, is_dev=is_dev))
+    if not request.cookies.get(VISITOR_COOKIE):
+        # anonymous random id, only used to count each device once per DZ per day on /stats
+        resp.set_cookie(VISITOR_COOKIE, secrets.token_urlsafe(12), max_age=2 * 365 * 86400,
+                        httponly=True, samesite="Lax", secure=request.is_secure)
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     resp.headers["Pragma"] = "no-cache"
     resp.headers["Expires"] = "0"

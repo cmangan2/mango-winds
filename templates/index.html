@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.5.49">
+<meta name="app-version" content="4.5.50">
 <script>
 try {
-    const CURRENT_VERSION = "4.5.49";
+    const CURRENT_VERSION = "4.5.50";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -324,7 +324,7 @@ select:focus { border-color: var(--accent); }
             <div class="wc-section"><div class="wc-icon" style="color:var(--muted)">&#x2699;&#xFE0F;</div><div><div class="wc-title">Canopy Settings</div><div class="wc-text">Tap <b>Canopy Settings</b> and enter <b>canopy size, exit weight, type</b>, opening altitude and (optionally) a known glide ratio. Add your <b>reserve</b> size and type too. The circle, flight time and descent rate update to match your gear. Your settings are <b>saved on this device</b> and kept through app updates; <b>Reset to defaults</b> clears them.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F4CA;</div><div><div class="wc-title">Winds by Altitude</div><div class="wc-text">Each row blends <b>GFS, ICON, HRRR, HRDPS and ECMWF</b>, weighted toward the models that agree. The <b>Agree</b> column shows how closely they match. <b>Surface</b> uses the live <b>METAR</b> for the current hour when your DZ has a station. Light, shifty wind below 8 kt shows as <b>Calm</b>. Tap <b>Hide</b> to collapse the table.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--freefall)">&#x1F4A8;</div><div><div class="wc-title">Wind Widget</div><div class="wc-text">The <b>Freefall / Canopy / Surface</b> widget shows drift and wind at a glance. Tap an item for live <b>wind particles</b> on the map. Press and drag anywhere on the widget to move it out of the way. Reopen the widget with the &#x1F4A8; button in the header.</div></div></div>
-            <div class="wc-section"><div class="wc-icon" style="color:#fff">&#x270F;&#xFE0F;</div><div><div class="wc-title">Jump Run</div><div class="wc-text"><b>Draw</b> a jump run by dragging on the map, <b>Suggest</b> one (enter a heading and it finds the longest run that keeps every landing inside the green circle with a 15% margin, 45% on the downwind side), or <b>Define</b> one: enter heading, <b>Prior/Past</b> (distance from the DZ center along that heading) and <b>Offset</b> (N/S/E/W &mdash; pick the direction closest to perpendicular to the run), plus length. A box at the start (tap and drag it to move it out of the way) shows heading, prior/past, offset, estimated ground speed and recommended jumper separation (1,500 ft of ground distance between groups, converted to seconds). <b>Replay</b> animates the exits and freefall drift; <b>Clear</b> removes it. Jump runs are not saved.</div></div></div>
+            <div class="wc-section"><div class="wc-icon" style="color:#fff">&#x270F;&#xFE0F;</div><div><div class="wc-title">Jump Run</div><div class="wc-text"><b>Draw</b> a jump run by dragging on the map, <b>Suggest</b> one (enter a heading and it finds the longest run that keeps every landing inside the green circle with a 15% margin, 45% on the downwind side; its Prior/Past and Offset are snapped to the nearest 0.1 mi so they&rsquo;re easy to call out), or <b>Define</b> one: enter heading, <b>Prior/Past</b> (distance from the DZ center along that heading) and <b>Offset</b> (N/S/E/W &mdash; pick the direction closest to perpendicular to the run), plus length. A box at the start (tap and drag it to move it out of the way) shows heading, prior/past, offset, estimated ground speed and recommended jumper separation (1,500 ft of ground distance between groups, converted to seconds). <b>Replay</b> animates the exits and freefall drift; <b>Clear</b> removes it. Jump runs are not saved.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--red)">&#x1F3AF;</div><div><div class="wc-title">Landing Pattern</div><div class="wc-text">Tap <b>Place Landing Spot</b>, click the map, then choose final heading (into wind or custom) and pattern direction. Wind-adjusted legs at 1,000 / 600 / 300 ft.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x2708;&#xFE0F;</div><div><div class="wc-title">Plane Tracker</div><div class="wc-text"><b>Track Plane</b> follows your DZ&rsquo;s aircraft live with a trail and label. While the page is open, planes that are flying are picked up <b>automatically</b>, but only planes that have been entered for this DZ before (enter a new tail number once to add it); tap <b>Stop</b> on one to keep it off. The Track Plane list shows every plane saved for the current DZ; tap the <b>✕</b> on a plane to remove it from that list (this doesn&rsquo;t stop tracking; use <b>Stop</b> for that). If a plane is off-screen, an <b>arrow</b> at the map edge points to it.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:#00d4ff">&#x1F501;</div><div><div class="wc-title">Last Load &amp; Fetch Plane Data</div><div class="wc-text"><b>Show Last Load</b> draws the most recent flight trail for the planes you choose. <b>Fetch Plane Data</b> pulls the latest flight for selected planes so it&rsquo;s ready to show. If a plane is <b>flying right now</b>, Fetch pulls the <b>load before</b> the one in the air. Trails come from ADS-B Exchange; the server also records every saved plane&rsquo;s flights from live ADS-B and uses that recording when the trail source has nothing (or is behind), so a load that just landed still shows up.</div></div></div>
@@ -743,19 +743,20 @@ function drawJrBox(){
     const hdg = bearing(jrStart, jrEnd);
     let pp, offTxt;
     if (jrDef) {
-        pp = jrDef.dist > 0 ? `${jrDef.distDir === "prior" ? "Prior" : "Past"} ${jrDef.dist.toFixed(2)} mi` : "At DZ";
-        offTxt = jrDef.offset > 0 ? `${jrDef.offset.toFixed(2)} mi ${jrDef.offDir}` : "None";
+        pp = jrDef.dist > 0 ? `${jrDef.distDir === "prior" ? "Prior" : "Past"} ${jrDef.dist.toFixed(1)} mi` : "At DZ";
+        offTxt = jrDef.offset > 0 ? `${jrDef.offset.toFixed(1)} mi ${jrDef.offDir}` : "None";
     } else {
+        // Same 111,000 m/deg scale the green shape and Suggested Jump Run use, so a snapped 0.1 mi reads back exactly
         const cosLat = Math.cos(lat * Math.PI / 180);
-        const dx = (jrStart[1] - lon) * 111320 * cosLat / 1609.344;
-        const dy = (jrStart[0] - lat) * 110574 / 1609.344;
+        const dx = (jrStart[1] - lon) * 111000 * cosLat / 1609.344;
+        const dy = (jrStart[0] - lat) * 111000 / 1609.344;
         const h = hdg * Math.PI / 180;
         const along = dx * Math.sin(h) + dy * Math.cos(h);
         const cross = dx * Math.cos(h) - dy * Math.sin(h);
-        pp = Math.abs(along) < 0.005 ? "At DZ" : `${along < 0 ? "Prior" : "Past"} ${Math.abs(along).toFixed(2)} mi`;
+        pp = Math.abs(along) < 0.05 ? "At DZ" : `${along < 0 ? "Prior" : "Past"} ${Math.abs(along).toFixed(1)} mi`;
         const offB = (hdg + (cross >= 0 ? 90 : 270)) % 360;
         const card = ["N","E","S","W"][Math.round(offB / 90) % 4];
-        offTxt = Math.abs(cross) < 0.005 ? "None" : `${Math.abs(cross).toFixed(2)} mi ${card}`;
+        offTxt = Math.abs(cross) < 0.05 ? "None" : `${Math.abs(cross).toFixed(1)} mi ${card}`;
     }
     const spd = lastGndSpeedKts ? lastGndSpeedKts.toFixed(0) + " kt" : "—";
     const sep = recommendedSep(lastGndSpeedKts);
@@ -2005,6 +2006,7 @@ function submitDefineJumpRun(){
 // ── SUGGESTED JUMP RUN ──
 const SUGGEST_MARGIN = 0.85;        // landing spots must be inside 85% of the green shape (15% margin)
 const SUGGEST_MARGIN_DOWNWIND = 0.55; // ...and 55% on the downwind side (45% margin), blending in smoothly from crosswind
+const SUGGEST_GRID_M = 0.1*1609.344; // Prior/Past and Offset are snapped to the nearest 0.1 mi
 const SUGGEST_MIN_LEN_FRAC = 0.6;   // centering on the DZ may shorten the run, but never below 60% of the longest possible run (raise = longer runs, lower = closer to DZ)
 function openSuggestModal(){
     const m = document.getElementById("suggestModal");
@@ -2050,10 +2052,16 @@ function suggestRunGeometry(polyM, driftM, headingDeg, up){
     // prefer the cross-track line whose LANDINGS fall closest to the DZ center, as long as it keeps at least
     // SUGGEST_MIN_LEN_FRAC of the longest run available on this heading.
     const STEPS = 480;
-    const cands = []; let maxLen = 0;
+    let maxLen = 0;
     for (let i=1; i<STEPS; i++){
-        const c = cMin + (cMax-cMin)*i/STEPS, ch = chordAlong(S, u, n, c);
-        if (ch){ const len = ch[1]-ch[0]; cands.push({ c, ch, len }); if (len > maxLen) maxLen = len; }
+        const ch = chordAlong(S, u, n, cMin + (cMax-cMin)*i/STEPS);
+        if (ch && ch[1]-ch[0] > maxLen) maxLen = ch[1]-ch[0];
+    }
+    // Candidate run lines only on a 0.1 mi offset grid, so the Offset the pilot is given is a round number
+    const cands = [];
+    for (let k = Math.ceil(cMin/SUGGEST_GRID_M); k*SUGGEST_GRID_M <= cMax; k++){
+        const c = k*SUGGEST_GRID_M, ch = chordAlong(S, u, n, c);
+        if (ch) cands.push({ c, ch, len: ch[1]-ch[0] });
     }
     if (!cands.length) return null;
     const driftCross = driftM[0]*n[0] + driftM[1]*n[1];
@@ -2063,6 +2071,7 @@ function suggestRunGeometry(polyM, driftM, headingDeg, up){
         if (k.len < maxLen*SUGGEST_MIN_LEN_FRAC) continue;
         if (!best || Math.abs(landOff(k.c)) < Math.abs(landOff(best.c))) best = k;
     }
+    if (!best) best = cands.reduce((a, b) => b.len > a.len ? b : a);   // shape too narrow for the grid to hit a long-enough line: take the longest
     const bestC = best.c, bestChord = best.ch, bestLen = best.len;
     const pt = t => [u[0]*t + n[0]*bestC, u[1]*t + n[1]*bestC];
     const TRIM = Math.min(25, bestLen*0.02);   // keep the first/last landing a hair inside the margin line
@@ -2083,8 +2092,13 @@ function submitSuggestedJumpRun(){
     const airspeed = 85*0.514444, wMs = lastWind14k.speed*0.514444;
     const diff = ((lastWind14k.direction - dir + 180 + 360) % 360) - 180;
     const gs = Math.max(airspeed - wMs*Math.cos(diff*Math.PI/180), airspeed*0.4);
-    const h = dir*Math.PI/180, lead = gs*2;                      // exits begin 2 s after the run starts
-    const startM = [g.start[0] - Math.sin(h)*lead, g.start[1] - Math.cos(h)*lead];
+    const h = dir*Math.PI/180, u = [Math.sin(h), Math.cos(h)], lead = gs*2;   // exits begin 2 s after the run starts
+    // Snap the start's Prior/Past to the 0.1 mi grid, rounding forward (later) so the first landing never leaves the margin shape
+    const tEnd = g.end[0]*u[0] + g.end[1]*u[1];
+    const tStart = Math.ceil((g.start[0]*u[0] + g.start[1]*u[1] - lead) / SUGGEST_GRID_M) * SUGGEST_GRID_M;
+    if (tEnd - tStart - lead < 150) return fail("No jump run on that heading keeps every landing inside the green circle with the margins (15%, 45% downwind). Try a different heading.");
+    const shift = tStart - (g.start[0]*u[0] + g.start[1]*u[1]);
+    const startM = [g.start[0] + u[0]*shift, g.start[1] + u[1]*shift];
     const cosLat = Math.cos(lat*Math.PI/180);
     const toLL = q => [lat + q[1]/111000, lon + q[0]/(111000*cosLat)];
     jrDef = null;

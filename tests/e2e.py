@@ -65,12 +65,18 @@ def main():
             pg.evaluate("clearJumpRun()")
 
             # 4. Suggested Jump Run produces a run on several headings
-            pg.click("#suggestBtn"); ok = True
+            pg.click("#suggestBtn"); ok = True; snapped = True
             for d in (0, 90, 200, 300):
                 pg.fill("#sgDir", str(d)); pg.click("#sgSubmitBtn"); pg.wait_for_timeout(400)
                 ok &= pg.evaluate("!!jrStart && !!jrEnd")
+                # Prior/Past and Offset of the start land on a 0.1 mi grid
+                snap = pg.evaluate("""(() => { const c = Math.cos(lat*Math.PI/180), h = bearing(jrStart, jrEnd)*Math.PI/180;
+                    const dx = (jrStart[1]-lon)*111000*c/1609.344, dy = (jrStart[0]-lat)*111000/1609.344;
+                    return [dx*Math.sin(h)+dy*Math.cos(h), dx*Math.cos(h)-dy*Math.sin(h)]; })()""")
+                snapped &= all(abs(v * 10 - round(v * 10)) < 0.02 for v in snap)
                 pg.evaluate("clearJumpRun();openSuggestModal()")
             check("suggested jump run works for 4 headings", ok)
+            check("suggested prior/past and offset snap to 0.1 mi", snapped)
 
             # 5. recommended separation formula
             check("separation = 1500 ft / ground speed, rounded", pg.evaluate("[60,90,120].map(recommendedSep)") == [15, 10, 7])

@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.6.14">
+<meta name="app-version" content="4.6.15">
 <script>
 try {
-    const CURRENT_VERSION = "4.6.14";
+    const CURRENT_VERSION = "4.6.15";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -352,7 +352,7 @@ select:focus { border-color: var(--accent); }
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F4CA;</div><div><div class="wc-title">Winds by Altitude</div><div class="wc-text">Each row blends <b>GFS, ICON, HRRR, HRDPS and ECMWF</b>, weighted toward the models that agree. The <b>Agree</b> column shows how closely they match. <b>Surface</b> uses the live <b>METAR</b> for the current hour when your DZ has a station. Every altitude always shows a direction. When the wind is light and uncertain (a calm or variable METAR, or models that disagree, under 8 kt) the direction is still the weighted model average, marked <b>≈</b> (about) as an estimate. Tap <b>Hide</b> to collapse the table.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--freefall)">&#x1F4A8;</div><div><div class="wc-title">Wind Widget</div><div class="wc-text">The <b>Freefall / Canopy / Surface</b> widget shows drift and wind at a glance. <b>Freefall</b> gives drift for a <b>freefly</b> skydive (45 s of freefall) and a <b>belly</b> skydive (60 s). Tap an item for live <b>wind particles</b> on the map. Press and drag anywhere on the widget to move it out of the way. Reopen the widget with the &#x1F4A8; button in the header.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:#fff">&#x270F;&#xFE0F;</div><div><div class="wc-title">Jump Run</div><div class="wc-text"><b>Draw</b> a jump run by dragging on the map, <b>Suggest</b> one (enter a heading and it finds the longest run that keeps every landing inside the green circle with a 15% margin, 45% on the downwind side; its Prior/Past and Offset are snapped to the nearest 0.1 mi so they&rsquo;re easy to call out), or <b>Define</b> one: enter heading, <b>Prior/Past</b> (distance from the DZ center along that heading) and <b>Offset</b> (N/S/E/W &mdash; pick the direction closest to perpendicular to the run), plus length. A box at the start (tap and drag it to move it out of the way) shows heading, prior/past, offset, estimated ground speed and recommended jumper separation (1,500 ft of ground distance between groups, converted to seconds). The shaded <b>orange box</b> beside the run is where jumpers open: its near edge is <b>40 s</b> of freefall drift, its far edge <b>65 s</b>, and the dashed line down the middle (52.5 s) is where the numbered jumper boxes land. <b>Replay</b> animates the exits and freefall drift; <b>Clear</b> removes it. Jump runs are not saved.</div></div></div>
-            <div class="wc-section"><div class="wc-icon" style="color:var(--red)">&#x1F3AF;</div><div><div class="wc-title">Landing Pattern</div><div class="wc-text">Tap <b>Place Landing Spot</b>, click the map, then choose final heading (into wind or custom) and pattern direction. Wind-adjusted legs at 1,000 / 600 / 300 ft.</div></div></div>
+            <div class="wc-section"><div class="wc-icon" style="color:var(--red)">&#x1F3AF;</div><div><div class="wc-title">Landing Pattern</div><div class="wc-text">Tap <b>Place Landing Spot</b> and tap the map. A <b>Landing Pattern</b> popup opens: choose final heading (into wind or custom), right or left hand, and your <b>checkpoint altitudes</b> for downwind, base and final (default 1,000 / 600 / 300 ft; saved on this device). Legs are wind-adjusted for your canopy. Reopen the popup with the <b>&#x1F3AF; Landing Pattern</b> button or by tapping the landing spot.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x2708;&#xFE0F;</div><div><div class="wc-title">Plane Tracker</div><div class="wc-text"><b>Track Plane</b> follows your DZ&rsquo;s aircraft live with a trail and label. While the page is open, planes that are flying are picked up <b>automatically</b>, but only planes that have been entered for this DZ before (enter a new tail number once to add it); tap <b>Stop</b> on one to keep it off. The Track Plane list shows every plane saved for the current DZ; tap the <b>✕</b> on a plane to remove it from that list (this doesn&rsquo;t stop tracking; use <b>Stop</b> for that). If a plane is off-screen, an <b>arrow</b> at the map edge points to it. Turn on <b>&#x1F514; Takeoff alerts</b> at the bottom of Track Plane to get a notification when any of this DZ&rsquo;s planes takes off, even with the app closed (on iPhone, add the app to your Home Screen first).</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F464;</div><div><div class="wc-title">Account (optional)</div><div class="wc-text">Tap <b>&#x1F464;</b> and enter your email to get a 6-digit sign-in code. No password. Signed in, your <b>canopy settings</b> and <b>dropzone</b> sync to every device you sign in on. On iPhone, type the code into the app rather than tapping the email&rsquo;s link (the link signs in Safari, not the Home Screen app). Everything works without an account.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:#00d4ff">&#x1F501;</div><div><div class="wc-title">Last Load &amp; Fetch Plane Data</div><div class="wc-text"><b>Show Last Load</b> draws the most recent flight trail for the planes you choose. <b>Fetch Plane Data</b> pulls the latest flight for selected planes so it&rsquo;s ready to show. If a plane is <b>flying right now</b>, Fetch pulls the <b>load before</b> the one in the air. Trails come from ADS-B Exchange; the server also records every saved plane&rsquo;s flights from live ADS-B and uses that recording when the trail source has nothing (or is behind), so a load that just landed still shows up.</div></div></div>
@@ -541,6 +541,42 @@ select:focus { border-color: var(--accent); }
     </div>
 </div>
 
+<!-- ── LANDING PATTERN MODAL ── -->
+<div id="patternModal" style="display:none;position:fixed;inset:0;background:rgba(7,11,16,0.35);z-index:99999;align-items:flex-end;justify-content:center;padding:16px 16px 24px" onclick="if(event.target===this)closePatternModal()">
+    <div style="background:var(--panel-bg);border:1px solid var(--border);border-radius:16px;max-width:360px;width:100%;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.6);overflow:hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px 12px;border-bottom:1px solid var(--border);font-weight:700;font-size:1rem;letter-spacing:0.06em;text-transform:uppercase;color:#ff4f4f">
+            <span>🎯 Landing Pattern</span>
+            <button onclick="closePatternModal()" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:0 4px">✕</button>
+        </div>
+        <div style="padding:14px 18px;display:flex;flex-direction:column;gap:12px">
+            <div class="df-pair">
+                <div class="df-row" style="flex:1"><label class="df-label">Final Heading</label>
+                    <select id="patternHeading" class="df-select" onchange="updatePattern()"><option value="wind">Into Wind</option><option value="custom">Custom °</option></select></div>
+                <div class="df-row" style="flex:1"><label class="df-label">Pattern</label>
+                    <select id="patternTraffic" class="df-select" onchange="updatePattern()"><option value="left">Right Hand</option><option value="right">Left Hand</option></select></div>
+            </div>
+            <div id="customHeadingRow" class="df-row" style="display:none"><label class="df-label">Final Heading (°)</label>
+                <input type="number" id="patternCustomHdg" min="0" max="360" placeholder="e.g. 360" class="df-input" oninput="updatePattern()"></div>
+            <div class="df-row"><label class="df-label">Checkpoints (ft above ground)</label>
+                <div class="df-pair">
+                    <div style="flex:1"><div style="font-size:0.7rem;color:var(--muted);margin-bottom:3px">Downwind</div><input type="number" id="patternAltDownwind" min="100" max="5000" step="50" class="df-input" oninput="updatePattern()"></div>
+                    <div style="flex:1"><div style="font-size:0.7rem;color:var(--muted);margin-bottom:3px">Base</div><input type="number" id="patternAltBase" min="50" max="5000" step="50" class="df-input" oninput="updatePattern()"></div>
+                    <div style="flex:1"><div style="font-size:0.7rem;color:var(--muted);margin-bottom:3px">Final</div><input type="number" id="patternAltFinal" min="50" max="5000" step="50" class="df-input" oninput="updatePattern()"></div>
+                </div>
+            </div>
+            <div id="patternError" style="display:none;color:var(--red);font-size:0.8rem"></div>
+            <div style="display:flex;gap:8px">
+                <button onclick="resetPatternAlts()" style="flex:1;padding:8px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:0.85rem;cursor:pointer">↺ 1000 / 600 / 300</button>
+                <button onclick="closePatternModal();togglePatternMode()" style="flex:1;padding:8px;background:none;border:1px solid var(--border);color:var(--text);border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:0.85rem;cursor:pointer">📍 Move Spot</button>
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;padding:0 18px 16px">
+            <button onclick="clearPattern();closePatternModal()" style="flex:1;padding:10px;background:none;border:1px solid var(--red);color:var(--red);border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;font-weight:700;letter-spacing:0.06em;cursor:pointer">✕ Clear</button>
+            <button onclick="closePatternModal()" style="flex:2;padding:10px;background:#ff4f4f;color:var(--bg);border:none;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;font-weight:700;letter-spacing:0.08em;cursor:pointer">Done</button>
+        </div>
+    </div>
+</div>
+
 <!-- ── ACCOUNT MODAL ── -->
 <div id="accountModal" style="display:none;position:fixed;inset:0;background:rgba(7,11,16,0.88);z-index:99999;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px" onclick="if(event.target===this)closeAccountModal()">
     <div style="background:var(--panel-bg);border:1px solid var(--border);border-radius:16px;max-width:360px;width:100%;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.6);overflow:hidden">
@@ -654,33 +690,10 @@ select:focus { border-color: var(--accent); }
                 <button id="drawBtn" onclick="toggleDrawMode()">✏️ Draw Jump Run</button>
                 <button id="defineBtn" onclick="openDefineModal()">📐 Define Jump Run</button>
                 <button id="suggestBtn" onclick="openSuggestModal()">🧭 Suggested Jump Run</button>
-                <button id="patternBtn" onclick="togglePatternMode()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid #ff4f4f;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🎯 Place Landing Spot</button>
+                <button id="patternBtn" onclick="onPatternBtn()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#ff4f4f;border:1px solid #ff4f4f;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🎯 Place Landing Spot</button>
                 <button id="freeDrawBtn" onclick="freeDrawMode ? exitFreeDrawMode() : (freeDrawLayers.length ? clearFreeDrawings() : toggleFreeDrawMode())" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#a78bfa;border:1px solid #a78bfa;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">🖊️ Free Draw</button>
                 <button id="trackBtn" onclick="openTrackModal()" style="margin-top:6px;width:100%;padding:7px 10px;background:var(--card-bg);color:#00d4ff;border:1px solid #00d4ff;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;cursor:pointer;letter-spacing:0.06em;-webkit-tap-highlight-color:transparent">✈️ Track Plane</button>
                 <div id="planeInfo" style="display:none;margin-top:6px;background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--muted);line-height:1.8"></div>
-                <div id="patternControls" style="display:none;margin-top:6px;background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px">
-                    <div style="display:flex;gap:8px;margin-bottom:6px">
-                        <div style="flex:1">
-                            <label class="df-label">Final Heading</label>
-                            <select id="patternHeading" style="width:100%;background:var(--card-bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:5px 8px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem" onchange="updatePattern()">
-                                <option value="wind">Into Wind</option>
-                                <option value="custom">Custom °</option>
-                            </select>
-                        </div>
-                        <div style="flex:1">
-                            <label class="df-label">Pattern Direction</label>
-                            <select id="patternTraffic" style="width:100%;background:var(--card-bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:5px 8px;font-family:'Barlow Condensed',sans-serif;font-size:0.9rem" onchange="updatePattern()">
-                                <option value="left">Right Hand Pattern</option>
-                                <option value="right">Left Hand Pattern</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div id="customHeadingRow" style="display:none;margin-bottom:6px">
-                        <label class="df-label">Final Heading (°)</label>
-                        <input type="number" id="patternCustomHdg" min="0" max="360" placeholder="e.g. 360" class="df-input" oninput="updatePattern()">
-                    </div>
-                    <button onclick="clearPattern()" style="width:100%;padding:5px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:0.85rem;cursor:pointer">✕ Clear Pattern</button>
-                </div>
                 <button id="replayBtn" onclick="startPlaneAnimation()" style="display:none">▶ Replay</button>
                 <button id="clearBtn" onclick="clearJumpRun()" style="display:none">✕ Clear</button>
 
@@ -1065,19 +1078,47 @@ function togglePatternMode(){
         btn.textContent = "🎯 Place Landing Spot";
         btn.style.background = "var(--card-bg)"; btn.style.color = "#ff4f4f";
         map.getContainer().style.cursor = "";
-        if (!landingSpot) document.getElementById("patternControls").style.display = "none";
+        if (landingSpot) btn.textContent = "🎯 Landing Pattern";
     }
 }
+// Drawer button: place a spot, or (once one exists) open the pattern options
+function onPatternBtn(){ if (landingSpot && !patternMode) openPatternModal(); else togglePatternMode(); }
 
 function clearPattern(){
     patternLines.forEach(l => l.remove()); patternLines = [];
     if (landingMarker) { landingMarker.remove(); landingMarker = null; }
     landingSpot = null;
-    document.getElementById("patternControls").style.display = "none";
     document.getElementById("patternBtn").textContent = "🎯 Place Landing Spot";
     document.getElementById("patternBtn").style.background = "var(--card-bg)";
     document.getElementById("patternBtn").style.color = "#ff4f4f";
 }
+
+// Pattern checkpoints (ft AGL): start of downwind, base and final. Saved on the device (and synced when signed in).
+const PATTERN_SAVE_KEY = "mwh-pattern-settings";
+const PATTERN_DEFAULTS = { downwind: 1000, base: 600, final: 300 };
+let patternAlts = { ...PATTERN_DEFAULTS };
+function loadPatternSettings(){
+    try { const o = JSON.parse(localStorage.getItem(PATTERN_SAVE_KEY) || "null"); if (o && validPatternAlts(o)) patternAlts = { downwind:+o.downwind, base:+o.base, final:+o.final }; } catch(e){}
+}
+function savePatternSettings(){
+    try { localStorage.setItem(PATTERN_SAVE_KEY, JSON.stringify(patternAlts)); } catch(e){}
+    syncSettingsUp({ pattern: patternAlts });
+}
+function validPatternAlts(a){ return a && +a.downwind > +a.base && +a.base > +a.final && +a.final > 0 && +a.downwind <= 5000; }
+function fillPatternAltInputs(){
+    document.getElementById("patternAltDownwind").value = patternAlts.downwind;
+    document.getElementById("patternAltBase").value = patternAlts.base;
+    document.getElementById("patternAltFinal").value = patternAlts.final;
+}
+function openPatternModal(){
+    fillPatternAltInputs(); document.getElementById("patternError").style.display = "none";
+    document.getElementById("customHeadingRow").style.display = document.getElementById("patternHeading").value === "custom" ? "flex" : "none";
+    document.getElementById("patternModal").style.display = "flex";
+    if (window.innerWidth < 600 && panelOpen) togglePanel();   // keep the map (and the pattern) visible on phones
+}
+function closePatternModal(){ document.getElementById("patternModal").style.display = "none"; }
+function resetPatternAlts(){ patternAlts = { ...PATTERN_DEFAULTS }; fillPatternAltInputs(); savePatternSettings(); updatePattern(); }
+loadPatternSettings();
 
 function getFinalHeading(){
     const sel = document.getElementById("patternHeading").value;
@@ -1102,12 +1143,14 @@ function drawPattern(){
     const downwindHdgDeg = (finalHdg + 180) % 360;
     const baseHdgDeg = (finalHdg + turnDir + 360) % 360;
     const descentFpm = canopyDescentFps * 60;   // actual descent rate under your canopy
-    const tDownwind = (1000-600) / descentFpm * 60;
-    const tBase = (600-300) / descentFpm * 60;
-    const tFinal = (300-0) / descentFpm * 60;
-    const DOWNWIND_LEN = groundSpeedForLeg(downwindHdgDeg, 800) * tDownwind;
-    const BASE_LEN = groundSpeedForLeg(baseHdgDeg, 450) * tBase;
-    const FINAL_LEN = groundSpeedForLeg(finalHdg, 150) * tFinal;
+    const { downwind: aDw, base: aBase, final: aFin } = patternAlts;
+    const tDownwind = (aDw-aBase) / descentFpm * 60;
+    const tBase = (aBase-aFin) / descentFpm * 60;
+    const tFinal = (aFin-0) / descentFpm * 60;
+    // each leg flies in the wind at the middle of its altitude band
+    const DOWNWIND_LEN = groundSpeedForLeg(downwindHdgDeg, (aDw+aBase)/2) * tDownwind;
+    const BASE_LEN = groundSpeedForLeg(baseHdgDeg, (aBase+aFin)/2) * tBase;
+    const FINAL_LEN = groundSpeedForLeg(finalHdg, aFin/2) * tFinal;
     const target = landingSpot;
     const finalStart = offsetPt(target[0], target[1], (finalHdg+180)%360, FINAL_LEN);
     const baseStart = offsetPt(finalStart[0], finalStart[1], (baseHdgDeg+180)%360, BASE_LEN);
@@ -1127,17 +1170,27 @@ function drawPattern(){
         const lbl = L.marker(from, { icon: L.divIcon({ html: `<div style="${labelStyle}">${altLabel}</div>`, className: '', iconAnchor: [0,10] }) }).addTo(map);
         patternLines.push(lbl);
     }
-    addArrow(downwindStart, baseStart, "1000ft");
-    addArrow(baseStart, finalStart, "600ft");
-    addArrow(finalStart, target, "300ft");
+    addArrow(downwindStart, baseStart, `${aDw}ft`);
+    addArrow(baseStart, finalStart, `${aBase}ft`);
+    addArrow(finalStart, target, `${aFin}ft`);
     if (landingMarker) landingMarker.remove();
-    const spotIcon = L.divIcon({ html: '<div style="width:14px;height:14px;background:rgba(255,79,79,0.9);border:2px solid #fff;border-radius:50%"></div>', className: '', iconAnchor: [7,7] });
+    const spotIcon = L.divIcon({ html: '<div style="width:14px;height:14px;background:rgba(255,79,79,0.9);border:2px solid #fff;border-radius:50%"></div>', className: '', iconAnchor: [7,7], iconSize: [18,18] });
     landingMarker = L.marker(target, { icon: spotIcon, zIndexOffset: 800 }).addTo(map);
+    landingMarker.on("click", e => { L.DomEvent.stopPropagation(e); openPatternModal(); });   // tap the spot to change the pattern
     patternLines.push(landingMarker);
 }
 
 function updatePattern(){
-    document.getElementById("customHeadingRow").style.display = document.getElementById("patternHeading").value === "custom" ? "block" : "none";
+    document.getElementById("customHeadingRow").style.display = document.getElementById("patternHeading").value === "custom" ? "flex" : "none";
+    const err = document.getElementById("patternError");
+    const a = { downwind: parseFloat(document.getElementById("patternAltDownwind").value),
+                base: parseFloat(document.getElementById("patternAltBase").value),
+                final: parseFloat(document.getElementById("patternAltFinal").value) };
+    if (document.getElementById("patternModal").style.display === "flex"){
+        if (!validPatternAlts(a)){ err.textContent = "Checkpoints must go Downwind > Base > Final > 0 (max 5,000 ft)."; err.style.display = "block"; return; }
+        err.style.display = "none";
+        if (a.downwind !== patternAlts.downwind || a.base !== patternAlts.base || a.final !== patternAlts.final){ patternAlts = a; savePatternSettings(); }
+    }
     if (landingSpot) drawPattern();
 }
 
@@ -2211,8 +2264,8 @@ function initMap(){
         if (!patternMode) return;
         landingSpot=[e.latlng.lat,e.latlng.lng];
         togglePatternMode();
-        document.getElementById("patternControls").style.display="block";
         drawPattern();
+        openPatternModal();
     });
     const mapEl=map.getContainer();
     mapEl.addEventListener('touchstart',onTouchStart,{passive:false});
@@ -4038,6 +4091,11 @@ function onSignedIn(justNow){
             initCanopyDefaults(); updateAdvPreview(); load();
         }
     } else if (local) up.canopy = local;   // first sign-in: upload this device's settings
+    if (s.pattern && validPatternAlts(s.pattern)){
+        patternAlts = { downwind:+s.pattern.downwind, base:+s.pattern.base, final:+s.pattern.final };
+        try { localStorage.setItem(PATTERN_SAVE_KEY, JSON.stringify(patternAlts)); } catch(e){}
+        if (landingSpot) drawPattern();
+    } else { try { if (localStorage.getItem(PATTERN_SAVE_KEY)) up.pattern = patternAlts; } catch(e){} }
     if (justNow){
         const sel = document.getElementById("dz");
         if (s.dz && dz[s.dz] && s.dz !== sel.value){ sel.value = s.dz; sel.onchange(); }

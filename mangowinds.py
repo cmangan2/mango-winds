@@ -1968,15 +1968,19 @@ def data():
             # max_speed = highest of METAR and any model surface speed
             model_sfc_max = winds[0].get("max_speed", metar_spd)
             sfc_max = round(max(metar_spd, model_sfc_max), 1)
+            # Calm or variable observation: no usable METAR direction, so keep the models'
+            # weighted-average surface direction (same blend as every other altitude)
+            calm = bool(metar.get("vrb")) or metar_spd < 1
+            sfc_dir = winds[0].get("direction", 0) if calm else metar["wdir"]
             winds[0] = {
                 "speed":     metar_spd,
                 "max_speed": sfc_max,
-                "direction": round(metar["wdir"] % 360, 0),
-                "arrow":     wind_arrow(metar["wdir"]),
+                "direction": round(sfc_dir % 360, 0),
+                "arrow":     wind_arrow(sfc_dir),
                 "color":     color(metar_spd),
                 "temp_f":    round(metar["temp"] * 9/5 + 32) if metar["temp"] is not None else winds[0].get("temp_f"),
-                # Calm or variable observation: direction is meaningless, so the page shows "Calm"
-                "calm":      bool(metar.get("vrb")) or metar_spd < 1,
+                "calm":      calm,
+                "dir_source": "models" if calm else "metar",
             }
             print(f"SFC: using METAR {icao} {metar['wspd']}kt/{metar['wdir']}° temp={metar.get('temp')}°C")
         else:

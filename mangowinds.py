@@ -30,6 +30,30 @@ ADMIN_EMAILS    = {e.strip().lower() for e in os.environ.get("ADMIN_EMAILS", "")
 _ENV_TOKENS     = {t for t in (os.environ.get("CACHE_TOKEN", ""), ADMIN_TOKEN) if t and t not in ("mango", "mango-admin-2024")}
 
 
+# The admin pages are their own installable app ("MWH Admin"): own manifest id + scope (/admin), own icon,
+# so Chrome offers to install it next to the main app instead of saying it's already installed.
+ADMIN_HEAD = """<meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#070b10">
+    <link rel="manifest" href="/static/admin-manifest.json">
+    <link rel="icon" href="/static/icon-admin-192.png">
+    <link rel="apple-touch-icon" href="/static/icon-admin-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="MWH Admin">"""
+ADMIN_NAV = """<div style="display:flex;gap:14px;flex-wrap:wrap;margin:0 0 12px;font-family:sans-serif;font-size:0.9rem">
+    <a style="color:#00d4ff" href="/admin">Dashboard</a><a style="color:#00d4ff" href="/admin/dropzones">Dropzones</a>
+    <a style="color:#00d4ff" href="/stats">Public stats</a><a style="color:#00d4ff" href="/">Open app</a>
+    <a style="color:#5a7a96" href="javascript:location.reload()">&#x21BB; Refresh</a></div>"""
+
+
+def admin_denied():
+    return (f"""<!DOCTYPE html><html><head><title>MWH Admin</title>{ADMIN_HEAD}</head>
+    <body style="font-family:sans-serif;background:#070b10;color:#c8daea;padding:24px;max-width:520px;margin:0 auto">
+    <h2 style="color:#ff4f4f">Admin only</h2>
+    <p>Sign in to Mango Wind Hub with an admin account (&#x1F464; in the app), then come back here in the same browser.</p>
+    <p><a style="color:#00d4ff" href="/">Open Mango Wind Hub</a> &middot; <a style="color:#00d4ff" href="/admin">Try again</a></p>
+    </body></html>""", 403)
+
+
 def is_admin(token=None):
     """True for a signed-in admin account (ADMIN_EMAILS), or a token set in the environment."""
     if token and token in _ENV_TOKENS:
@@ -1471,8 +1495,7 @@ def stats_page():
 def admin():
     token = request.args.get("token", "")
     if not is_admin(token):
-        return ("<h2 style='font-family:sans-serif;color:#ff4f4f'>Admin only</h2>"
-                "<p style='font-family:sans-serif'>Sign in to Mango Wind Hub with an admin account (👤 in the app), then open this page from the same browser.</p>"), 403
+        return admin_denied()
     # ?count_me=0 stops counting this browser's visits on /stats (testing), ?count_me=1 undoes it
     count_me = request.args.get("count_me")
     resp = make_response(admin_page(token, count_me))
@@ -1485,6 +1508,7 @@ def admin():
 
 
 def admin_page(token, count_me=None):
+    from html import escape as _html_escape
     from urllib.parse import quote
     excluded = (count_me == "0") or (count_me != "1" and request.cookies.get(NOCOUNT_COOKIE) == "1")
     tq = quote(token) if token else ""
@@ -1548,7 +1572,7 @@ def admin_page(token, count_me=None):
             for d in this_week
         )
         dz_rows += f"""<tr>
-            <td style='padding:4px 12px;white-space:nowrap'>{dz}</td>
+            <td style='padding:4px 12px;white-space:nowrap'>{_html_escape(dz)}</td>
             {week_counts}
             <td style='text-align:center;padding:4px 8px;color:#ffaa00'>{dz_weekly.get(dz,0)}</td>
             <td style='text-align:center;padding:4px 8px;color:#00d4ff'>{dz_totals.get(dz,0)}</td>
@@ -1571,15 +1595,18 @@ def admin_page(token, count_me=None):
     total_all = sum(dz_totals.values())
     total_week = sum(dz_weekly.values())
 
-    return f"""<!DOCTYPE html><html><head><title>Mango Wind Hub — Admin</title>
+    return f"""<!DOCTYPE html><html><head><title>MWH Admin</title>
+    {ADMIN_HEAD}
     <style>
-        body{{font-family:monospace;background:#070b10;color:#c8daea;padding:24px}}
+        body{{font-family:monospace;background:#070b10;color:#c8daea;padding:16px;max-width:900px;margin:0 auto}}
+        .tw{{overflow-x:auto;-webkit-overflow-scrolling:touch}}
         h2{{color:#00d4ff;margin-bottom:4px}} h3{{color:#ffaa00;margin:20px 0 8px}}
         table{{border-collapse:collapse}} th{{color:#00d4ff;text-align:left;padding:4px 8px;border-bottom:1px solid #1e3045}}
         td{{border-bottom:1px solid #0d1520}} .stat{{display:inline-block;background:#0d1520;border:1px solid #1e3045;border-radius:8px;padding:12px 20px;margin:6px}}
         .stat .n{{font-size:2rem;color:#00d4ff;font-weight:bold}} .stat .l{{font-size:0.75rem;color:#5a7a96;text-transform:uppercase}}
     </style></head><body>
     <h2>Mango Wind Hub — Admin</h2>
+    {ADMIN_NAV}
     {count_me_html}
     {online_admin_html()}
     <p style="color:#5a7a96;font-size:0.8rem">Visit = one device opening a DZ per local day (from Oct 19, 2026; earlier = every data load at hour 0)</p>
@@ -1592,19 +1619,19 @@ def admin_page(token, count_me=None):
 
     <h3>Open-Meteo API Usage Today</h3>
     <p style="color:#5a7a96;font-size:0.8rem">Limit: {api_limit} calls/day &nbsp;|&nbsp; Used: {total_api_today} ({api_pct}%)</p>
-    <div style="background:#1e3045;border-radius:4px;height:16px;width:300px;margin:8px 0">
+    <div style="background:#1e3045;border-radius:4px;height:16px;width:300px;max-width:100%;margin:8px 0">
         <div style="background:{api_color};height:16px;width:{api_bar_w}px;border-radius:4px;transition:width 0.3s"></div>
     </div>
     <table style="margin-top:8px">{api_hourly_rows}</table>
 
     <h3>Visits by Dropzone (last 7 days)</h3>
-    <table>
+    <div class="tw"><table>
         <tr><th>Dropzone</th>{day_headers}<th style='color:#ffaa00'>7-Day</th><th style='color:#00d4ff'>All Time</th></tr>
         {dz_rows}
-    </table>
+    </table></div>
 
     <h3>Daily Visits (last 30 days)</h3>
-    <table>{chart_rows}</table>
+    <div class="tw"><table>{chart_rows}</table></div>
 
     </body></html>"""
 
@@ -1785,18 +1812,18 @@ def add_dropzone():
 def admin_dropzones():
     token = request.args.get("token", "")
     if not is_admin(token):
-        return ("<h2 style='font-family:sans-serif;color:#ff4f4f'>Admin only</h2>"
-                "<p style='font-family:sans-serif'>Sign in to Mango Wind Hub with an admin account (👤 in the app), then open this page from the same browser.</p>"), 403
+        return admin_denied()
+    from html import escape as _e
     pending = load_pending_dzs()
     rows = ""
     for p in pending:
         rows += f"""<tr>
             <form method="POST" action="/admin/dropzones/action?token={ADMIN_TOKEN}">
-                <input type="hidden" name="id" value="{p['id']}">
-                <td><input name="name" value="{p['name']}" style="width:220px;background:#1a2535;color:#c8daea;border:1px solid #2a3f55;border-radius:4px;padding:4px 8px;font-family:monospace"></td>
-                <td><input name="lat" value="{p['lat']}" style="width:90px;background:#1a2535;color:#c8daea;border:1px solid #2a3f55;border-radius:4px;padding:4px 8px;font-family:monospace"></td>
-                <td><input name="lon" value="{p['lon']}" style="width:100px;background:#1a2535;color:#c8daea;border:1px solid #2a3f55;border-radius:4px;padding:4px 8px;font-family:monospace"></td>
-                <td><input name="icao" value="{p.get('icao','')}" style="width:70px;background:#1a2535;color:#c8daea;border:1px solid #2a3f55;border-radius:4px;padding:4px 8px;font-family:monospace;text-transform:uppercase"></td>
+                <input type="hidden" name="id" value="{_e(str(p['id']), quote=True)}">
+                <td><input name="name" value="{_e(str(p['name']), quote=True)}" style="width:220px;background:#1a2535;color:#c8daea;border:1px solid #2a3f55;border-radius:4px;padding:4px 8px;font-family:monospace"></td>
+                <td><input name="lat" value="{_e(str(p['lat']), quote=True)}" style="width:90px;background:#1a2535;color:#c8daea;border:1px solid #2a3f55;border-radius:4px;padding:4px 8px;font-family:monospace"></td>
+                <td><input name="lon" value="{_e(str(p['lon']), quote=True)}" style="width:100px;background:#1a2535;color:#c8daea;border:1px solid #2a3f55;border-radius:4px;padding:4px 8px;font-family:monospace"></td>
+                <td><input name="icao" value="{_e(str(p.get('icao') or ''), quote=True)}" style="width:70px;background:#1a2535;color:#c8daea;border:1px solid #2a3f55;border-radius:4px;padding:4px 8px;font-family:monospace;text-transform:uppercase"></td>
                 <td>
                     <button name="action" value="approve" style="background:#39ff89;color:#070b10;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-weight:700;margin-right:6px">✓ Save Edits</button>
                     <button name="action" value="reject" style="background:#ff4f4f;color:#fff;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-weight:700">✕ Remove</button>
@@ -1805,18 +1832,21 @@ def admin_dropzones():
         </tr>"""
     if not pending:
         rows = '<tr><td colspan="5" style="text-align:center;padding:24px;color:#5a7a96">No user submissions yet</td></tr>'
-    html = f"""<!DOCTYPE html><html><head><title>MWH — Dropzone Review</title>
-<style>body{{background:#070b10;color:#c8daea;font-family:monospace,sans-serif;padding:32px}}
+    from html import escape as _esc
+    html = f"""<!DOCTYPE html><html><head><title>MWH Admin — Dropzones</title>
+{ADMIN_HEAD}
+<style>body{{background:#070b10;color:#c8daea;font-family:monospace,sans-serif;padding:16px;max-width:1000px;margin:0 auto}}
+.tw{{overflow-x:auto;-webkit-overflow-scrolling:touch}}
 h1{{color:#00d4ff;letter-spacing:.1em;font-size:1.4rem;margin-bottom:24px}}
 table{{border-collapse:collapse;width:100%}}th{{color:#5a7a96;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;padding:8px 12px;text-align:left;border-bottom:1px solid #1a2535}}
 td{{padding:10px 12px;border-bottom:1px solid #1a2535;vertical-align:middle}}
 .msg{{background:#1a2535;border-left:3px solid #39ff89;padding:12px 16px;border-radius:4px;margin-bottom:16px;color:#39ff89}}
 .err{{background:#1a2535;border-left:3px solid #ff4f4f;padding:12px 16px;border-radius:4px;margin-bottom:16px;color:#ff4f4f}}</style></head>
-<body><h1>🛫 Mango Wind Hub — Dropzone Review</h1><p style="color:#5a7a96;font-size:.85rem;margin-top:-16px;margin-bottom:20px">All submissions are live. Edit fields and save, or remove entirely.</p>
-{"".join(f'<div class="msg">{m}</div>' for m in request.args.getlist("msg"))}
-{"".join(f'<div class="err">{e}</div>' for e in request.args.getlist("err"))}
-<table><thead><tr><th>Name</th><th>Lat</th><th>Lon</th><th>METAR</th><th>Action</th></tr></thead>
-<tbody>{rows}</tbody></table></body></html>"""
+<body>{ADMIN_NAV}<h1>🛫 Mango Wind Hub — Dropzone Review</h1><p style="color:#5a7a96;font-size:.85rem;margin-top:-16px;margin-bottom:20px">All submissions are live. Edit fields and save, or remove entirely.</p>
+{"".join(f'<div class="msg">{_esc(m)}</div>' for m in request.args.getlist("msg"))}
+{"".join(f'<div class="err">{_esc(e)}</div>' for e in request.args.getlist("err"))}
+<div class="tw"><table><thead><tr><th>Name</th><th>Lat</th><th>Lon</th><th>METAR</th><th>Action</th></tr></thead>
+<tbody>{rows}</tbody></table></div></body></html>"""
     return html
 
 

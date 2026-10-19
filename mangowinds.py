@@ -1197,6 +1197,38 @@ def debug():
     </body></html>"""
 
 
+# ── Online now: the open app checks in once a minute while it's on screen ──
+ONLINE_WINDOW_S = 150
+_online = {}          # device hash -> {"ts": epoch s, "dz": dz name or None}
+
+
+@app.route("/ping", methods=["POST"])
+def ping():
+    import hashlib as _h, time as _t
+    visitor = request.cookies.get(VISITOR_COOKIE)
+    if visitor and request.cookies.get(NOCOUNT_COOKIE) != "1":
+        dz = (request.args.get("dz") or "").strip()
+        now = _t.time()
+        with _visit_lock:
+            _online[_h.sha256(visitor.encode()).hexdigest()[:16]] = {"ts": now, "dz": dz if dz in DROPZONES else None}
+            for k in [k for k, v in _online.items() if now - v["ts"] > ONLINE_WINDOW_S]:
+                del _online[k]
+    return ("", 204)
+
+
+def online_now(now=None):
+    """-> (total devices online, {dz: devices online there}); excluded (not-counted) browsers never appear."""
+    import time as _t
+    now = now or _t.time()
+    with _visit_lock:
+        live = [v for v in _online.values() if now - v["ts"] <= ONLINE_WINDOW_S]
+    per_dz = {}
+    for v in live:
+        if v["dz"]:
+            per_dz[v["dz"]] = per_dz.get(v["dz"], 0) + 1
+    return len(live), per_dz
+
+
 @app.route("/stats")
 def stats():
     try:
@@ -1281,16 +1313,18 @@ def stats_page():
     flights = dz_flight_status(now)
     with _visit_lock:
         loads_1h = {dz: len([t for t in v.values() if now - t < 3600]) for dz, v in _recent_visits.items()}
+    online_total, online_dz = online_now(now)
 
     # ── Active now: plane in the air, landed within the hour, or app loads in the last hour ──
     active = []
-    for dz in set(flights) | {d for d, n in loads_1h.items() if n}:
+    for dz in set(flights) | {d for d, n in loads_1h.items() if n} | set(online_dz):
         f = flights.get(dz, {})
         flying = f.get("flying") or []
         landed_ago = (now - f["last_end"]) if f.get("last_end") else None
         recent_landing = landed_ago is not None and landed_ago < 3600
         n = loads_1h.get(dz, 0)
-        if not (flying or recent_landing or n):
+        on = online_dz.get(dz, 0)
+        if not (flying or recent_landing or n or on):
             continue
         tz = dz_tz(dz)
         bits = []
@@ -1299,16 +1333,18 @@ def stats_page():
                 f"{escape(t)} (up {int((now - since) // 60)} min)" for t, since in flying) + "</span>")
         elif recent_landing:
             bits.append(f"<span style='color:#00d4ff'>&#x1F6EC; {escape(f['last_tail'])} landed {int(landed_ago // 60)} min ago</span>")
+        if on:
+            bits.append(f"<span style='color:#39ff89'>&#x1F7E2; {on} online now</span>")
         if n:
-            bits.append(f"<span style='color:#ffaa00'>&#x1F440; {n} {'person' if n == 1 else 'people'} using the app in the last hour</span>")
-        rank = 0 if flying else 1 if recent_landing else 2
+            bits.append(f"<span style='color:#ffaa00'>&#x1F440; {n} {'person' if n == 1 else 'people'} in the last hour</span>")
+        rank = 0 if flying else 1 if recent_landing else 2 if on else 3
         local_now = datetime.now(tz)
         clock = f"{local_now.strftime('%I:%M %p').lstrip('0').lower()} {local_now.strftime('%Z')}"
-        active.append((rank, -n, dz, f"""<div class="act">
+        active.append((rank, -on, -n, dz, f"""<div class="act">
             <div style="display:flex;justify-content:space-between;gap:8px"><b>{escape(dz)}</b><span style="color:#5a7a96;white-space:nowrap">{clock}</span></div>
             <div style="margin-top:3px">{' &middot; '.join(bits)}</div></div>"""))
     active.sort()
-    active_html = "".join(a[3] for a in active) or "<p>No DZ is active right now: no saved plane in the air or landed in the last hour, and nobody using the app for a DZ in the last hour.</p>"
+    active_html = "".join(a[-1] for a in active) or "<p>No DZ is active right now: no saved plane in the air or landed in the last hour, and nobody using the app for a DZ in the last hour.</p>"
 
     dz_rows = ""
     max_week = max(dz_weekly.values(), default=0) or 1
@@ -1351,7 +1387,8 @@ def stats_page():
     <p>Community usage stats &mdash; refreshes every minute. Times are each DZ&rsquo;s local time.</p>
 
     <div style="margin:16px 0">
-        <div class="stat"><div class="n">{len(active)}</div><div class="l">Active Now</div></div>
+        <div class="stat"><div class="n" style="color:#39ff89">{online_total}</div><div class="l">Online Now</div></div>
+        <div class="stat"><div class="n">{len(active)}</div><div class="l">Active DZs</div></div>
         <div class="stat"><div class="n">{total_week}</div><div class="l">Visits This Week</div></div>
         <div class="stat"><div class="n">{total_all}</div><div class="l">All Time</div></div>
         <div class="stat"><div class="n">{len(dz_totals)}</div><div class="l">DZs Using It</div></div>
@@ -1365,7 +1402,7 @@ def stats_page():
         <tr><th>Dropzone</th><th class="bar"></th><th style="text-align:center">This Week</th><th style="text-align:center">All Time</th></tr>
         {dz_rows}
     </table>
-    <p style="margin-top:16px">A visit = one device opening a DZ on a given day (local time); reloading or coming back the same day doesn&rsquo;t add more. Counts before Oct 19, 2026 were every data load. &ldquo;This Week&rdquo; runs Sunday to today in each DZ&rsquo;s local time. Last Flight = when one of the DZ&rsquo;s saved planes last landed.</p>
+    <p style="margin-top:16px">A visit = one device opening a DZ on a given day (local time); reloading or coming back the same day doesn&rsquo;t add more. Counts before Oct 19, 2026 were every data load. Online Now = devices with the app open on screen in the last 2&frac12; minutes (excluding browsers marked not counted). &ldquo;This Week&rdquo; runs Sunday to today in each DZ&rsquo;s local time. Last Flight = when one of the DZ&rsquo;s saved planes last landed.</p>
     </body></html>"""
 
 

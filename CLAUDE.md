@@ -2,7 +2,7 @@
 
 Flask + Leaflet skydiving wind planning web app by Chris "Mango" Mangano (solo dev, MangoWorks3D, active skydiver).
 Prod: Render, branch `main` (mango-winds.onrender.com). Dev: Render service tracking branch `dev`. Repo: cmangan2/mango-winds.
-Chris likes direct numerical answers, scenario tables and frank recommendations. He tests on his iPhone (mobile web/PWA), so mobile behavior matters as much as desktop.
+Chris likes direct numerical answers, scenario tables and frank recommendations. He tests on his Android phone (Chrome, mobile web/PWA), so mobile behavior matters as much as desktop. iOS still matters for other users (Home Screen required for push there).
 
 ## Files
 - `mangowinds.py` — whole backend: Open-Meteo ensemble fetch + caching, `/data`, METAR (aviationweather.gov), ADS-B trails/poller, `/tails` (GET/POST/DELETE), `/lastload`, dropzone list (web-form dropzone commits land on `main` via the GitHub API).

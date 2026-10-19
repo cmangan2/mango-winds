@@ -158,8 +158,30 @@ def save_visits():
     except Exception as e:
         print(f"Visit save error: {e}")
 
+_recent_visits = {}   # dz -> [epoch s] of app loads in the last hour (in memory only)
+
+def dz_tz(dz_name):
+    """The DZ's local time zone (pytz), looked up from its coordinates; Eastern if unknown."""
+    import pytz
+    vals = DROPZONES.get(dz_name) if "DROPZONES" in globals() else None
+    name = None
+    if vals:
+        try:
+            from tzfpy import get_tz
+            name = get_tz(vals[1], vals[0])   # (lon, lat)
+        except Exception as e:
+            print(f"Timezone lookup error for {dz_name}: {e}")
+    try:
+        return pytz.timezone(name or "America/New_York")
+    except Exception:
+        return pytz.timezone("America/New_York")
+
 def record_visit(dz_name):
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    # counted on the DZ's own local date (stored history before v4.6.6 is by UTC date)
+    today = datetime.now(dz_tz(dz_name)).strftime("%Y-%m-%d")
+    import time as _t
+    now = _t.time()
+    _recent_visits[dz_name] = [t for t in _recent_visits.get(dz_name, []) if now - t < 3600] + [now]
     if dz_name not in _visit_log:
         _visit_log[dz_name] = {}
     _visit_log[dz_name][today] = _visit_log[dz_name].get(today, 0) + 1
@@ -1139,90 +1161,166 @@ def stats():
         import traceback
         return f"<pre style='color:red'>Stats error: {e}\n{traceback.format_exc()}</pre>", 500
 
+def _local_when(ts, tz):
+    """'Today 2:14 pm EDT' / 'Yesterday 5:02 pm EDT' / 'Sat Oct 17 4:10 pm EDT' in the DZ's time zone."""
+    dt = datetime.fromtimestamp(ts, tz)
+    today = datetime.now(tz).date()
+    if dt.date() == today:
+        day = "Today"
+    elif (today - dt.date()).days == 1:
+        day = "Yesterday"
+    else:
+        day = f"{dt.strftime('%a %b')} {dt.day}"
+    return f"{day} {dt.strftime('%I:%M %p').lstrip('0').lower()} {dt.strftime('%Z')}"
+
+
+def _nearest_dz(candidates, lat, lon):
+    """Of the DZs a plane is saved at, the one closest to (lat, lon)."""
+    known = [d for d in candidates if d in DROPZONES]
+    if not known or lat is None or lon is None:
+        return candidates[0] if candidates else None
+    return min(known, key=lambda d: haversine_miles(lat, lon, DROPZONES[d][0], DROPZONES[d][1]))
+
+
+def dz_flight_status(now=None):
+    """Per DZ, from the track recorder and fetched trails:
+    {dz: {"flying": [(tail, since_ts)], "last_end": ts or None, "last_tail": tail}}"""
+    import time as _t
+    now = now or _t.time()
+    out = {}
+    tail_dzs = {}
+    for dz, lst in _tails_log.items():
+        for t in lst:
+            if t:
+                tail_dzs.setdefault(t.upper(), []).append(dz)
+    with _rec_lock:
+        current = {t: list(p) for t, p in _rec_current.items()}
+        last = dict(_rec_last)
+    for tail, dzs in tail_dzs.items():
+        cur = current.get(tail)
+        if cur and now - cur[-1]["ts"] < REC_END_GAP_S:
+            dz = _nearest_dz(dzs, cur[-1]["lat"], cur[-1]["lon"])
+            out.setdefault(dz, {"flying": [], "last_end": None, "last_tail": None})["flying"].append((tail, cur[0]["ts"]))
+        # latest finished flight: recorder or fetched trail, whichever ended later
+        best = None
+        for f in (last.get(tail), _adsb_trails.get(tail)):
+            if f and f.get("flight_end") and f.get("points"):
+                if not best or f["flight_end"] > best["flight_end"]:
+                    best = f
+        if best:
+            p = best["points"][-1]
+            dz = _nearest_dz(dzs, p.get("lat"), p.get("lon"))
+            st = out.setdefault(dz, {"flying": [], "last_end": None, "last_tail": None})
+            if not st["last_end"] or best["flight_end"] > st["last_end"]:
+                st["last_end"], st["last_tail"] = best["flight_end"], tail
+    return out
+
+
 def stats_page():
-    import pytz
+    import time as _t
+    from html import escape
     from datetime import timedelta as td
-    est = pytz.timezone("America/New_York")
-    today_est = datetime.now(est).date()
-    days_since_sunday = (today_est.weekday() + 1) % 7
-    week_start = today_est - td(days=days_since_sunday)
-    this_week = [(week_start + td(days=i)).strftime("%Y-%m-%d") for i in range(days_since_sunday + 1)]
+    now = _t.time()
 
-    dz_totals = {}
-    dz_weekly  = {}
+    # Each DZ's "this week" is its own local Sunday..today
+    dz_totals, dz_weekly = {}, {}
     for dz, days in _visit_log.items():
+        today_local = datetime.now(dz_tz(dz)).date()
+        days_since_sunday = (today_local.weekday() + 1) % 7
+        week_start = today_local - td(days=days_since_sunday)
+        this_week = [(week_start + td(days=i)).strftime("%Y-%m-%d") for i in range(days_since_sunday + 1)]
         dz_totals[dz] = sum(days.values())
-        dz_weekly[dz]  = sum(days.get(d, 0) for d in this_week)
-
+        dz_weekly[dz] = sum(days.get(d, 0) for d in this_week)
     total_week = sum(dz_weekly.values())
-    total_all  = sum(dz_totals.values())
+    total_all = sum(dz_totals.values())
 
-    # API usage today and by hour
-    today_str = today_est.strftime("%Y-%m-%d")
-    today_api = _api_log.get(today_str, {})
-    total_api_today = sum(today_api.values())
-    api_limit = 10000
-    api_pct = round(total_api_today / api_limit * 100, 1)
-    api_bar_w = min(int(total_api_today / api_limit * 300), 300)
-    api_color = "#39ff89" if api_pct < 40 else "#ffaa00" if api_pct < 70 else "#ff4f4f"
-    import pytz as _pytz2
-    from datetime import datetime as _dt2
-    api_hourly_rows = ""
-    for h in range(24):
-        cnt = today_api.get(str(h), 0)
-        if cnt == 0: continue
-        bar = int(cnt / max(today_api.values(), default=1) * 150)
-        # Hours already stored in EST
-        ampm = "am" if h < 12 else "pm"
-        h12 = h % 12 or 12
-        est_lbl = f"{h12}{ampm}"
-        api_hourly_rows += f"<tr><td style='padding:2px 8px;color:#5a7a96'>{est_lbl}</td><td><div style='background:#00d4ff;height:10px;width:{bar}px;border-radius:2px;display:inline-block'></div></td><td style='padding:2px 8px;color:#c8daea'>{cnt}</td></tr>"
+    flights = dz_flight_status(now)
+    loads_1h = {dz: len([t for t in ts if now - t < 3600]) for dz, ts in _recent_visits.items()}
+
+    # ── Active now: plane in the air, landed within the hour, or app loads in the last hour ──
+    active = []
+    for dz in set(flights) | {d for d, n in loads_1h.items() if n}:
+        f = flights.get(dz, {})
+        flying = f.get("flying") or []
+        landed_ago = (now - f["last_end"]) if f.get("last_end") else None
+        recent_landing = landed_ago is not None and landed_ago < 3600
+        n = loads_1h.get(dz, 0)
+        if not (flying or recent_landing or n):
+            continue
+        tz = dz_tz(dz)
+        bits = []
+        if flying:
+            bits.append("<span style='color:#39ff89'>&#x2708;&#xFE0F; In the air: " + ", ".join(
+                f"{escape(t)} (up {int((now - since) // 60)} min)" for t, since in flying) + "</span>")
+        elif recent_landing:
+            bits.append(f"<span style='color:#00d4ff'>&#x1F6EC; {escape(f['last_tail'])} landed {int(landed_ago // 60)} min ago</span>")
+        if n:
+            bits.append(f"<span style='color:#ffaa00'>&#x1F440; {n} app load{'s' if n != 1 else ''} in the last hour</span>")
+        rank = 0 if flying else 1 if recent_landing else 2
+        local_now = datetime.now(tz)
+        clock = f"{local_now.strftime('%I:%M %p').lstrip('0').lower()} {local_now.strftime('%Z')}"
+        active.append((rank, -n, dz, f"""<div class="act">
+            <div style="display:flex;justify-content:space-between;gap:8px"><b>{escape(dz)}</b><span style="color:#5a7a96;white-space:nowrap">{clock}</span></div>
+            <div style="margin-top:3px">{' &middot; '.join(bits)}</div></div>"""))
+    active.sort()
+    active_html = "".join(a[3] for a in active) or "<p>No DZ is active right now: no saved plane in the air or landed in the last hour, and no app loads in the last hour.</p>"
 
     dz_rows = ""
+    max_week = max(dz_weekly.values(), default=0) or 1
     for dz in sorted(dz_totals, key=lambda x: dz_totals[x], reverse=True):
         week = dz_weekly.get(dz, 0)
-        total = dz_totals.get(dz, 0)
-        bar_w = int((week / max(dz_weekly.values(), default=1)) * 120)
+        bar_w = int(week / max_week * 120)
+        f = flights.get(dz, {})
+        last = (f"<div class='lf'>Last flight: {_local_when(f['last_end'], dz_tz(dz))}</div>"
+                if f.get("last_end") else "")
         dz_rows += f"""<tr>
-            <td style='padding:6px 12px;white-space:nowrap'>{dz}</td>
-            <td style='padding:6px 12px'>
+            <td style='padding:6px 12px'>{escape(dz)}{last}</td>
+            <td class='bar' style='padding:6px 12px'>
                 <div style='background:#00d4ff;height:10px;width:{bar_w}px;border-radius:2px;display:inline-block'></div>
             </td>
             <td style='padding:6px 12px;color:#ffaa00;text-align:center'>{week}</td>
-            <td style='padding:6px 12px;color:#00d4ff;text-align:center'>{total}</td>
+            <td style='padding:6px 12px;color:#00d4ff;text-align:center'>{dz_totals.get(dz, 0)}</td>
         </tr>"""
 
     return f"""<!DOCTYPE html><html><head><title>Mango Wind Hub — Stats</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta http-equiv="refresh" content="60">
     <style>
-        body{{font-family:'Barlow Condensed',sans-serif;background:#070b10;color:#c8daea;padding:24px;max-width:600px;margin:0 auto}}
+        body{{font-family:'Barlow Condensed',sans-serif;background:#070b10;color:#c8daea;padding:16px;max-width:680px;margin:0 auto}}
         h2{{color:#00d4ff;font-size:1.6rem;letter-spacing:0.08em;text-transform:uppercase}}
         h3{{color:#ffaa00;font-size:1rem;letter-spacing:0.1em;text-transform:uppercase;margin:20px 0 8px}}
         table{{border-collapse:collapse;width:100%}}
-        th{{color:#5a7a96;text-align:left;padding:5px 12px;border-bottom:1px solid #1e3045;font-size:0.75rem;letter-spacing:0.1em;text-transform:uppercase}}
+        .lf{{color:#5a7a96;font-size:0.8rem;margin-top:2px}}
+        @media (max-width:520px){{ .bar{{display:none}} th,td{{padding-left:6px!important;padding-right:6px!important}} }}
+        th{{color:#5a7a96;text-align:left;padding:5px 12px;border-bottom:1px solid #1e3045;font-size:0.75rem;letter-spacing:0.1em;text-transform:uppercase;white-space:nowrap}}
         td{{border-bottom:1px solid #0d1520;font-size:0.9rem}}
         .stat{{display:inline-block;background:#0d1520;border:1px solid #1e3045;border-radius:8px;padding:12px 20px;margin:6px 6px 6px 0}}
         .stat .n{{font-size:2rem;color:#00d4ff;font-weight:bold;line-height:1}}
         .stat .l{{font-size:0.7rem;color:#5a7a96;text-transform:uppercase;letter-spacing:0.1em;margin-top:2px}}
+        .act{{background:#0d1520;border:1px solid #1e3045;border-radius:8px;padding:10px 12px;margin:6px 0;font-size:0.95rem}}
         p{{color:#5a7a96;font-size:0.8rem;margin-top:4px}}
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;700&display=swap" rel="stylesheet">
     </head><body>
     <h2>Mango Wind Hub</h2>
-    <p>Community usage stats — updated in real time</p>
+    <p>Community usage stats &mdash; refreshes every minute. Times are each DZ&rsquo;s local time.</p>
 
     <div style="margin:16px 0">
-        <div class="stat"><div class="n">{total_week}</div><div class="l">This Week</div></div>
+        <div class="stat"><div class="n">{len(active)}</div><div class="l">Active Now</div></div>
+        <div class="stat"><div class="n">{total_week}</div><div class="l">Loads This Week</div></div>
         <div class="stat"><div class="n">{total_all}</div><div class="l">All Time</div></div>
-        <div class="stat"><div class="n">{len(dz_totals)}</div><div class="l">Active DZs</div></div>
+        <div class="stat"><div class="n">{len(dz_totals)}</div><div class="l">DZs Using It</div></div>
     </div>
 
-    <h3>Visits by Dropzone — Last 7 Days</h3>
+    <h3>Active Now</h3>
+    {active_html}
+
+    <h3>Visits by Dropzone</h3>
     <table>
-        <tr><th>Dropzone</th><th></th><th>This Week</th><th>All Time</th></tr>
+        <tr><th>Dropzone</th><th class="bar"></th><th style="text-align:center">This Week</th><th style="text-align:center">All Time</th></tr>
         {dz_rows}
     </table>
-    <p style="margin-top:16px">A visit = one data load at the current forecast hour.</p>
+    <p style="margin-top:16px">A visit = one data load at the current forecast hour. &ldquo;This Week&rdquo; runs Sunday to today in each DZ&rsquo;s local time. Last Flight = when one of the DZ&rsquo;s saved planes last landed.</p>
     </body></html>"""
 
 

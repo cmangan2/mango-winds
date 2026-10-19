@@ -93,6 +93,12 @@ def main():
             pg.mouse.move(x, y); pg.mouse.down(); pg.mouse.move(x + 60, y - 50, steps=6); pg.mouse.up(); pg.wait_for_timeout(200)
             bb2 = el.bounding_box()
             check("jump run box drags", round(bb2["x"] - bb["x"]) == 60 and round(bb2["y"] - bb["y"]) == -50)
+            # Freefall drift is a 40–65 s box; jumper boxes land on its 52.5 s centerline
+            fb = pg.evaluate("""(() => { const box = freefallLine.find(l => l instanceof L.Polygon), ll = box.getLatLngs()[0];
+                const v = p => [(p.lng - jrStart[1]) * 111000 * Math.cos(jrStart[0]*Math.PI/180), (p.lat - jrStart[0]) * 111000];
+                const s = ffDriftM(1), near = Math.hypot(...v(ll[0])), far = Math.hypot(...v(ll[3])), per = Math.hypot(...s);
+                return [near / per, far / per, Math.hypot(...ffDriftM(FF_MID_S)) / per]; })()""")
+            check("drift box spans 40-65 s, landings at 52.5 s", [round(x, 1) for x in fb] == [40.0, 65.0, 52.5], str(fb))
             pg.evaluate("clearJumpRun()")
 
             # 4. Suggested Jump Run produces a run on several headings

@@ -53,4 +53,5 @@ Accounts + takeoff alerts env: `DATABASE_URL` (Supabase Postgres, use the **pool
 - Don't use `localStorage` assumptions in tests without a fresh browser context.
 - Playwright tests: a stale mock server on the same port serves old HTML and gives false failures — restart it (kill by PID, not `pkill`).
 - Open-Meteo requests: ≤10 variables each (fractional call counting).
+- Pressure levels: 1000/975/950/925/850/700/600/500 hPa for every model, plus 800/750/650 hPa (wind + height only, one extra ≤9-var request) for the models in `EXTRA_LEVELS` (GFS, HRRR, HRDPS all three; ICON 800 only; ECMWF none). Without them the 5k→10k ft blend interpolated straight across a 5,000 ft gap and missed wind layers. Cost per location refresh: 24 calls short range (was 20), 14 long range (was 12).
 - `Cache-Control: no-store` on `/`; the service worker still caches static assets by version.

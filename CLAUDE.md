@@ -25,7 +25,7 @@ Accounts + takeoff alerts env: `DATABASE_URL` (Supabase Postgres, use the **pool
 1. Develop on `main`, commit, push `main`.
 2. Merge `main` into `dev` and push `dev` (so the dev site tracks it).
 3. **Bump the app version with every change that gets pushed** — three places must match:
-   `<meta name="app-version">` and `const CURRENT_VERSION` in `templates/index.html`, and `CACHE_NAME = "mwh-v<ver>"` in `static/sw.js`. Currently 4.5.x; patch bump per change.
+   `<meta name="app-version">` and `const CURRENT_VERSION` in `templates/index.html`, and `CACHE_NAME = "mwh-v<ver>"` in `static/sw.js`. Currently 4.6.x; patch bump per change.
 4. If a push is rejected, the web-form dropzone commits landed on `main`: `git fetch` then `git rebase origin/main` and push again.
 5. Update the Quick Start (welcome modal "wc-section" blocks in index.html) whenever behavior changes.
 6. Commit message trailer / PR text: follow the attribution lines the session gives.
@@ -41,7 +41,7 @@ Accounts + takeoff alerts env: `DATABASE_URL` (Supabase Postgres, use the **pool
 - Jump run info box: heading, Prior/Past (along-track from DZ center), Offset (nearest cardinal perpendicular), est. speed, rec. separation; draggable.
 - Canopy Settings (main + reserve) persist in localStorage `mwh-canopy-settings` (per device; survives app updates).
 - Forecast cache is per location/model (not per hour): each Open-Meteo response holds the whole timeline, so scrubbing the slider costs no extra API calls. Slider waits 2 s after the last move before loading.
-- Plane list per DZ lives in `tails.json` (`/tails`); ✕ in the Track Plane list removes from it and does NOT stop tracking. Auto-track only follows planes already entered for that DZ.
+- Plane list per DZ (`/tails`), recorded flights and last loads live in DB tables `dz_tails`, `recorded_tracks`, `lastload` (k, JSON v) when the DB is on, written through from the in-memory dicts; the JSON files (`tails.json` etc.) are only used with the DB off, and imported once into an empty table; ✕ in the Track Plane list removes from it and does NOT stop tracking. Auto-track only follows planes already entered for that DZ.
 - Accounts are optional: email → 6-digit code (or the link in the same email) → `mwh_session` cookie. The code exists because an iPhone Home Screen app has its own cookie jar; the link only signs in Safari. Synced settings: `canopy` (the localStorage canopy object; server copy wins on load) and `dz` (taken from the server only at sign-in). Tables: users, login_codes, sessions, push_subs, push_dz (SQL written to run on both SQLite and Postgres).
 - Takeoff alerts (web push): one switch per DZ at the bottom of Track Plane. The track recorder calls `notify_airborne()` on a new flight it saw start (not on the first check after a restart); one alert per plane per 20 min. iOS needs the app on the Home Screen (16.4+).
 - Cloud forecast: Open-Meteo GFS only, 5 hourly columns following the slider; METAR box only at hour offset 0.

@@ -2,12 +2,13 @@
     pip install -r requirements-dev.txt && playwright install chromium
     python tests/e2e.py
 If the machine can't reach the Leaflet CDN, point LEAFLET_DIR at a folder containing leaflet.js and leaflet.css."""
-import json, os, subprocess, sys, time, urllib.request
+import json, os, subprocess, sys, time, urllib.parse, urllib.request
 from playwright.sync_api import sync_playwright
 
 PORT = 5099
 URL = f"http://localhost:{PORT}/"
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.stdout.reconfigure(encoding="utf-8")   # push titles carry emoji; the Windows console default (cp1252) chokes on them
 LEAF = os.environ.get("LEAFLET_DIR")
 results = []
 
@@ -33,7 +34,37 @@ def new_page(browser, w=1000, h=800, touch=False):
     pg.goto(URL); pg.wait_for_timeout(2500); pg.evaluate("closeWelcome()"); pg.wait_for_timeout(400)
     return ctx, pg, errs
 
+def start_server(port, env=None):
+    srv = subprocess.Popen([sys.executable, os.path.join(HERE, "mock_server.py"), str(port)], env={**os.environ, **(env or {})},
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    for _ in range(40):
+        try: urllib.request.urlopen(f"http://localhost:{port}/tails?dz=x", timeout=1); break
+        except Exception: time.sleep(0.25)
+    return srv
+
+def persistence_tests():
+    """Plane lists live in the database: they survive a restart, and an old tails.json is imported once."""
+    import tempfile
+    port, d = PORT + 1, tempfile.mkdtemp(prefix="mwh-persist-")
+    with open(os.path.join(d, "tails.json"), "w") as f:
+        json.dump({"Old DZ": ["N111OLD"]}, f)
+    get = lambda dz: json.loads(urllib.request.urlopen(f"http://localhost:{port}/tails?dz=" + urllib.parse.quote(dz)).read())
+    srv = start_server(port, {"MWH_TEST_DIR": d})
+    try:
+        check("tails.json imported into the database on first start", get("Old DZ") == ["N111OLD"])
+        urllib.request.urlopen(urllib.request.Request(f"http://localhost:{port}/tails", data=json.dumps({"dz": "Test DZ", "tail": "n222mw"}).encode(),
+                                                      headers={"Content-Type": "application/json"}))
+    finally:
+        srv.terminate(); srv.wait()
+    os.remove(os.path.join(d, "tails.json"))     # a deploy wipes the disk; only the database is left
+    srv = start_server(port, {"MWH_TEST_DIR": d})
+    try:
+        check("added tail still listed after a restart", get("Test DZ") == ["N222MW"] and get("Old DZ") == ["N111OLD"])
+    finally:
+        srv.terminate(); srv.wait()
+
 def main():
+    persistence_tests()
     srv = subprocess.Popen([sys.executable, os.path.join(HERE, "mock_server.py"), str(PORT)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         for _ in range(40):

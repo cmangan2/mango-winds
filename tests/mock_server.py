@@ -1,10 +1,10 @@
 """Run the app with a canned forecast (no network needed for weather) for browser tests.
 Usage: python tests/mock_server.py [port]     (default port 5099)
-Sets throwaway data files so nothing real is touched."""
+Sets throwaway data files so nothing real is touched (MWH_TEST_DIR keeps them in one folder across restarts)."""
 import os, sys, tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-tmp = tempfile.mkdtemp(prefix="mwh-test-")
+tmp = os.environ.get("MWH_TEST_DIR") or tempfile.mkdtemp(prefix="mwh-test-")  # set it to reuse data files across restarts
 os.environ["PREWARM"] = "0"  # no startup weather fetch in tests
 os.environ["TRACK_RECORDER"] = "0"  # no live ADS-B polling in tests
 for k, f in (("CACHE_FILE", "winds_cache.json"), ("TAILS_FILE", "tails.json"), ("LASTLOAD_FILE", "lastload.json"),

@@ -45,7 +45,9 @@ def load_lastload():
     except Exception as e:
         print(f"Lastload load error: {e}")
 
-def save_lastload():
+def save_lastload(dz_name):
+    if DB_OK:
+        return _store_put("lastload", dz_name, _lastload_log.get(dz_name))
     try:
         with open(LASTLOAD_FILE, "w") as f:
             json.dump(_lastload_log, f)
@@ -87,7 +89,9 @@ def load_tails():
     except Exception as e:
         print(f"Tails load error: {e}")
 
-def save_tails():
+def save_tails(dz_name):
+    if DB_OK:
+        return _store_put("dz_tails", dz_name, _tails_log.get(dz_name) or None)
     try:
         with open(TAILS_FILE, "w") as f:
             json.dump(_tails_log, f)
@@ -1676,7 +1680,7 @@ def tails():
         if not dz_name or not tail:
             return jsonify({"error": "dz and tail required"}), 400
         _tails_log[dz_name] = [t for t in _tails_log.get(dz_name, []) if t.upper() != tail]
-        save_tails()
+        save_tails(dz_name)
         still_used = any(tail in [x.upper() for x in lst] for lst in _tails_log.values())
         entry = _adsb_trails.get(tail)
         if entry and not still_used and entry.get("dz") in (dz_name, None):
@@ -1702,7 +1706,7 @@ def tails():
     tails.insert(0, tail)
     # Keep max 10 per DZ
     _tails_log[dz_name] = tails[:10]
-    save_tails()
+    save_tails(dz_name)
     return jsonify({"status": "saved", "tails": _tails_log[dz_name]})
 
 
@@ -1733,7 +1737,7 @@ def lastload():
         "tail":           data.get("tail", ""),
         "timestamp":      datetime.now(timezone.utc).isoformat(),
     }
-    save_lastload()
+    save_lastload(dz_name)
     return jsonify({"status": "saved"})
 
 
@@ -2224,7 +2228,9 @@ except Exception as e:
     print(f"Recorded tracks load error: {e}")
 
 
-def _save_recorded():
+def _save_recorded(tail):
+    if DB_OK:
+        return _store_put("recorded_tracks", tail, _rec_last.get(tail))
     try:
         tmp = RECORDED_TRACKS_FILE + ".tmp"
         with open(tmp, "w") as f:
@@ -2248,7 +2254,7 @@ def _rec_finalize(tail):
     alts = [p["alt"] for p in pts]
     if len(pts) >= 8 and pts[-1]["ts"] - pts[0]["ts"] >= 120 and max(alts) - min(alts) >= 400:
         _rec_last[tail] = _flight_summary(pts)
-        _save_recorded()
+        _save_recorded(tail)
         print(f"Recorder: {tail} flight saved ({len(pts)} points, max {int(max(alts))} ft)")
 
 
@@ -2441,6 +2447,10 @@ _SCHEMA = [
     "CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at BIGINT NOT NULL)",
     "CREATE TABLE IF NOT EXISTS push_subs (endpoint TEXT PRIMARY KEY, sub TEXT NOT NULL, user_id TEXT, created_at BIGINT NOT NULL)",
     "CREATE TABLE IF NOT EXISTS push_dz (endpoint TEXT NOT NULL, dz TEXT NOT NULL, PRIMARY KEY (endpoint, dz))",
+    # Runtime data that used to live only in JSON files (Render wipes its disk on deploy): k = DZ name or tail, v = JSON
+    "CREATE TABLE IF NOT EXISTS dz_tails (k TEXT PRIMARY KEY, v TEXT NOT NULL, updated_at BIGINT NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS recorded_tracks (k TEXT PRIMARY KEY, v TEXT NOT NULL, updated_at BIGINT NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS lastload (k TEXT PRIMARY KEY, v TEXT NOT NULL, updated_at BIGINT NOT NULL)",
 ]
 
 
@@ -2495,6 +2505,43 @@ def _db_init():
 
 
 DB_OK = _db_init()
+
+
+def _store_put(table, k, v):
+    """Write one entry of a runtime-data table through to the DB (v=None deletes it)."""
+    try:
+        if v is None:
+            db(f"DELETE FROM {table} WHERE k = ?", (k,))
+        else:
+            db(f"INSERT INTO {table} (k, v, updated_at) VALUES (?, ?, ?) "
+               "ON CONFLICT (k) DO UPDATE SET v = excluded.v, updated_at = excluded.updated_at",
+               (k, json.dumps(v), int(_time.time())))
+    except Exception as e:
+        print(f"{table} save error: {e}")
+
+
+def _store_load(table, d):
+    """Make the DB the source for an in-memory dict. d already holds the JSON file's contents (loaded at
+    startup); if the table is empty that is imported once so nothing is lost, otherwise the DB wins."""
+    try:
+        rows = db(f"SELECT k, v FROM {table}", fetch="all")
+        if rows:
+            d.clear()
+            d.update({k: json.loads(v) for k, v in rows})
+            print(f"{table}: {len(rows)} loaded from the database")
+        elif d:
+            for k, v in list(d.items()):
+                _store_put(table, k, v)
+            print(f"{table}: {len(d)} imported from the JSON file")
+    except Exception as e:
+        print(f"{table} load error: {e}")
+
+
+if DB_OK:
+    _store_load("dz_tails", _tails_log)
+    _store_load("lastload", _lastload_log)
+    with _rec_lock:
+        _store_load("recorded_tracks", _rec_last)
 
 
 def _sha(s):

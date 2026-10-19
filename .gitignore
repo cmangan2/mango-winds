@@ -4,6 +4,7 @@ __pycache__/
 .env
 *.json
 !package.json
+!static/*.json
 winds_cache.json
 user_dropzones.txt
 pending_dropzones.txt

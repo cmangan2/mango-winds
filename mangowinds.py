@@ -570,6 +570,11 @@ def fetch_forecast(lat, lon, hour_offset=0):
             "geopotential_height_850hPa","geopotential_height_700hPa",
             "geopotential_height_600hPa","geopotential_height_500hPa",
         ]
+        # Extra levels that fill the 850→700 hPa (5k→10k ft) and 700→600 hPa (10k→14.5k ft) gaps, where a
+        # straight-line blend hid real wind layers. Only levels each model actually has (checked against
+        # Open-Meteo); wind + height only (temps interpolate fine) so it's ≤9 vars = 1 extra call per model.
+        EXTRA_LEVELS = {"gfs_seamless": [800, 750, 650], "hrrr_conus": [800, 750, 650], "hrdps": [800, 750, 650],
+                        "icon_seamless": [800]}
         # Cloud fields fetched separately from GFS only (not all 4 models)
         cloud_fields_str = "cloudcover_low,cloudcover_mid,cloudcover_high,cloudcover,precipitation_probability,visibility,dewpoint_2m,temperature_2m"
         # Short range (0-18h): GFS + ICON + HRRR + NAM — best resolution for current conditions
@@ -662,9 +667,12 @@ def fetch_forecast(lat, lon, hour_offset=0):
                 return r.json()
 
             try:
-                # 4 requests per model, each ≤10 vars = 1.0 API call each — sent in parallel so a cold
-                # fetch costs one round trip instead of four
+                # 4 requests per model (5 with extra levels), each ≤10 vars = 1.0 API call each — sent in
+                # parallel so a cold fetch costs one round trip
                 field_groups = [wind_fields, wind_fields2, temp_fields, height_fields]
+                extra = EXTRA_LEVELS.get(model, [])
+                if extra:
+                    field_groups.append([f"{k}_{l}hPa" for l in extra for k in ("windspeed", "winddirection", "geopotential_height")])
                 with ThreadPoolExecutor(max_workers=len(field_groups)) as gex:
                     responses = list(gex.map(fetch_group, field_groups))
                 if "429" in responses:
@@ -681,7 +689,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
                     if "hourly" in resp:
                         mdata.setdefault("hourly", {}).update(resp["hourly"])
                 _forecast_cache[model_key] = {"data": mdata, "expires": now + CACHE_TTL}
-                print(f"Open-Meteo {model} OK (4 calls)")
+                print(f"Open-Meteo {model} OK ({len(field_groups)} calls)")
                 return model, mdata
             except Exception as me:
                 print(f"Open-Meteo {model} error: {me}")
@@ -853,8 +861,9 @@ def format_winds(data, hour, lat=0, lon=0):
         # ── ENSEMBLE WEIGHTED AVERAGE ──
         # For each pressure level, get speed+direction from each model
         # Weight each model by how much it agrees with the other two
-        LEVELS = [1000, 975, 950, 925, 850, 700, 600, 500]
-        STD_H = {1000:364,975:820,950:1555,925:2500,850:4780,700:9843,600:14108,500:18289}
+        # 800/750/650 only come from the models in EXTRA_LEVELS; a model without a level is skipped for it
+        LEVELS = [1000, 975, 950, 925, 850, 800, 750, 700, 650, 600, 500]
+        STD_H = {1000:364,975:820,950:1555,925:2500,850:4780,800:6394,750:8091,700:9843,650:11785,600:14108,500:18289}
 
         def angle_diff(a, b):
             """Shortest angular difference between two directions."""
@@ -2072,7 +2081,7 @@ def models_debug():
         if true_idx is None: true_idx = tidx
     if request.args.get("idx", "app") == "true" and true_idx is not None:
         hour = true_idx
-    STD_H = {1000: 364, 975: 820, 950: 1555, 925: 2500, 850: 4780}
+    STD_H = {1000: 364, 975: 820, 950: 1555, 925: 2500, 850: 4780, 800: 6394, 750: 8091, 700: 9843, 650: 11785, 600: 14108}
     out = {}
     valid = None
     for mname, md in raw["models"].items():
@@ -2085,7 +2094,9 @@ def models_debug():
             return arr[hour] if hour < len(arr) else None
         row = {"10m": {"speed": val("windspeed_10m"), "dir": val("winddirection_10m")},
                "80m": {"speed": val("windspeed_80m"), "dir": val("winddirection_80m")}}
-        for lvl in (1000, 975, 950, 925, 850):
+        for lvl in (1000, 975, 950, 925, 850, 800, 750, 700, 650, 600):
+            if val(f"windspeed_{lvl}hPa") is None:
+                continue   # level not provided by this model
             g = val(f"geopotential_height_{lvl}hPa")
             row[f"{lvl}hPa"] = {
                 "alt_ft_msl": round(g * 3.28084) if g is not None else STD_H[lvl],

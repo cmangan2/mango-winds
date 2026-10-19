@@ -1199,7 +1199,28 @@ def debug():
 
 # ── Online now: the open app checks in once a minute while it's on screen ──
 ONLINE_WINDOW_S = 150
-_online = {}          # device hash -> {"ts": epoch s, "dz": dz name or None}
+_online = {}          # device hash -> {"ts": epoch s, "dz": dz name or None, "name": email before @ or None}
+_ping_names = {}      # session token hash -> (name or None, cache-until epoch s)
+
+
+def _ping_name(now):
+    """Signed-in user's name (part of the email before @) for the admin "who's online" list.
+    Cached 10 min per session so a check-in every minute doesn't hit the database every time."""
+    tok = request.cookies.get(SESSION_COOKIE)
+    if not tok:
+        return None
+    key = _sha(tok)
+    hit = _ping_names.get(key)
+    if hit and hit[1] > now:
+        return hit[0]
+    try:
+        user = current_user()
+    except Exception as e:
+        print(f"Ping user lookup error: {e}")
+        user = None
+    name = user["email"].split("@")[0] if user else None
+    _ping_names[key] = (name, now + 600)
+    return name
 
 
 @app.route("/ping", methods=["POST"])
@@ -1209,11 +1230,36 @@ def ping():
     if visitor and request.cookies.get(NOCOUNT_COOKIE) != "1":
         dz = (request.args.get("dz") or "").strip()
         now = _t.time()
+        name = _ping_name(now)
         with _visit_lock:
-            _online[_h.sha256(visitor.encode()).hexdigest()[:16]] = {"ts": now, "dz": dz if dz in DROPZONES else None}
+            _online[_h.sha256(visitor.encode()).hexdigest()[:16]] = {"ts": now, "dz": dz if dz in DROPZONES else None,
+                                                                     "name": name}
             for k in [k for k, v in _online.items() if now - v["ts"] > ONLINE_WINDOW_S]:
                 del _online[k]
     return ("", 204)
+
+
+def online_admin_html():
+    """Admin-only list of who has the app open: signed-in users by the part of their email before @,
+    everyone else as Guest. Never shown on the public /stats page."""
+    import time as _t
+    from html import escape
+    now = _t.time()
+    with _visit_lock:
+        live = sorted((v for v in _online.values() if now - v["ts"] <= ONLINE_WINDOW_S), key=lambda v: -v["ts"])
+    if not live:
+        rows = "<tr><td colspan='3' style='padding:6px 8px;color:#5a7a96'>Nobody has the app open right now.</td></tr>"
+    else:
+        rows = "".join(
+            f"<tr><td style='padding:4px 8px;color:{'#39ff89' if v.get('name') else '#c8daea'}'>"
+            f"{escape(v['name']) if v.get('name') else 'Guest'}</td>"
+            f"<td style='padding:4px 8px'>{escape(v['dz']) if v.get('dz') else '&mdash;'}</td>"
+            f"<td style='padding:4px 8px;color:#5a7a96;white-space:nowrap'>{int(now - v['ts'])} s ago</td></tr>"
+            for v in live)
+    return (f"<h3 style='color:#39ff89'>&#x1F7E2; Who&rsquo;s online ({len(live)})</h3>"
+            f"<table><tr><th>User</th><th>DZ</th><th>Seen</th></tr>{rows}</table>"
+            "<p style='color:#5a7a96;font-size:0.8rem'>Apps open on screen in the last 2&frac12; min. Signed-in users by the "
+            "part of their email before @; browsers marked not counted don&rsquo;t appear.</p>")
 
 
 def online_now(now=None):
@@ -1520,6 +1566,7 @@ def admin_page(token, count_me=None):
     </style></head><body>
     <h2>Mango Wind Hub — Admin</h2>
     {count_me_html}
+    {online_admin_html()}
     <p style="color:#5a7a96;font-size:0.8rem">Visit = one device opening a DZ per local day (from Oct 19, 2026; earlier = every data load at hour 0)</p>
 
     <div style="margin:16px 0">

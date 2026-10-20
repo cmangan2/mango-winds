@@ -20,4 +20,3 @@ Atlantic School of Skydiving (Debert, NS): 45.269456,-63.483224,CYDI
 Skydive Spaceland Houston (Houston, TX): 29.35873,-95.460307,KPVJ
 Boston Skydive Center (Smithfield, RI USA): 41.92076,-71.49138,KSFZ
 Skydive South Boston (Hanson, MA USA): 42.02341,-70.8395,K28M
-Atlantic School of Skydiving: 45.2694441,-63.4824951,CCQ3

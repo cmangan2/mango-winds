@@ -176,6 +176,12 @@ load_api_log()
 _metar_cache = {}
 METAR_TTL = timedelta(minutes=5)
 
+# Old duplicate DZ names (no city/state) -> the entry that's kept. Their past visits are merged in.
+DZ_ALIASES = {
+    "Atlantic School of Skydiving": "Atlantic School of Skydiving (Debert, NS)",
+    "Skydive Spaceland Houston": "Skydive Spaceland Houston (Houston, TX)",
+}
+
 def load_visits():
     global _visit_log
     try:
@@ -184,6 +190,17 @@ def load_visits():
                 _visit_log = json.load(f)
     except Exception as e:
         print(f"Visit load error: {e}")
+    merged = False
+    for old, new in DZ_ALIASES.items():
+        days = _visit_log.pop(old, None)
+        if days:
+            tgt = _visit_log.setdefault(new, {})
+            for d, n in days.items():
+                tgt[d] = tgt.get(d, 0) + n
+            merged = True
+    if merged:
+        save_visits()
+        print("Merged visits of duplicate DZ names into their full entries")
 
 def save_visits():
     try:

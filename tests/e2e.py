@@ -220,7 +220,31 @@ def main():
             pa.evaluate("signOut()"); pa.wait_for_timeout(400)
             check("sign out", pa.evaluate("fetch('/auth/me').then(r=>r.json()).then(d=>d.user)") is None)
             check("no JS errors in account/alert flows", not errsA and not errsB, str(errsA + errsB))
-            ctxA.close(); ctxB.close(); b.close()
+            ctxA.close(); ctxB.close()
+
+            # 9. Service worker covers the whole app, and the takeoff-alert switch turns on AND off
+            ctx = b.new_context(viewport={"width": 412, "height": 900})
+            pg = ctx.new_page(); errs = []; pg.on("pageerror", lambda e: errs.append(str(e)[:300]))
+            pg.goto(URL); pg.wait_for_timeout(1500)
+            pg.evaluate("navigator.serviceWorker.register('/static/sw.js')")   # an old /static/-scoped worker, as on existing phones
+            pg.reload(); pg.wait_for_timeout(2500); pg.evaluate("closeWelcome()")
+            scopes = pg.evaluate("navigator.serviceWorker.ready.then(() => navigator.serviceWorker.getRegistrations()).then(rs => rs.map(r => new URL(r.scope).pathname))")
+            check("service worker scope is the whole app; old /static/ worker removed", scopes == ["/"], str(scopes))
+            # headless Chrome has no push service and always reports notifications blocked: stand-ins for both
+            pg.evaluate("""(async () => { Object.defineProperty(Notification, 'permission', { get: () => 'granted' }); Notification.requestPermission = async () => 'granted';
+                const reg = await navigator.serviceWorker.ready; let sub = null;
+                const mk = () => ({ endpoint: 'https://push.example/toggle', toJSON(){ return { endpoint: this.endpoint, keys: { p256dh: 'x', auth: 'y' } }; } });
+                reg.pushManager.getSubscription = async () => sub; reg.pushManager.subscribe = async () => (sub = sub || mk()); })()""")
+            pg.evaluate("openTrackModal()"); pg.wait_for_timeout(800)
+            seq = [pg.inner_text("#alertToggle")]
+            for _ in range(3):
+                pg.click("#alertToggle"); pg.wait_for_timeout(600); seq.append(pg.inner_text("#alertToggle"))
+            check("takeoff alert switch toggles OFF→ON→OFF→ON", seq == ["OFF", "ON", "OFF", "ON"], str(seq))
+            pg.click("#alertToggle"); pg.wait_for_timeout(600)
+            srv_dzs = pg.evaluate("fetch('/push/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:'https://push.example/toggle'})}).then(r=>r.json()).then(d=>d.dzs)")
+            check("turning alerts off removes the DZ on the server", srv_dzs == [], str(srv_dzs))
+            check("no JS errors in service worker/alert toggle", not errs, str(errs))
+            ctx.close(); b.close()
     finally:
         srv.terminate()
     print(f"\n{sum(results)}/{len(results)} passed")

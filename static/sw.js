@@ -1,4 +1,4 @@
-const CACHE_NAME = "mwh-v4.6.22";
+const CACHE_NAME = "mwh-v4.6.23";
 const STATIC_ASSETS = [
   "/",
   "/static/manifest.json"
@@ -42,20 +42,13 @@ self.addEventListener("notificationclick", e => {
   }));
 });
 
-// Fetch — network first for API calls, cache first for static
+// Fetch — served from /sw.js with scope "/", so this sees every request the app makes. Only the app shell
+// ("/") and /static/ files are handled (network first, cached copy when offline). Everything else — API calls,
+// admin pages, POSTs, map tiles and other sites — goes straight to the network untouched.
 self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);
-  // Always network-first for wind data and API calls
-  if (url.pathname.startsWith("/data") || 
-      url.pathname.startsWith("/lastload") ||
-      url.pathname.startsWith("/plane") ||
-      url.pathname.startsWith("/tails") ||
-      url.pathname.startsWith("/auth") ||
-      url.pathname.startsWith("/push")) {
-    e.respondWith(fetch(e.request).catch(() => new Response("{}", {headers:{"Content-Type":"application/json"}})));
-    return;
-  }
-  // Network first for main page to always get latest
+  if (e.request.method !== "GET" || url.origin !== self.location.origin) return;
+  if (!(url.pathname === "/" || url.pathname.startsWith("/static/"))) return;
   e.respondWith(
     fetch(e.request)
       .then(r => {

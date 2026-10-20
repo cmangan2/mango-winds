@@ -7,7 +7,7 @@ Chris likes direct numerical answers, scenario tables and frank recommendations.
 ## Files
 - `mangowinds.py` — whole backend: Open-Meteo ensemble fetch + caching, `/data`, METAR (aviationweather.gov), ADS-B trails/poller, `/tails` (GET/POST/DELETE), `/lastload`, dropzone list (web-form dropzone commits land on `main` via the GitHub API).
 - `templates/index.html` — whole frontend (HTML, CSS, JS in one file). Almost every feature change is here.
-- `static/sw.js` — service worker (cache name carries the version). `static/manifest.json`, icons.
+- `static/sw.js` — service worker (cache name carries the version). Served at **`/sw.js`** (Flask route, `Service-Worker-Allowed: /`) and registered with scope `/`: from `/static/sw.js` it only covered /static/, never controlled the page, and `navigator.serviceWorker.ready` never resolved, which hung the takeoff-alert switch. The page unregisters any non-root registration. The worker only handles same-origin GETs of `/` and `/static/*`; everything else goes straight to the network. `static/manifest.json`, icons.
 - `Dropzone list.txt` — DZ list. Runtime data files (`*.json`, user/pending dropzones) are git-ignored.
 - `tests/` — `mock_server.py` (app with canned forecast, no network for weather) and `e2e.py` (Playwright smoke tests).
 

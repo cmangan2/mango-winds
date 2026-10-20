@@ -176,10 +176,14 @@ load_api_log()
 _metar_cache = {}
 METAR_TTL = timedelta(minutes=5)
 
-# Old duplicate DZ names (no city/state) -> the entry that's kept. Their past visits are merged in.
+# Old DZ names -> current name: removed duplicates (no city/state) and renames. Visits are merged in
+# load_visits(); plane lists, last loads, alert follows and saved DZs move in _migrate_dz_aliases();
+# the page maps a saved old name too (index() passes this table).
 DZ_ALIASES = {
     "Atlantic School of Skydiving": "Atlantic School of Skydiving (Debert, NS)",
     "Skydive Spaceland Houston": "Skydive Spaceland Houston (Houston, TX)",
+    "Boston Skydive Center (Smithfield, RI USA)": "Boston Skydive Center (Smithfield, RI)",
+    "Skydive South Boston (Hanson, MA USA)": "Skydive South Boston (Hanson, MA)",
 }
 
 def load_visits():
@@ -2932,6 +2936,49 @@ if DB_OK:
         _store_load("recorded_tracks", _rec_last)
 
 
+def _migrate_dz_aliases():
+    """Move everything keyed by an old DZ name (DZ_ALIASES) to its new name: plane lists, last loads, fetched
+    trails, takeoff-alert follows and signed-in users' saved DZ. Visits are merged in load_visits().
+    Idempotent: once nothing is stored under an old name it does nothing."""
+    for old, new in DZ_ALIASES.items():
+        moved = []
+        if old in _tails_log:
+            merged = list(dict.fromkeys((_tails_log.get(new) or []) + (_tails_log.pop(old) or [])))[:10]
+            _tails_log[new] = merged
+            save_tails(new); save_tails(old)   # old -> deleted (it's no longer in the dict)
+            moved.append("planes")
+        if old in _lastload_log:
+            o = _lastload_log.pop(old)
+            if new not in _lastload_log or str(o.get("timestamp") or "") > str(_lastload_log[new].get("timestamp") or ""):
+                _lastload_log[new] = o
+            save_lastload(new); save_lastload(old)
+            moved.append("last load")
+        hits = [t for t, e in _adsb_trails.items() if isinstance(e, dict) and e.get("dz") == old]
+        for t in hits:
+            _adsb_trails[t]["dz"] = new
+        if hits:
+            save_adsb_trails(); moved.append("trails")
+        if DB_OK:
+            try:
+                db("INSERT INTO push_dz (endpoint, dz) SELECT endpoint, ? FROM push_dz WHERE dz = ? "
+                   "ON CONFLICT (endpoint, dz) DO NOTHING", (new, old))
+                if db("DELETE FROM push_dz WHERE dz = ?", (old,)):
+                    moved.append("alert follows")
+                for uid, raw in db("SELECT id, settings FROM users WHERE settings LIKE ?", (f'%{old}%',), "all"):
+                    s = json.loads(raw or "{}")
+                    if s.get("dz") == old:
+                        s["dz"] = new
+                        db("UPDATE users SET settings = ? WHERE id = ?", (json.dumps(s), uid))
+                        moved.append("user DZ")
+            except Exception as e:
+                print(f"DZ rename DB migration error ({old}): {e}")
+        if moved:
+            print(f"DZ renamed '{old}' -> '{new}': moved {', '.join(moved)}")
+
+
+_migrate_dz_aliases()
+
+
 def _sha(s):
     return hashlib.sha256(s.encode()).hexdigest()
 
@@ -3255,7 +3302,7 @@ def index():
     # Pass only lat/lon to frontend (strip ICAO)
     dz_frontend = {k: (v[0], v[1]) for k, v in DROPZONES.items()}
     is_dev = os.environ.get("ENV", "production") == "dev"
-    resp = make_response(render_template("index.html", dz=dz_frontend, is_dev=is_dev))
+    resp = make_response(render_template("index.html", dz=dz_frontend, dz_aliases=DZ_ALIASES, is_dev=is_dev))
     if not request.cookies.get(VISITOR_COOKIE):
         # anonymous random id, only used to count each device once per DZ per day on /stats
         resp.set_cookie(VISITOR_COOKIE, secrets.token_urlsafe(12), max_age=2 * 365 * 86400,

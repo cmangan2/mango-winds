@@ -78,6 +78,12 @@ def main():
             check("page loads without JS errors", not errs, str(errs))
             check("green polygon + reserve polygon drawn", pg.evaluate("!!canopyCircleShifted && !!reserveCircle"))
 
+            # Renamed DZ: an old name saved on the device opens the renamed entry (not the default DZ)
+            pg.evaluate("localStorage.setItem('mwh-dz', 'Boston Skydive Center (Smithfield, RI USA)')")
+            pg.reload(); pg.wait_for_timeout(2500); pg.evaluate("closeWelcome()")
+            check("saved old DZ name opens the renamed DZ", pg.evaluate("document.getElementById('dz').value") == "Boston Skydive Center (Smithfield, RI)")
+            pg.evaluate("localStorage.removeItem('mwh-dz')"); pg.reload(); pg.wait_for_timeout(2500); pg.evaluate("closeWelcome()")
+
             # 2. Canopy Settings persist across reload, Reset clears them
             pg.evaluate("openAdvancedModal()"); pg.fill("#advWeight", "200"); pg.fill("#advSize", "170"); pg.fill("#advResSize", "126")
             pg.evaluate("applyAdvancedSettings()"); pg.wait_for_timeout(800)

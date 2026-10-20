@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.6.21">
+<meta name="app-version" content="4.6.22">
 <script>
 try {
-    const CURRENT_VERSION = "4.6.21";
+    const CURRENT_VERSION = "4.6.22";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -724,6 +724,9 @@ select:focus { border-color: var(--accent); }
 
 <script>
 let dz = {{ dz | tojson }};
+// Old DZ names (removed duplicates, renames) -> current name, so a DZ saved on the device or account still opens
+const DZ_ALIASES = {{ dz_aliases | tojson }};
+function resolveDzName(n){ if (!n || dz[n]) return n; if (DZ_ALIASES[n] && dz[DZ_ALIASES[n]]) return DZ_ALIASES[n]; return Object.keys(dz).find(k => k.startsWith(n + " (")) || null; }
 let lat, lon;
 let canopyAirspeedKt = 27;
 let canopyDescentTime = 158;      // seconds, opening alt -> 500 ft (used by the landing pattern)
@@ -4021,7 +4024,7 @@ function initDZ(){
     const sneDz=keys.find(k=>k.toLowerCase().includes("skydive new england"))||keys[0];
     let savedDz=null; try{ savedDz=localStorage.getItem("mwh-dz"); }catch(e){}
     // a saved name that's gone from the list (old duplicate without city/state) -> its full entry
-    if (savedDz && !dz[savedDz]) savedDz = keys.find(k => k.startsWith(savedDz + " (")) || null;
+    savedDz = resolveDzName(savedDz);
     const defaultDz=(savedDz && dz[savedDz]) ? savedDz : sneDz;
     const wSel = document.getElementById("welcomeDzSelect");
     for (const k of keys){
@@ -4152,7 +4155,7 @@ function onSignedIn(justNow){
     } else { try { if (localStorage.getItem(PATTERN_SAVE_KEY)) up.pattern = patternAlts; } catch(e){} }
     if (justNow){
         const sel = document.getElementById("dz");
-        const sdz = (s.dz && !dz[s.dz]) ? (Object.keys(dz).find(k => k.startsWith(s.dz + " (")) || s.dz) : s.dz;
+        const sdz = resolveDzName(s.dz) || s.dz;
         if (sdz && dz[sdz] && sdz !== sel.value){ sel.value = sdz; sel.onchange(); }
         else if (!s.dz) up.dz = sel.value;
     }

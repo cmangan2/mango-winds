@@ -382,7 +382,7 @@ def load_dropzones(path="Dropzone list.txt"):
         with open(path, "r", encoding="utf-8") as f:
             for line in f:
                 parsed = parse_dz_line(line)
-                if parsed:
+                if parsed and parsed[0] not in DZ_ALIASES:   # never bring back a removed duplicate name
                     name, lat, lon, icao = parsed
                     dz[name] = (lat, lon, icao)
     except Exception:
@@ -1747,6 +1747,18 @@ def save_pending_dzs(pending):
                 f.write(_json.dumps(entry) + "\n")
     except Exception as e:
         print(f"save_pending_dzs error: {e}")
+
+def _prune_alias_submissions():
+    """Drop review-list entries for the removed duplicate DZ names (DZ_ALIASES), so 'Save Edits' on one
+    can't add the duplicate back to the DZ list."""
+    pending = load_pending_dzs()
+    keep = [p for p in pending if p.get("name") not in DZ_ALIASES]
+    if len(keep) != len(pending):
+        save_pending_dzs(keep)
+        print(f"Removed {len(pending) - len(keep)} duplicate-name dropzone submission(s) from the admin review list")
+
+_prune_alias_submissions()
+
 
 def load_user_dz_lines():
     """Return raw lines from user_dropzones.txt."""

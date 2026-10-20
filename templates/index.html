@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.6.23">
+<meta name="app-version" content="4.6.24">
 <script>
 try {
-    const CURRENT_VERSION = "4.6.23";
+    const CURRENT_VERSION = "4.6.24";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -229,6 +229,20 @@ select:focus { border-color: var(--accent); }
 .df-row { display: flex; flex-direction: column; gap: 4px; }
 .df-label { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .df-pair { display: flex; gap: 8px; }
+/* Dropzone search (drawer + welcome) */
+.dz-search { position: relative; margin-bottom: 6px; }
+.dz-search input { width: 100%; box-sizing: border-box; background: var(--card-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 7px 30px 7px 10px; font-family: 'Barlow Condensed', sans-serif; font-size: 16px; outline: none; }
+.dz-search input:focus { border-color: var(--accent); }
+.dz-search input::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }   /* we draw our own ✕ */
+.dz-search .dzs-clear { position: absolute; right: 6px; top: 5px; background: none; border: none; color: var(--muted); font-size: 0.95rem; cursor: pointer; padding: 2px 4px; display: none; }
+.dz-search .dzs-results { display: none; margin-top: 4px; background: var(--card-alt); border: 1px solid var(--border); border-radius: 6px; max-height: 230px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.dz-search .dzs-row { display: flex; align-items: center; gap: 8px; padding: 7px 10px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05); font-family: 'Barlow Condensed', sans-serif; font-size: 0.95rem; color: var(--text); text-align: left; }
+.dz-search .dzs-row:last-child { border-bottom: none; }
+.dz-search .dzs-row:hover, .dz-search .dzs-row.active { background: rgba(0,212,255,0.08); }
+.dz-search .dzs-place { color: var(--muted); font-size: 0.8rem; margin-left: auto; white-space: nowrap; }
+.dz-search .dzs-star { background: none; border: none; cursor: pointer; font-size: 1rem; padding: 0 2px; color: var(--muted); line-height: 1; }
+.dz-search .dzs-star.on { color: #ffd23f; }
+.dz-search .dzs-note { padding: 7px 10px; color: var(--muted); font-size: 0.8rem; font-family: 'Share Tech Mono', monospace; }
 .df-input { background: var(--card-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-family: 'Share Tech Mono', monospace; font-size: 0.9rem; outline: none; width: 100%; }
 .df-input:focus { border-color: var(--accent); }
 .df-short { width: 90px; flex-shrink: 0; }
@@ -284,6 +298,7 @@ select:focus { border-color: var(--accent); }
             </div>
             <div style="margin-bottom:20px">
                 <label style="font-size:0.72rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:8px">Select Your Dropzone</label>
+                <div class="dz-search" data-for="welcomeDzSelect"></div>
                 <select id="welcomeDzSelect" style="width:100%;background:var(--card-bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-family:'Barlow Condensed',sans-serif;font-size:1.05rem;outline:none;cursor:pointer;appearance:none;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235a7a96' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 12px center"></select>
             </div>
             <div style="text-align:center;margin-bottom:8px">
@@ -346,7 +361,7 @@ select:focus { border-color: var(--accent); }
             <button onclick="document.getElementById('quickStartModal').style.display='none'" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:0 4px">&#x2715;</button>
         </div>
         <div style="overflow-y:auto;padding:14px 20px;flex:1;-webkit-overflow-scrolling:touch">
-            <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F4CD;</div><div><div class="wc-title">Getting Started</div><div class="wc-text">Pick your <b>dropzone</b> (or choose <b>Add my dropzone&hellip;</b> to add yours with an optional METAR station). On a phone the panel is a <b>drawer</b> at the bottom: tap or drag the handle to open and close it.</div></div></div>
+            <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F4CD;</div><div><div class="wc-title">Getting Started</div><div class="wc-text">Pick your <b>dropzone</b> (or choose <b>Add my dropzone&hellip;</b> to add yours with an optional METAR station). Or type in the <b>&#x1F50D; search</b> box (a name, part of one, a city or a state; results appear 2 seconds after you stop typing, or press Enter). Tap <b>&#x2606; Favorite</b> to star a dropzone: favorites are listed first in the dropdown and in search, saved on this device and synced when you&rsquo;re signed in. On a phone the panel is a <b>drawer</b> at the bottom: tap or drag the handle to open and close it.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--canopy)">&#9675;</div><div><div class="wc-title">Canopy Circle</div><div class="wc-text">The <b>dashed white circle</b> is a <b>1,200 ft pattern-start circle</b> at the DZ center. The <b>green circle</b> is how far out you can open (3,000 ft by default) and still fly back to reach the edge of that circle at <b>1,000 ft</b> to start your pattern. Wind stretches it toward the upwind side and squeezes it on the downwind side; in strong wind the downwind end is cut flat along a line tangent to the white circle. <b>Hover</b> (desktop) or <b>tap</b> (phone) the green edge to see the canopy settings and wind behind it. The <b>dashed green polygon</b> inside it is your <b>reserve range</b>: opening at 2,000 ft and reaching the same circle at 500 ft. It starts with a PD Optimum 143 at a 2.2:1 glide (change the reserve size/type in Canopy Settings, or hide it); the other reserve flight numbers are estimates. Tap its edge for the reserve details.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--muted)">&#x2699;&#xFE0F;</div><div><div class="wc-title">Canopy Settings</div><div class="wc-text">Tap <b>Canopy Settings</b> and enter <b>canopy size, exit weight, type</b>, opening altitude and (optionally) a known glide ratio. Add your <b>reserve</b> size and type too. The circle, flight time and descent rate update to match your gear. Your settings are <b>saved on this device</b> and kept through app updates; <b>Reset to defaults</b> clears them.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F4CA;</div><div><div class="wc-title">Winds by Altitude</div><div class="wc-text">Each row blends <b>GFS, ICON, HRRR, HRDPS and ECMWF</b>, weighted toward the models that agree. The <b>Agree</b> column shows how closely they match. <b>Surface</b> uses the live <b>METAR</b> for the current hour when your DZ has a station. Every altitude always shows a direction. When the wind is light and uncertain (a calm or variable METAR, or models that disagree, under 8 kt) the direction is still the weighted model average, marked <b>≈</b> (about) as an estimate. All directions and headings in the app (winds, METAR, jump run, plane heading, landing pattern) are <b>magnetic</b>, corrected for the DZ&rsquo;s magnetic variation (shown under Model Agreement), and headings you type are read as magnetic. Tap <b>Hide</b> to collapse the table.</div></div></div>
@@ -679,7 +694,9 @@ select:focus { border-color: var(--accent); }
         </div>
         <div id="panel-body">
             <div id="controls">
-                <label>Dropzone</label>
+                <div style="display:flex;justify-content:space-between;align-items:center"><label>Dropzone</label>
+                    <button id="dzFavBtn" onclick="toggleFavorite()" title="Add this dropzone to your favorites (listed first)" style="background:none;border:none;color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-size:0.85rem;letter-spacing:0.04em;cursor:pointer;padding:2px 0;-webkit-tap-highlight-color:transparent">☆ Favorite</button></div>
+                <div class="dz-search" data-for="dz"></div>
                 <select id="dz"></select>
                 <div class="time-row">
                     <label>Forecast Offset</label>
@@ -1428,6 +1445,7 @@ function colorClass(s){ if (s<10) return 'dot-green'; if (s<25) return 'dot-oran
 
 async function load(){
     document.getElementById("loader").classList.remove("hidden");
+    try { updateFavStar(); } catch(e){}   // whatever changed the DZ, the ☆ follows it
     const hour = document.getElementById("hour").value;
     try {
         const curDzName = document.getElementById("dz") ? document.getElementById("dz").value : "";
@@ -2014,6 +2032,7 @@ function closeWelcome(){
             mSel.value = wSel.value;
             lat = dz[wSel.value][0]; lon = dz[wSel.value][1];
             try{ localStorage.setItem("mwh-dz", wSel.value); }catch(e){}
+            updateFavStar();
             firstLoad = true; load();
         }
     } catch(e){}
@@ -3923,23 +3942,7 @@ function loadCustomDZs(){
     // and injected into the dz object by Flask at page load — nothing to do here
 }
 
-function addDZOptionToSelects(name){
-    [document.getElementById('dz'), document.getElementById('welcomeDzSelect')].forEach(function(sel){
-        if (!sel) return;
-        // Remove existing "add" option temporarily
-        const addOpt = sel.querySelector('option[value="__add__"]');
-        if (addOpt) addOpt.remove();
-        // Add the new DZ option
-        const o = document.createElement('option');
-        o.value = name; o.text = name;
-        sel.appendChild(o);
-        // Re-add the add option at the end
-        const add = document.createElement('option');
-        add.value = '__add__'; add.text = '➕  Add my dropzone...';
-        add.style.color = 'var(--accent)';
-        sel.appendChild(add);
-    });
-}
+function addDZOptionToSelects(name){ buildDzOptions(); }   // the name is already in dz{}; rebuild keeps favorites first
 
 function openCustomDzModal(){
     document.getElementById('cdName').value = '';
@@ -4017,6 +4020,130 @@ async function saveCustomDz(){
     }
 }
 
+// ── FAVORITE DROPZONES ── listed first in both dropdowns and in search; saved on the device, synced when signed in
+const FAV_KEY = "mwh-dz-favorites";
+let dzFavorites = [];
+function loadFavorites(){
+    try { const a = JSON.parse(localStorage.getItem(FAV_KEY) || "[]");
+          if (Array.isArray(a)) dzFavorites = [...new Set(a.map(resolveDzName).filter(n => n && dz[n]))]; } catch(e){}
+}
+function saveFavorites(){
+    try { localStorage.setItem(FAV_KEY, JSON.stringify(dzFavorites)); } catch(e){}
+    syncSettingsUp({ favorites: dzFavorites });
+}
+function isFav(n){ return dzFavorites.includes(n); }
+function setFavorites(list){ dzFavorites = [...new Set(list.map(resolveDzName).filter(n => n && dz[n]))]; buildDzOptions(); updateFavStar(); dzSearchRefresh(); }
+function toggleFavorite(n){
+    n = n || document.getElementById("dz").value;
+    if (!dz[n]) return;
+    setFavorites(isFav(n) ? dzFavorites.filter(x => x !== n) : [...dzFavorites, n]);
+    saveFavorites();
+}
+function updateFavStar(){
+    const b = document.getElementById("dzFavBtn"), on = isFav(document.getElementById("dz").value);
+    b.textContent = on ? "★ Favorite" : "☆ Favorite"; b.style.color = on ? "#ffd23f" : "var(--muted)";
+    b.title = on ? "Remove this dropzone from your favorites" : "Add this dropzone to your favorites (listed first)";
+}
+// Both dropdowns: ★ Favorites group (A–Z), then every dropzone, then "Add my dropzone". Keeps each one's selection.
+function buildDzOptions(){
+    const favs = dzFavorites.filter(n => dz[n]).sort((a, b) => a.localeCompare(b));
+    [document.getElementById("dz"), document.getElementById("welcomeDzSelect")].forEach(sel => {
+        if (!sel) return;
+        const keep = sel.value;
+        sel.innerHTML = "";
+        const group = (label, names) => { const g = document.createElement("optgroup"); g.label = label;
+            names.forEach(k => { const o = document.createElement("option"); o.value = k; o.text = (isFav(k) ? "★ " : "") + k; g.appendChild(o); }); sel.appendChild(g); };
+        if (favs.length) group("★ Favorites", favs);
+        group(favs.length ? "All dropzones" : "Dropzones", Object.keys(dz));
+        const add = document.createElement("option"); add.value = "__add__"; add.text = "➕  Add my dropzone..."; add.style.color = "var(--accent)";
+        sel.appendChild(add);
+        if (keep && (dz[keep] || keep === "__add__")) sel.value = keep;
+    });
+}
+
+// ── DROPZONE SEARCH ── 2 s after the last keystroke (Enter = now), list every DZ whose name, city or state
+// matches all the words typed. Full state/province names map to their code; a typed 2-letter code only
+// matches the state (so "ma" finds MA dropzones, not "Marshall").
+const DZ_SEARCH_DELAY_MS = 2000;
+const STATE_NAMES = { alabama:"AL", alaska:"AK", arizona:"AZ", arkansas:"AR", california:"CA", colorado:"CO", connecticut:"CT",
+    delaware:"DE", florida:"FL", georgia:"GA", hawaii:"HI", idaho:"ID", illinois:"IL", indiana:"IN", iowa:"IA", kansas:"KS",
+    kentucky:"KY", louisiana:"LA", maine:"ME", maryland:"MD", massachusetts:"MA", michigan:"MI", minnesota:"MN",
+    mississippi:"MS", missouri:"MO", montana:"MT", nebraska:"NE", nevada:"NV", "new hampshire":"NH", "new jersey":"NJ",
+    "new mexico":"NM", "new york":"NY", "north carolina":"NC", "north dakota":"ND", ohio:"OH", oklahoma:"OK", oregon:"OR",
+    pennsylvania:"PA", "rhode island":"RI", "south carolina":"SC", "south dakota":"SD", tennessee:"TN", texas:"TX", utah:"UT",
+    vermont:"VT", virginia:"VA", washington:"WA", "west virginia":"WV", wisconsin:"WI", wyoming:"WY", "district of columbia":"DC",
+    alberta:"AB", "british columbia":"BC", manitoba:"MB", "new brunswick":"NB", newfoundland:"NL", "nova scotia":"NS",
+    ontario:"ON", "prince edward island":"PE", quebec:"QC", "québec":"QC", saskatchewan:"SK" };
+const STATE_CODES = new Set(Object.values(STATE_NAMES));
+function dzParts(n){
+    const m = n.match(/^(.*?)\s*\(([^)]*)\)\s*$/), base = m ? m[1] : n, place = m ? m[2] : "";
+    const bits = place.split(",").map(s => s.trim()).filter(Boolean);
+    const st = bits.length > 1 ? bits[bits.length - 1].replace(/\s*USA$/i, "").toUpperCase() : "";
+    return { base, city: bits.length > 1 ? bits.slice(0, -1).join(", ") : place, st };
+}
+function searchDZs(q){
+    let s = (q || "").toLowerCase().replace(/[()]/g, " ").trim();
+    if (!s) return [];
+    const codes = [];
+    for (const name of Object.keys(STATE_NAMES).sort((a, b) => b.length - a.length)){
+        const re = new RegExp(`\\b${name}\\b`);
+        if (re.test(s)){ codes.push(STATE_NAMES[name]); s = s.replace(re, " "); }
+    }
+    const toks = s.split(/[\s,]+/).filter(Boolean);
+    return Object.keys(dz).filter(n => {
+        const p = dzParts(n), low = n.toLowerCase();
+        if (codes.length && !codes.includes(p.st)) return false;
+        return toks.every(t => (t.length === 2 && STATE_CODES.has(t.toUpperCase()))
+            ? p.st === t.toUpperCase() : low.includes(t));
+    }).sort((a, b) => (isFav(b) - isFav(a)) || a.localeCompare(b));
+}
+const _dzSearches = [];   // one per box: {input, results, select, timer}
+const escDz = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+function dzSearchRender(box){
+    const q = box.input.value.trim(), r = box.results;
+    if (!q){ r.style.display = "none"; r.innerHTML = ""; return; }
+    const hits = searchDZs(q);
+    r.innerHTML = hits.length ? hits.map(n => { const p = dzParts(n);
+        return `<div class="dzs-row" data-dz="${escDz(n)}"><button class="dzs-star${isFav(n) ? " on" : ""}" title="${isFav(n) ? "Remove from favorites" : "Add to favorites"}">${isFav(n) ? "★" : "☆"}</button>`
+             + `<span>${escDz(p.base)}</span><span class="dzs-place">${escDz([p.city, p.st].filter(Boolean).join(", "))}</span></div>`; }).join("")
+        : `<div class="dzs-note">No dropzones match “${escDz(q)}”</div>`;
+    r.style.display = "block";
+}
+function dzSearchRefresh(){ _dzSearches.forEach(b => { if (b.input.value.trim() && b.results.style.display === "block") dzSearchRender(b); }); }
+function dzSearchPick(box, name){
+    const sel = box.select;
+    box.input.value = ""; box.clear.style.display = "none"; dzSearchRender(box); box.input.blur();
+    if (sel.id === "dz"){ if (sel.value !== name){ sel.value = name; sel.onchange(); } }
+    else sel.value = name;   // welcome screen: applied by "Let's Go"
+}
+function initDzSearch(){
+    document.querySelectorAll(".dz-search").forEach(holder => {
+        const select = document.getElementById(holder.dataset.for);
+        holder.innerHTML = `<input type="search" placeholder="🔍 Search dropzones: name, city or state" autocomplete="off" enterkeyhint="search" aria-label="Search dropzones">`
+            + `<button class="dzs-clear" title="Clear search" aria-label="Clear search">✕</button><div class="dzs-results"></div>`;
+        const box = { input: holder.querySelector("input"), clear: holder.querySelector(".dzs-clear"), results: holder.querySelector(".dzs-results"), select, timer: null };
+        _dzSearches.push(box);
+        const later = () => { clearTimeout(box.timer); box.timer = setTimeout(() => dzSearchRender(box), DZ_SEARCH_DELAY_MS); };
+        box.input.addEventListener("input", () => {
+            box.clear.style.display = box.input.value ? "block" : "none";
+            if (!box.input.value.trim()){ clearTimeout(box.timer); dzSearchRender(box); return; }
+            box.results.innerHTML = `<div class="dzs-note">Searching…</div>`; box.results.style.display = "block";
+            later();
+        });
+        box.input.addEventListener("keydown", e => {
+            if (e.key === "Enter"){ e.preventDefault(); clearTimeout(box.timer); dzSearchRender(box);
+                const rows = box.results.querySelectorAll(".dzs-row"); if (rows.length === 1) dzSearchPick(box, rows[0].dataset.dz); }
+            else if (e.key === "Escape"){ clearTimeout(box.timer); box.input.value = ""; box.clear.style.display = "none"; dzSearchRender(box); }
+        });
+        box.clear.addEventListener("click", () => { clearTimeout(box.timer); box.input.value = ""; box.clear.style.display = "none"; dzSearchRender(box); box.input.focus(); });
+        box.results.addEventListener("click", e => {
+            const row = e.target.closest(".dzs-row"); if (!row) return;
+            if (e.target.closest(".dzs-star")){ e.stopPropagation(); toggleFavorite(row.dataset.dz); return; }
+            dzSearchPick(box, row.dataset.dz);
+        });
+    });
+}
+
 function initDZ(){
     loadCustomDZs();
     const sel=document.getElementById("dz");
@@ -4027,18 +4154,8 @@ function initDZ(){
     savedDz = resolveDzName(savedDz);
     const defaultDz=(savedDz && dz[savedDz]) ? savedDz : sneDz;
     const wSel = document.getElementById("welcomeDzSelect");
-    for (const k of keys){
-        const o=document.createElement("option"); o.value=k; o.text=k; sel.appendChild(o);
-        const o2=o.cloneNode(true); wSel.appendChild(o2);
-    }
-    // Add "➕ Add my dropzone..." at the bottom of both selects
-    [sel, wSel].forEach(function(s){
-        const o = document.createElement('option');
-        o.value = '__add__'; o.text = '➕  Add my dropzone...';
-        o.style.color = 'var(--accent)';
-        s.appendChild(o);
-    });
-    sel.value=defaultDz; wSel.value=defaultDz;
+    loadFavorites(); buildDzOptions(); initDzSearch();   // favorites first, then everything, then "Add my dropzone"
+    sel.value=defaultDz; wSel.value=defaultDz; updateFavStar();
     lat=dz[defaultDz][0]; lon=dz[defaultDz][1];
     initCanopyDefaults(); initMap(); load();
     document.getElementById("hour").oninput=()=>{
@@ -4059,7 +4176,7 @@ function initDZ(){
         if(v==='__add__'){ openCustomDzModal(); return; }
         lat=dz[v][0]; lon=dz[v][1];
         try{ localStorage.setItem("mwh-dz", v); }catch(e){}
-        syncSettingsUp({ dz: v });
+        syncSettingsUp({ dz: v }); updateFavStar();
         if(jumpRunLine){jumpRunLine.forEach(l=>l.remove());jumpRunLine=null;}
         if(freefallLine){freefallLine.forEach(l=>l.remove());freefallLine=null;}
         clearTracking(); stopPlane(); jrStart=null; jrEnd=null; jrDef=null;
@@ -4153,6 +4270,11 @@ function onSignedIn(justNow){
         try { localStorage.setItem(PATTERN_SAVE_KEY, JSON.stringify(patternAlts)); } catch(e){}
         if (landingSpot) drawPattern();
     } else { try { if (localStorage.getItem(PATTERN_SAVE_KEY)) up.pattern = patternAlts; } catch(e){} }
+    // Favorites: union of this device's and the account's (nobody loses a star by signing in)
+    const serverFavs = Array.isArray(s.favorites) ? s.favorites : [];
+    const unionFavs = [...new Set([...serverFavs.map(resolveDzName), ...dzFavorites])].filter(n => n && dz[n]);
+    if (unionFavs.length !== dzFavorites.length || unionFavs.some(n => !isFav(n))){ setFavorites(unionFavs); try { localStorage.setItem(FAV_KEY, JSON.stringify(dzFavorites)); } catch(e){} }
+    if (unionFavs.length !== serverFavs.length || unionFavs.some(n => !serverFavs.includes(n))) up.favorites = dzFavorites;
     if (justNow){
         const sel = document.getElementById("dz");
         const sdz = resolveDzName(s.dz) || s.dz;

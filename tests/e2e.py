@@ -84,6 +84,35 @@ def main():
             check("saved old DZ name opens the renamed DZ", pg.evaluate("document.getElementById('dz').value") == "Boston Skydive Center (Smithfield, RI)")
             pg.evaluate("localStorage.removeItem('mwh-dz')"); pg.reload(); pg.wait_for_timeout(2500); pg.evaluate("closeWelcome()")
 
+            # Dropzone search: nothing until 2 s after typing stops, then matches by name / part / city / state
+            box = '.dz-search[data-for="dz"]'
+            rows = f"Array.from(document.querySelectorAll('{box} .dzs-row')).map(r => r.dataset.dz)"
+            pg.evaluate("if (!panelOpen) togglePanel()"); pg.wait_for_timeout(400)
+            pg.fill(f"{box} input", "pepperell"); pg.wait_for_timeout(1200)
+            check("search waits (no results 1.2 s in)", pg.evaluate(rows) == [] and "Searching" in pg.inner_text(f"{box} .dzs-results"))
+            pg.wait_for_timeout(1200)
+            check("search: name", pg.evaluate(rows) == ["Skydive Pepperell (Pepperell, MA)"], str(pg.evaluate(rows)))
+            def search(q):
+                pg.evaluate(f"(() => {{ const b = _dzSearches.find(x => x.select.id === 'dz'); b.input.value = {q!r}; dzSearchRender(b); }})()")
+                return pg.evaluate(rows)
+            ma = search("massachusetts")
+            check("search: full state name", ma and all(n.endswith(", MA)") for n in ma) and "Jumptown (Orange, MA)" in ma, str(ma))
+            check("search: state code matches state only (not 'Marshall')", search("ma") == ma, str(search("ma")))
+            check("search: city", search("orange") == ["Jumptown (Orange, MA)"], str(search("orange")))
+            check("search: part of a name + state", search("skydive ri") == ["Boston Skydive Center (Smithfield, RI)"], str(search("skydive ri")))
+            pg.fill(f"{box} input", "elsinore"); pg.press(f"{box} input", "Enter"); pg.wait_for_timeout(600)
+            check("Enter on a single match switches to it", pg.evaluate("document.getElementById('dz').value") == "Skydive Elsinore (Elsinore, CA)")
+            # Favorites: star the current DZ -> listed first in the dropdown and in search; survives reload
+            pg.click("#dzFavBtn"); pg.wait_for_timeout(300)
+            first_group = "(() => { const g = document.querySelector('#dz optgroup'); return [g.label, Array.from(g.children).map(o => o.value)]; })()"
+            check("favorite listed first in the dropdown", pg.evaluate(first_group) == ["★ Favorites", ["Skydive Elsinore (Elsinore, CA)"]], str(pg.evaluate(first_group)))
+            check("favorite listed first in search", search("skydive")[0] == "Skydive Elsinore (Elsinore, CA)", str(search("skydive")[:3]))
+            pg.reload(); pg.wait_for_timeout(2500); pg.evaluate("closeWelcome()")
+            check("favorites saved on the device", pg.evaluate(first_group)[0] == "★ Favorites" and pg.inner_text("#dzFavBtn").startswith("★"))
+            pg.click("#dzFavBtn"); pg.wait_for_timeout(300)
+            check("unstar removes the Favorites group", pg.evaluate("document.querySelector('#dz optgroup').label") == "Dropzones")
+            pg.evaluate("localStorage.removeItem('mwh-dz'); localStorage.removeItem('mwh-dz-favorites')"); pg.reload(); pg.wait_for_timeout(2500); pg.evaluate("closeWelcome()")
+
             # 2. Canopy Settings persist across reload, Reset clears them
             pg.evaluate("openAdvancedModal()"); pg.fill("#advWeight", "200"); pg.fill("#advSize", "170"); pg.fill("#advResSize", "126")
             pg.evaluate("applyAdvancedSettings()"); pg.wait_for_timeout(800)
@@ -192,6 +221,7 @@ def main():
                 pg.fill("#acctCode", sent()["codes"][email]["code"]); pg.wait_for_timeout(800)
             ctxA, pa, errsA = new_page(b)
             pa.evaluate("openAdvancedModal()"); pa.fill("#advWeight", "210"); pa.evaluate("applyAdvancedSettings()"); pa.wait_for_timeout(500)
+            pa.evaluate("toggleFavorite('Jumptown (Orange, MA)')")   # starred before signing in: uploaded at sign-in
             pa.evaluate("openAccountModal()"); pa.fill("#acctEmail", "jumper@example.com"); pa.click("#acctSendBtn"); pa.wait_for_timeout(500)
             pa.fill("#acctCode", "000000" if sent()["codes"]["jumper@example.com"]["code"] != "000000" else "111111"); pa.wait_for_timeout(500)
             check("wrong code is rejected", "Wrong code" in pa.inner_text("#acctMsg") and pa.evaluate("acctUser") is None)
@@ -201,6 +231,7 @@ def main():
             ctxB, pb, errsB = new_page(b)
             sign_in(pb, "jumper@example.com")
             check("second device gets synced canopy settings", pb.evaluate("advWeight.value") == "210")
+            check("second device gets synced favorites", pb.evaluate("dzFavorites") == ["Jumptown (Orange, MA)"], str(pb.evaluate("dzFavorites")))
             pb.evaluate("openAdvancedModal()"); pb.fill("#advWeight", "190"); pb.evaluate("applyAdvancedSettings()"); pb.wait_for_timeout(500)
             pa.reload(); pa.wait_for_timeout(2500)
             check("change on one device shows on the other after reload", pa.evaluate("advWeight.value") == "190")

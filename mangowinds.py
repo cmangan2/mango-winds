@@ -3297,6 +3297,18 @@ def push_test():
 
 
 
+@app.route("/sw.js")
+def service_worker():
+    """The service worker must be served from the site root so its scope covers the whole app (registered from
+    /static/sw.js it only covered /static/, never controlled the page, and push setup hung). The file still
+    lives in static/ (CACHE_NAME there carries the version)."""
+    resp = app.send_static_file("sw.js")
+    resp.headers["Content-Type"] = "application/javascript"
+    resp.headers["Cache-Control"] = "no-cache"          # browsers re-check for a new worker on every visit
+    resp.headers["Service-Worker-Allowed"] = "/"
+    return resp
+
+
 @app.route("/")
 def index():
     # Pass only lat/lon to frontend (strip ICAO)

@@ -549,6 +549,18 @@ def build_metar_info(icao, metar):
         return None
 
 
+# Open-Meteo pacing: at most OM_MAX_CONCURRENT requests in flight app-wide, and after a 429 (that the paid
+# key didn't rescue) no new requests for OM_BACKOFF_S: stale cache is served instead, so retries from users
+# or the daily check don't keep the rate limit tripped.
+OM_MAX_CONCURRENT = 6
+OM_BACKOFF_S = 60
+_om_sem = threading.BoundedSemaphore(OM_MAX_CONCURRENT)
+_om_backoff_until = [0.0]
+# Temperatures and geopotential heights are only read from one model (the first in the ensemble), so only
+# it fetches them: 16 calls per short-range refresh instead of 24 (long range 10 instead of 14).
+OM_BASE_MODEL = "gfs_seamless"
+
+
 def fetch_forecast(lat, lon, hour_offset=0):
     # All hours use Open-Meteo, keyed by (lat, lon, hour)
     dz_key = (round(lat, 3), round(lon, 3), hour_offset)
@@ -640,6 +652,14 @@ def fetch_forecast(lat, lon, hour_offset=0):
             if cached_model and cached_model["expires"] > now and covers(cached_model["data"]):
                 print(f"Cache HIT {model}")
                 return model, cached_model["data"]
+            import time as _t
+            if _t.time() < _om_backoff_until[0]:
+                # rate-limited a moment ago: don't call; use the last good data for this model if it fits
+                if cached_model and covers(cached_model["data"]):
+                    print(f"Open-Meteo backoff: serving stale {model}")
+                    return model, cached_model["data"]
+                print(f"Open-Meteo backoff: skipping {model}")
+                return model, None
             fetched_any.append(model)
             with _model_locks.setdefault(model_key, threading.Lock()):
                 cached_model = _forecast_cache.get(model_key)
@@ -663,7 +683,6 @@ def fetch_forecast(lat, lon, hour_offset=0):
                           f"&wind_speed_unit=kn{model_param}")
 
             def fetch_url(fields_str, use_paid=False):
-                record_api_call(1)  # count every attempt including failures
                 if use_paid and api_key:
                     paid_url = "https://customer-api.open-meteo.com/v1/forecast"
                     paid_params = base_params.replace(base_url, paid_url) if base_url in base_params else base_params
@@ -676,8 +695,16 @@ def fetch_forecast(lat, lon, hour_offset=0):
                     url = f"https://customer-api.open-meteo.com/v1/forecast{pp}&hourly={fields_str}"
                 else:
                     url = f"{endpoint}{base_params}&hourly={fields_str}"
-                r = requests.get(url, timeout=15,
-                                 headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
+                with _om_sem:   # app-wide cap on simultaneous Open-Meteo requests
+                    import time as _t
+                    if not use_paid and _t.time() < _om_backoff_until[0]:
+                        # a request that waited in line while another one hit a 429: don't send it
+                        class _Skipped:
+                            status_code, ok, text = 429, False, "skipped: rate-limit backoff"
+                        return _Skipped()
+                    record_api_call(1)  # count every attempt sent, including failures
+                    r = requests.get(url, timeout=15,
+                                     headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
                 return r
 
             def handle_429(r, fg):
@@ -699,17 +726,24 @@ def fetch_forecast(lat, lon, hour_offset=0):
                     print(f"Open-Meteo {model} {r.status_code}: {r.text[:200]}")
                     if r.status_code == 429:
                         r2 = handle_429(r, fg)
-                        return r2.json() if (r2 and r2.ok) else "429"
+                        if r2 and r2.ok:
+                            return r2.json()
+                        import time as _t
+                        _om_backoff_until[0] = _t.time() + OM_BACKOFF_S
+                        print(f"Open-Meteo rate limited: pausing new requests for {OM_BACKOFF_S} s")
+                        return "429"
                     return None
                 return r.json()
 
             try:
-                # 4 requests per model (5 with extra levels), each ≤10 vars = 1.0 API call each — sent in
-                # parallel so a cold fetch costs one round trip
-                field_groups = [wind_fields, wind_fields2, temp_fields, height_fields]
+                # Each request ≤10 vars = 1.0 API call. Winds from every model; temps + heights only from the
+                # base model (format_winds reads them from one model): base 5 calls, others 2-3.
+                base = model == OM_BASE_MODEL
+                field_groups = [wind_fields, wind_fields2] + ([temp_fields, height_fields] if base else [])
                 extra = EXTRA_LEVELS.get(model, [])
                 if extra:
-                    field_groups.append([f"{k}_{l}hPa" for l in extra for k in ("windspeed", "winddirection", "geopotential_height")])
+                    kinds = ("windspeed", "winddirection", "geopotential_height") if base else ("windspeed", "winddirection")
+                    field_groups.append([f"{k}_{l}hPa" for l in extra for k in kinds])
                 with ThreadPoolExecutor(max_workers=len(field_groups)) as gex:
                     responses = list(gex.map(fetch_group, field_groups))
                 if "429" in responses:
@@ -741,6 +775,8 @@ def fetch_forecast(lat, lon, hour_offset=0):
                 model, mdata = future.result()
                 if mdata is not None:
                     model_data[model] = mdata
+        # fixed order (base model first): format_winds reads temps/heights from the first model
+        model_data = {m: model_data[m] for m in ensemble_models if m in model_data}
 
         if not model_data:
             print("All ensemble models failed")
@@ -849,7 +885,8 @@ def format_winds(data, hour, lat=0, lon=0):
         else:
             # Single model fallback
             models_h["gfs_seamless"] = data["data"]["hourly"]
-        h = list(models_h.values())[0]  # use first for geopotential/temp
+        # geopotential/temp come from the model that has them (only the base model fetches them now)
+        h = next((mh for mh in models_h.values() if mh.get("geopotential_height_1000hPa")), list(models_h.values())[0])
 
         # Standard atmosphere fallback heights (ft MSL) for models that don't support geopotential
         STD_HEIGHTS = {
@@ -947,9 +984,15 @@ def format_winds(data, hour, lat=0, lon=0):
                 dirn = dir_arr[hour]
                 if spd is None or dirn is None: continue
                 m_spds.append(spd); m_dirs.append(dirn)
-                if alt_ft is None:
-                    v = mh.get(f"geopotential_height_{lvl}hPa", [None]*200)[hour]
-                    alt_ft = (v*3.28084 if v is not None else float(STD_H.get(lvl, 0))) - elev_ft
+            # level height: the first model that has it (only the base model fetches heights), else standard atmosphere
+            for mh in models_h.values():
+                v = (mh.get(f"geopotential_height_{lvl}hPa") or [None]*200)
+                v = v[hour] if hour < len(v) else None
+                if v is not None:
+                    alt_ft = v*3.28084 - elev_ft
+                    break
+            else:
+                alt_ft = float(STD_H.get(lvl, 0)) - elev_ft if m_spds else None
             if not m_spds or alt_ft is None: continue
             avg_spd, avg_dir = weighted_avg_wind(m_spds, m_dirs)
             ensemble_base.append((alt_ft, avg_spd, avg_dir))
@@ -2215,7 +2258,13 @@ def fetch_cloud_data(lat, lon):
         url = (f"{base}?latitude={lat}&longitude={lon}&hourly={fields}"
                f"&forecast_days=5&timezone=GMT&models=gfs_seamless")
         # No key for free API
-        r = requests.get(url, timeout=10, headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
+        import time as _t
+        if _t.time() < _om_backoff_until[0]:
+            return cached["data"] if cached else None   # rate-limited a moment ago: stale or nothing, no call
+        with _om_sem:
+            r = requests.get(url, timeout=10, headers={"User-Agent": "MangoWindHub/1.0 skydiving-wind-tool"})
+        if r.status_code == 429:
+            _om_backoff_until[0] = _t.time() + OM_BACKOFF_S
         if r.ok:
             data = r.json()
             _forecast_cache[cloud_key] = {"data": data, "expires": now + CACHE_TTL}

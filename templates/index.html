@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.6.25">
+<meta name="app-version" content="4.6.26">
 <script>
 try {
-    const CURRENT_VERSION = "4.6.25";
+    const CURRENT_VERSION = "4.6.26";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -368,7 +368,7 @@ select:focus { border-color: var(--accent); }
             <div class="wc-section"><div class="wc-icon" style="color:var(--freefall)">&#x1F4A8;</div><div><div class="wc-title">Wind Widget</div><div class="wc-text">The <b>Freefall / Canopy / Surface</b> widget shows drift and wind at a glance. <b>Freefall</b> gives drift for a <b>freefly</b> skydive (45 s of freefall) and a <b>belly</b> skydive (60 s). Tap an item for live <b>wind particles</b> on the map. Press and drag anywhere on the widget to move it out of the way. Reopen the widget with the &#x1F4A8; button in the header.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:#fff">&#x270F;&#xFE0F;</div><div><div class="wc-title">Jump Run</div><div class="wc-text"><b>Draw</b> a jump run by dragging on the map, <b>Suggest</b> one (enter a heading and it finds the longest run that keeps every landing inside the green circle with a 15% margin, 45% on the downwind side; its Prior/Past and Offset are snapped to the nearest 0.1 mi so they&rsquo;re easy to call out), or <b>Define</b> one: enter heading, <b>Prior/Past</b> (distance from the DZ center along that heading) and <b>Offset</b> (N/S/E/W &mdash; pick the direction closest to perpendicular to the run), plus length. A box at the start (tap and drag it to move it out of the way) shows heading, prior/past, offset, estimated ground speed and recommended jumper separation (1,500 ft of ground distance between groups, converted to seconds). The shaded <b>orange box</b> beside the run is where jumpers open: its near edge is <b>40 s</b> of freefall drift, its far edge <b>65 s</b>, and the dashed line down the middle (52.5 s) is where the numbered jumper boxes land. <b>Replay</b> animates the exits and freefall drift; <b>Clear</b> removes it. Jump runs are not saved.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--red)">&#x1F3AF;</div><div><div class="wc-title">Landing Pattern</div><div class="wc-text">Tap <b>Place Landing Spot</b> and tap the map. A <b>Landing Pattern</b> popup opens: choose final heading (into wind or custom), right or left hand, and your <b>checkpoint altitudes</b> for downwind, base and final (default 1,000 / 600 / 300 ft; saved on this device). Legs are wind-adjusted for your canopy. Drag the popup by its title bar to move it out of the way. Reopen it with the <b>&#x1F3AF; Landing Pattern</b> button or by tapping the landing spot.</div></div></div>
-            <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x2708;&#xFE0F;</div><div><div class="wc-title">Plane Tracker</div><div class="wc-text"><b>Track Plane</b> follows your DZ&rsquo;s aircraft live with a trail and label. While the page is open, planes that are flying are picked up <b>automatically</b>, but only planes that have been entered for this DZ before (enter a new tail number once to add it); tap <b>Stop</b> on one to keep it off. The Track Plane list shows every plane saved for the current DZ; tap the <b>✕</b> on a plane to remove it from that list (this doesn&rsquo;t stop tracking; use <b>Stop</b> for that). If a plane is off-screen, an <b>arrow</b> at the map edge points to it. Turn on <b>&#x1F514; Takeoff alerts</b> at the bottom of Track Plane to get a notification when any of this DZ&rsquo;s planes takes off, even with the app closed or in the background (on iPhone, add the app to your Home Screen first). Tap <b>ON</b> again to turn them off.</div></div></div>
+            <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x2708;&#xFE0F;</div><div><div class="wc-title">Plane Tracker</div><div class="wc-text"><b>Track Plane</b> follows your DZ&rsquo;s aircraft live with a trail and label. While the page is open, planes that are flying are picked up <b>automatically</b>, but only planes that have been entered for this DZ before (enter a new tail number once to add it); tap <b>Stop</b> on one to keep it off. The Track Plane list shows every plane saved for the current DZ; tap the <b>✕</b> on a plane to remove it from that list (this doesn&rsquo;t stop tracking; use <b>Stop</b> for that). If a plane is off-screen, an <b>arrow</b> at the map edge points to it. If a plane&rsquo;s signal drops (often low on final, below receiver coverage), its row shows <b>no signal</b> with how long ago and its last altitude, and the plane fades; after 10 minutes without a signal tracking stops, and its next takeoff is still picked up automatically. Turn on <b>&#x1F514; Takeoff alerts</b> at the bottom of Track Plane to get a notification when any of this DZ&rsquo;s planes takes off, even with the app closed or in the background (on iPhone, add the app to your Home Screen first). Tap <b>ON</b> again to turn them off.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F464;</div><div><div class="wc-title">Account (optional)</div><div class="wc-text">Tap <b>&#x1F464;</b> and enter your email to get a 6-digit sign-in code. No password. Signed in, your <b>canopy settings</b> and <b>dropzone</b> sync to every device you sign in on. On iPhone, type the code into the app rather than tapping the email&rsquo;s link (the link signs in Safari, not the Home Screen app). Everything works without an account.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:#00d4ff">&#x1F501;</div><div><div class="wc-title">Last Load &amp; Fetch Plane Data</div><div class="wc-text"><b>Show Last Load</b> draws the most recent flight trail for the planes you choose. <b>Fetch Plane Data</b> pulls the latest flight for selected planes so it&rsquo;s ready to show. If a plane is <b>flying right now</b>, Fetch pulls the <b>load before</b> the one in the air. Trails come from ADS-B Exchange; the server also records every saved plane&rsquo;s flights from live ADS-B and uses that recording when the trail source has nothing (or is behind), so a load that just landed still shows up.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:#a78bfa">&#x1F58A;&#xFE0F;</div><div><div class="wc-title">Free Draw</div><div class="wc-text">Sketch directly on the map for movement jumps, flocking or any freeform plan. Tap the button to start, again to finish, and once more to clear your drawings.</div></div></div>
@@ -3113,10 +3113,11 @@ async function startTrackingTail(tail){
 }
 
 // Stop tracking a specific tail
-function stopTrackingTail(tail){
+function stopTrackingTail(tail, auto){
     const state = trackedPlanes[tail];
     if (!state) return;
-    _autoWatchMuted.add(tail);   // user stopped it: don't auto-restart this session
+    // user stopped it: don't auto-restart this session. Stopped for a lost signal (auto): the next takeoff is picked up.
+    if (!auto) _autoWatchMuted.add(tail);
     if (state.pollInterval) clearInterval(state.pollInterval);
     if (state.autoSaveInterval) clearInterval(state.autoSaveInterval);
     if (state.animFrame) cancelAnimationFrame(state.animFrame);
@@ -3185,6 +3186,13 @@ async function trackAllVisible(){
 }
 
 // Poll a specific tail (multi-plane)
+// No position from ADS-B: coast the marker along its last track only briefly (coverage gaps), never
+// when low (landing below coverage), show the row as "no signal", and stop after PLANE_LOST_S.
+const PLANE_COAST_S = 30;          // keep moving the marker this long after the last real position
+const PLANE_COAST_MIN_ALT = 1000;  // ft: below this a lost signal means landing, so don't coast
+const PLANE_LOST_S = 600;          // no position this long: stop tracking (not muted, so the next takeoff is picked up)
+function planeSilentS(state){ return state && state.lastFixAt ? (Date.now() - state.lastFixAt) / 1000 : 0; }
+
 async function pollPlaneTail(tail){
     const state = trackedPlanes[tail];
     if (!state) return;
@@ -3192,7 +3200,20 @@ async function pollPlaneTail(tail){
         const r = await fetch(`/plane?tail=${encodeURIComponent(tail)}`);
         const data = await r.json();
         if (!data.found){
-            if (state.data && state.data.spd > 5 && state.data.hdg != null){
+            const silent = planeSilentS(state);
+            if (state.lastFixAt && silent > PLANE_LOST_S){
+                const last = state.data && state.data.alt ? ` (last seen at ${Math.round(state.data.alt).toLocaleString()} ft)` : "";
+                stopTrackingTail(tail, true);
+                showJumpRunStatus(`✈️ ${tail}: no signal for ${Math.round(PLANE_LOST_S/60)} min${last} — probably landed, tracking stopped`);
+                setTimeout(() => showJumpRunStatus(null), 8000);
+                return;
+            }
+            if (silent > PLANE_COAST_S && state.marker && !state._faded){
+                state.marker.setOpacity(0.45); state._faded = true;
+            }
+            updateMultiPlaneInfoPanel();
+            if (state.data && state.data.spd > 5 && state.data.hdg != null
+                && silent <= PLANE_COAST_S && (state.data.alt || 0) >= PLANE_COAST_MIN_ALT){
                 const distM = state.data.spd * 0.514444 * 5;
                 const R = 6378137;
                 const rad = state.data.hdg * Math.PI / 180;
@@ -3222,6 +3243,8 @@ function updatePlaneMarkerTail(tail, data){
     if (!state) return;
     state.data = data;
     const now = Date.now();
+    state.lastFixAt = now;
+    if (state._faded && state.marker){ state.marker.setOpacity(1); state._faded = false; }
     if (state.trail.length > 0 && state._lastTrailTs){
         const last = state.trail[state.trail.length-1];
         const distM = distMeters(last, [data.lat, data.lon]);
@@ -3301,6 +3324,16 @@ function updateMultiPlaneInfoPanel(){
         const s = trackedPlanes[tail];
         const d = s.data;
         if (!d) return `<div style="color:${s.color};font-size:0.82rem;padding:3px 0">${tail} — waiting...</div>`;
+        const silent = planeSilentS(s);
+        if (silent > PLANE_COAST_S){
+            const ago = silent < 90 ? `${Math.round(silent)} s` : `${Math.round(silent/60)} min`;
+            const lastAlt = d.alt ? ` · last ${Math.round(d.alt).toLocaleString()} ft` : "";
+            return `<div style="display:flex;align-items:center;gap:6px;font-size:0.8rem;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);opacity:0.6">
+            <span style="color:${s.color};font-weight:bold;min-width:60px;font-family:'Share Tech Mono',monospace">${tail}</span>
+            <span style="color:var(--muted);flex:1;min-width:0;font-size:0.78rem">no signal ${ago}${lastAlt}</span>
+            <button onclick="stopTrackingTail('${tail}')" style="padding:2px 6px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:3px;font-size:0.7rem;cursor:pointer">✕</button>
+        </div>`;
+        }
         const alt  = d.alt  ? Math.round(d.alt).toLocaleString() + " ft"  : "—";
         const spd  = d.spd  ? Math.round(d.spd) + " kt" : "—";
         const vert = d.vert ? (d.vert>0?"↑":"↓") + Math.abs(Math.round(d.vert)) + " fpm" : "—";

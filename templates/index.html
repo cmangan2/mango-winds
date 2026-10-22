@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.6.27">
+<meta name="app-version" content="4.6.28">
 <script>
 try {
-    const CURRENT_VERSION = "4.6.27";
+    const CURRENT_VERSION = "4.6.28";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -311,38 +311,17 @@ select:focus { border-color: var(--accent); }
                 <div style="font-size:0.62rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--accent);margin-bottom:8px">✨ What's New</div>
                 <div style="display:flex;flex-direction:column;gap:6px">
                     <div style="display:flex;gap:10px;align-items:flex-start">
-                        <span style="font-size:1rem;flex-shrink:0">👤</span>
+                        <span style="font-size:1rem;flex-shrink:0">🔍</span>
                         <div>
-                            <div style="font-size:0.8rem;color:var(--text);font-weight:600;margin-bottom:1px">Accounts (optional)</div>
-                            <div style="font-size:0.75rem;color:var(--muted);line-height:1.4">Tap <b style="color:var(--text)">👤</b> and sign in with just your email: no password, we send you a 6-digit code. Your <b style="color:var(--text)">canopy settings</b> and <b style="color:var(--text)">dropzone</b> then follow you to every device you sign in on.</div>
+                            <div style="font-size:0.8rem;color:var(--text);font-weight:600;margin-bottom:1px">Dropzone Search &amp; Favorites</div>
+                            <div style="font-size:0.75rem;color:var(--muted);line-height:1.4">Type a dropzone&rsquo;s name, part of it, a city or a state in the <b style="color:var(--text)">🔍 search</b> box: results show 2 seconds after you stop typing (or press Enter). Tap <b style="color:var(--text)">☆</b> to star your dropzones: favorites are listed first in the dropdown and in search, saved on this device and synced to your account when you&rsquo;re signed in.</div>
                         </div>
                     </div>
                     <div style="display:flex;gap:10px;align-items:flex-start">
                         <span style="font-size:1rem;flex-shrink:0">🧭</span>
                         <div>
-                            <div style="font-size:0.8rem;color:var(--text);font-weight:600;margin-bottom:1px">Suggested Jump Run</div>
-                            <div style="font-size:0.75rem;color:var(--muted);line-height:1.4">Enter the heading you want to fly and get the longest jump run that keeps every landing inside the green circle with a safety margin. <b style="color:var(--text)">Prior/Past</b> and <b style="color:var(--text)">Offset</b> come out in tenths of a mile, ready to call out, with estimated ground speed and recommended jumper separation.</div>
-                        </div>
-                    </div>
-                    <div style="display:flex;gap:10px;align-items:flex-start">
-                        <span style="font-size:1rem;flex-shrink:0">🪂</span>
-                        <div>
-                            <div style="font-size:0.8rem;color:var(--text);font-weight:600;margin-bottom:1px">Reserve Range</div>
-                            <div style="font-size:0.75rem;color:var(--muted);line-height:1.4">The <b style="color:#39ff89">dashed green</b> outline shows how far out you could open your reserve at 2,000 ft and still make the pattern circle by 500 ft. Set your reserve size and type in <b style="color:var(--text)">Canopy Settings</b>, or turn it off there.</div>
-                        </div>
-                    </div>
-                    <div style="display:flex;gap:10px;align-items:flex-start">
-                        <span style="font-size:1rem;flex-shrink:0">💨</span>
-                        <div>
-                            <div style="font-size:0.8rem;color:var(--text);font-weight:600;margin-bottom:1px">Wind Particle Animations</div>
-                            <div style="font-size:0.75rem;color:var(--muted);line-height:1.4">Tap <b style="color:var(--freefall)">Freefall</b>, <b style="color:var(--canopy)">Canopy</b>, or <b style="color:var(--accent)">Surface</b> on the wind widget to see live particle animations showing wind direction and speed over the dropzone.</div>
-                        </div>
-                    </div>
-                    <div style="display:flex;gap:10px;align-items:flex-start">
-                        <span style="font-size:1rem;flex-shrink:0">🖊️</span>
-                        <div>
-                            <div style="font-size:0.8rem;color:var(--text);font-weight:600;margin-bottom:1px">Free Draw on the Map</div>
-                            <div style="font-size:0.75rem;color:var(--muted);line-height:1.4">Use <b style="color:#a78bfa">Free Draw</b> in the panel to sketch directly on the map. Useful for planning movement jumps, flocking, or any freeform diagram.</div>
+                            <div style="font-size:0.8rem;color:var(--text);font-weight:600;margin-bottom:1px">Magnetic Headings</div>
+                            <div style="font-size:0.75rem;color:var(--muted);line-height:1.4">Every direction you read or type is now <b style="color:var(--text)">magnetic</b>, like the compass and the pilot use: winds by altitude, the wind widget, jump run headings, the landing pattern final and tracked planes&rsquo; headings. It&rsquo;s corrected for each dropzone&rsquo;s own magnetic declination (about 14&deg; W in New England).</div>
                         </div>
                     </div>
                 </div>

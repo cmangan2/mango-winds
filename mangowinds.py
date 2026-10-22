@@ -1170,6 +1170,23 @@ def avg_wind_display(winds, low, high):
     return avg_speed, avg_dir
 
 
+def avg_wind_vector(winds, low, high):
+    """True vector average of the wind at the displayed altitudes (every 1,000 ft), as (speed, FROM direction).
+    Each layer counts as an arrow, so a strong layer pulls the direction more than a light one, and layers
+    pointing different ways partly cancel. That's what a jumper actually drifts through in free fall."""
+    n, x, y = 0, 0.0, 0.0
+    for alt in sorted(winds.keys()):
+        if low <= alt < high:
+            w = winds[alt]
+            r = math.radians(w["direction"])
+            x += w["speed"] * math.sin(r)
+            y += w["speed"] * math.cos(r)
+            n += 1
+    if not n:
+        return 0, 0
+    return math.hypot(x, y) / n, math.degrees(math.atan2(x, y)) % 360
+
+
 # =====================================================
 # 🚀 PHYSICS
 # =====================================================
@@ -2437,7 +2454,7 @@ def data():
         return resp, 503
 
     canopy_speed, canopy_dir = avg_wind_display(winds, 0, 3001)
-    free_speed, free_dir = avg_wind_display(winds, 4000, 14001)
+    free_speed, free_dir = avg_wind_vector(winds, 4000, 14001)   # 4k-14k average wind vector: free-fall drift + suggested jump run heading
 
     time_label = ""
     try:

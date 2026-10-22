@@ -2454,7 +2454,10 @@ def data():
         return resp, 503
 
     canopy_speed, canopy_dir = avg_wind_display(winds, 0, 3001)
-    free_speed, free_dir = avg_wind_vector(winds, 4000, 14001)   # 4k-14k average wind vector: free-fall drift + suggested jump run heading
+    free_speed, free_dir = avg_wind_vector(winds, 4000, 14001)   # 4k-14k average wind vector: free-fall drift
+    # Jump run heading: into the 0-6k average wind vector, the wind that shapes where canopies can fly
+    # (covers high openings); drift still comes from the free-fall winds above
+    jr_speed, jr_dir = avg_wind_vector(winds, 0, 6001)
 
     time_label = ""
     try:
@@ -2509,6 +2512,7 @@ def data():
             "direction": (free_dir + 180) % 360,
             "distance": freefall_distance(free_speed, free_dir),
         },
+        "jumprun_wind": {"speed": round(jr_speed, 1), "direction": round(jr_dir, 1)},   # FROM; 0-6k vector average
         "wind_14k": {
             "speed": winds.get(14000, {}).get("speed", 0),
             "direction": winds.get(14000, {}).get("direction", 0),

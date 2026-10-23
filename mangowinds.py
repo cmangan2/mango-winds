@@ -2678,6 +2678,7 @@ print("ADS-B background poller started")
 REC_AIR_S, REC_IDLE_S = 15, 60
 REC_END_GAP_S = 600          # no airborne fix for this long ends a flight (landed out of coverage)
 REC_FAST_KT = 40             # jump planes never fly slower than this; slower = on the ground
+REC_FIX_MAX_AGE_S = 60       # a position older than this (feeds keep a plane's last fix for a while) isn't "now"
 _rec_lock = _threading.Lock()
 _rec_current = {}            # tail -> [points] of the flight in progress
 _rec_next = {}               # tail -> epoch s of the next check
@@ -2751,6 +2752,9 @@ def _rec_tick(now):
         ac = _live_fix(tail)
         with _rec_lock:
             cur = _rec_current.get(tail)
+            if isinstance(ac, dict) and (ac.get("seen_pos") or ac.get("seen") or 0) > REC_FIX_MAX_AGE_S:
+                ac = None           # stale fix: the feed still lists the plane but hasn't heard it for a while
+            last_done = (_rec_last.get(tail) or {}).get("flight_end") or 0
             if isinstance(ac, dict):
                 alt_baro = ac.get("alt_baro")
                 gs = ac.get("gs") or 0
@@ -2762,11 +2766,13 @@ def _rec_tick(now):
                     if cur and ts - cur[-1]["ts"] > REC_END_GAP_S:
                         _rec_finalize(tail)
                         cur = None
-                    if not cur:
+                    if not cur and ts <= last_done:
+                        pass        # a fix from the flight we already closed (e.g. the backup feed's old copy)
+                    elif not cur:
                         cur = _rec_current[tail] = []
                         if seen_before:
-                            notify_airborne(tail, pt["alt"])
-                    if not cur or ts > cur[-1]["ts"]:
+                            notify_airborne(tail, pt["alt"], ts)
+                    if cur is not None and (not cur or ts > cur[-1]["ts"]):
                         cur.append(pt)
                 elif cur:
                     if ts > cur[-1]["ts"]:
@@ -3280,11 +3286,19 @@ def push_send(rows, payload):
     return sent
 
 
-def notify_airborne(tail, alt_ft):
-    """Alert everyone following a DZ whose plane list has this tail. Runs on its own thread."""
+PUSH_MAX_FIX_AGE_S = 120      # never alert about a takeoff seen longer ago than this
+
+
+def notify_airborne(tail, alt_ft, fix_ts=None):
+    """Alert everyone following a DZ whose plane list has this tail. Runs on its own thread.
+    fix_ts = when the plane was actually seen airborne (epoch s); the alert says that time."""
     if not push_enabled():
         return
     now = _time.time()
+    fix_ts = fix_ts or now
+    if now - fix_ts > PUSH_MAX_FIX_AGE_S:
+        print(f"Push: {tail} airborne fix is {int(now - fix_ts)} s old, no alert")
+        return
     if now - _push_last_alert.get(tail, 0) < PUSH_REALERT_S:
         return
     _push_last_alert[tail] = now
@@ -3303,7 +3317,9 @@ def notify_airborne(tail, alt_ft):
                     by_dz.setdefault(d, []).append((endpoint, sub))
             for d, subs in by_dz.items():
                 alt = f" · {int(alt_ft):,} ft" if alt_ft and alt_ft > 0 else ""
-                n = push_send(subs, {"title": f"✈️ {tail} is airborne", "body": f"{d}{alt}",
+                t_local = datetime.fromtimestamp(fix_ts, dz_tz(d))
+                when = f" · took off {t_local.strftime('%I:%M %p').lstrip('0').lower()}"
+                n = push_send(subs, {"title": f"✈️ {tail} is airborne", "body": f"{d}{alt}{when}",
                                      "tag": f"airborne-{tail}", "url": "/"})
                 print(f"Push: {tail} airborne -> {n}/{len(subs)} devices following {d}")
         except Exception as e:

@@ -1,4 +1,4 @@
-const CACHE_NAME = "mwh-v4.6.30";
+const CACHE_NAME = "mwh-v4.6.31";
 const STATIC_ASSETS = [
   "/",
   "/static/manifest.json"

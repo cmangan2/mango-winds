@@ -563,6 +563,18 @@ _om_backoff_until = [0.0]
 OM_BASE_MODEL = "gfs_seamless"
 
 
+def _aligned_cache_entry(key, now):
+    """The cache entry for key with its data lined up with today (align_to_today), written back into the cache
+    so it's done once and every later request shares the same object. (Aligning a fresh copy per request kept
+    ~3x the forecast memory alive after 8 PM EDT and pushed the dev instance over its memory limit.)"""
+    entry = _forecast_cache.get(key)
+    if entry:
+        aligned = align_to_today(entry["data"], now)
+        if aligned is not entry["data"]:
+            entry["data"] = aligned
+    return entry
+
+
 def align_to_today(mdata, now=None):
     """/data reads hourly arrays at index now.hour + offset, so arrays must start at 00Z today. A response
     fetched before midnight UTC (8 PM EDT) starts at 00Z yesterday: drop the leading hours so it lines up
@@ -577,10 +589,30 @@ def align_to_today(mdata, now=None):
     return {**mdata, "hourly": {k: (v[i:] if isinstance(v, list) else v) for k, v in h.items()}}
 
 
+CACHE_PURGE_AFTER = timedelta(hours=6)   # expired this long ago: too old even as a rate-limit fallback
+_last_purge = [0.0]
+
+
+def _purge_old_cache(now):
+    """Drop forecast/cloud cache entries expired more than CACHE_PURGE_AFTER ago (every 10 min at most).
+    Without this every location ever requested stayed in memory for the life of the process."""
+    import time as _t
+    if _t.time() - _last_purge[0] < 600:
+        return
+    _last_purge[0] = _t.time()
+    old = [k for k, v in list(_forecast_cache.items()) if v["expires"] < now - CACHE_PURGE_AFTER]
+    for k in old:
+        _forecast_cache.pop(k, None)
+        _model_locks.pop(k, None)
+    if old:
+        print(f"Cache purge: dropped {len(old)} entries expired over {CACHE_PURGE_AFTER} ago")
+
+
 def fetch_forecast(lat, lon, hour_offset=0):
     # All hours use Open-Meteo, keyed by (lat, lon, hour)
     dz_key = (round(lat, 3), round(lon, 3), hour_offset)
     now = datetime.now(timezone.utc)
+    _purge_old_cache(now)
 
     cached = _forecast_cache.get(dz_key)
     if cached and cached["expires"] > now:
@@ -664,9 +696,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
             # Hour-independent key: each response already holds the whole multi-day hourly array, so
             # scrolling the forecast slider reuses it instead of re-hitting Open-Meteo for every hour.
             model_key = (round(lat, 3), round(lon, 3), "model", model)
-            cached_model = _forecast_cache.get(model_key)
-            if cached_model:   # fetched before midnight UTC: line it up with today rather than discard it
-                cached_model = {**cached_model, "data": align_to_today(cached_model["data"], now)}
+            cached_model = _aligned_cache_entry(model_key, now)   # fetched before midnight UTC: lined up with today, not discarded
             if cached_model and cached_model["expires"] > now and covers(cached_model["data"]):
                 print(f"Cache HIT {model}")
                 return model, cached_model["data"]
@@ -681,9 +711,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
                 return model, None
             fetched_any.append(model)
             with _model_locks.setdefault(model_key, threading.Lock()):
-                cached_model = _forecast_cache.get(model_key)
-                if cached_model:
-                    cached_model = {**cached_model, "data": align_to_today(cached_model["data"], now)}
+                cached_model = _aligned_cache_entry(model_key, now)
                 if cached_model and cached_model["expires"] > datetime.now(timezone.utc) and covers(cached_model["data"]):
                     return model, cached_model["data"]
                 return _fetch_one_model_locked(model, model_key, cached_model)
@@ -2289,9 +2317,7 @@ def fetch_cloud_data(lat, lon):
     """Fetch cloud/precip data from GFS only — separate cached call, 1.0 API cost."""
     cloud_key = ("cloud", round(lat,3), round(lon,3))
     now = datetime.now(timezone.utc)
-    cached = _forecast_cache.get(cloud_key)
-    if cached:   # read at index now.hour + offset: line a pre-midnight-UTC copy up with today
-        cached = {**cached, "data": align_to_today(cached["data"], now)}
+    cached = _aligned_cache_entry(cloud_key, now)   # read at index now.hour + offset: lined up with today
     if cached and cached["expires"] > now:
         return cached["data"]
     try:

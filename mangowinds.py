@@ -554,11 +554,27 @@ def build_metar_info(icao, metar):
 # or the daily check don't keep the rate limit tripped.
 OM_MAX_CONCURRENT = 6
 OM_BACKOFF_S = 60
+OM_STALE_EXTEND = timedelta(minutes=15)   # after a 429, keep using the old forecast this long before retrying
+OM_STALE_RESULT_TTL = timedelta(minutes=2)  # an ensemble built partly from stale data is only reused this long
 _om_sem = threading.BoundedSemaphore(OM_MAX_CONCURRENT)
 _om_backoff_until = [0.0]
 # Temperatures and geopotential heights are only read from one model (the first in the ensemble), so only
 # it fetches them: 16 calls per short-range refresh instead of 24 (long range 10 instead of 14).
 OM_BASE_MODEL = "gfs_seamless"
+
+
+def align_to_today(mdata, now=None):
+    """/data reads hourly arrays at index now.hour + offset, so arrays must start at 00Z today. A response
+    fetched before midnight UTC (8 PM EDT) starts at 00Z yesterday: drop the leading hours so it lines up
+    with today instead of throwing it away (it still holds tonight's hours). Returns a shallow copy."""
+    now = now or datetime.now(timezone.utc)
+    h = (mdata or {}).get("hourly") or {}
+    times = h.get("time") or []
+    start = now.strftime("%Y-%m-%dT00:00")
+    if not times or times[0] == start or start not in times:
+        return mdata
+    i = times.index(start)
+    return {**mdata, "hourly": {k: (v[i:] if isinstance(v, list) else v) for k, v in h.items()}}
 
 
 def fetch_forecast(lat, lon, hour_offset=0):
@@ -649,6 +665,8 @@ def fetch_forecast(lat, lon, hour_offset=0):
             # scrolling the forecast slider reuses it instead of re-hitting Open-Meteo for every hour.
             model_key = (round(lat, 3), round(lon, 3), "model", model)
             cached_model = _forecast_cache.get(model_key)
+            if cached_model:   # fetched before midnight UTC: line it up with today rather than discard it
+                cached_model = {**cached_model, "data": align_to_today(cached_model["data"], now)}
             if cached_model and cached_model["expires"] > now and covers(cached_model["data"]):
                 print(f"Cache HIT {model}")
                 return model, cached_model["data"]
@@ -657,12 +675,15 @@ def fetch_forecast(lat, lon, hour_offset=0):
                 # rate-limited a moment ago: don't call; use the last good data for this model if it fits
                 if cached_model and covers(cached_model["data"]):
                     print(f"Open-Meteo backoff: serving stale {model}")
+                    served_stale.append(model)
                     return model, cached_model["data"]
                 print(f"Open-Meteo backoff: skipping {model}")
                 return model, None
             fetched_any.append(model)
             with _model_locks.setdefault(model_key, threading.Lock()):
                 cached_model = _forecast_cache.get(model_key)
+                if cached_model:
+                    cached_model = {**cached_model, "data": align_to_today(cached_model["data"], now)}
                 if cached_model and cached_model["expires"] > datetime.now(timezone.utc) and covers(cached_model["data"]):
                     return model, cached_model["data"]
                 return _fetch_one_model_locked(model, model_key, cached_model)
@@ -713,9 +734,9 @@ def fetch_forecast(lat, lon, hour_offset=0):
                         print(f"Free API rate limited for {model} — retrying with paid key")
                         return fetch_url(",".join(fg), use_paid=True)
                     elif cached_model:
-                        extended = now + timedelta(hours=6)
+                        extended = now + OM_STALE_EXTEND
                         _forecast_cache[model_key] = {"data": cached_model["data"], "expires": extended}
-                        print(f"Rate limited — extending cache for {model} by 6h")
+                        print(f"Rate limited — extending cache for {model} by 15 min")
                     return None
                 return None
 
@@ -748,7 +769,8 @@ def fetch_forecast(lat, lon, hour_offset=0):
                     responses = list(gex.map(fetch_group, field_groups))
                 if "429" in responses:
                     if cached_model:
-                        extended = now + timedelta(hours=6)
+                        served_stale.append(model)
+                        extended = now + OM_STALE_EXTEND
                         _forecast_cache[model_key] = {"data": cached_model["data"], "expires": extended}
                         return model, cached_model["data"]
                     return model, None
@@ -768,6 +790,7 @@ def fetch_forecast(lat, lon, hour_offset=0):
 
         # Fetch all models in parallel
         fetched_any = []
+        served_stale = []
         model_data = {}
         with ThreadPoolExecutor(max_workers=len(ensemble_models)) as executor:
             futures = {executor.submit(fetch_one_model, m): m for m in ensemble_models}
@@ -787,7 +810,8 @@ def fetch_forecast(lat, lon, hour_offset=0):
         print(f"Ensemble: {len(model_data)}/{len(ensemble_models)} models loaded: {list(model_data.keys())}")
         # Record is now done per-fetch inside fetch_url
         result = {"source": "openmeteo_ensemble", "models": model_data}
-        _forecast_cache[dz_key] = {"data": result, "expires": now + CACHE_TTL}
+        # partly stale (rate limit): reuse only briefly so the next requests after the pause refetch
+        _forecast_cache[dz_key] = {"data": result, "expires": now + (OM_STALE_RESULT_TTL if served_stale else CACHE_TTL)}
         if fetched_any:
             save_cache_to_disk()
         return result
@@ -2266,6 +2290,8 @@ def fetch_cloud_data(lat, lon):
     cloud_key = ("cloud", round(lat,3), round(lon,3))
     now = datetime.now(timezone.utc)
     cached = _forecast_cache.get(cloud_key)
+    if cached:   # read at index now.hour + offset: line a pre-midnight-UTC copy up with today
+        cached = {**cached, "data": align_to_today(cached["data"], now)}
     if cached and cached["expires"] > now:
         return cached["data"]
     try:

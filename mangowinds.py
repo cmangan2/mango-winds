@@ -6,6 +6,7 @@ import requests
 import math
 import re
 import os
+import sys
 from datetime import datetime, timezone, timedelta
 
 app = Flask(__name__)
@@ -1688,6 +1689,15 @@ def admin():
     return resp
 
 
+def memory_admin_html():
+    r = memory_report(track=False)
+    pct = round(100 * (r["rss_mb"] or 0) / 512)
+    col = "#39ff89" if pct < 60 else "#ffaa00" if pct < 80 else "#ff4f4f"
+    return (f"<h3>Server memory</h3><p style='color:#c8daea;font-size:0.85rem'><b style='color:{col}'>{r['rss_mb']} MB</b> of 512 MB "
+            f"({pct}%) &middot; restarts itself above {MEM_RESTART_MB} MB &middot; cache {r['cache_entries']} entries &middot; "
+            f"threads {r['threads']}</p>")
+
+
 def admin_page(token, count_me=None):
     from html import escape as _html_escape
     from urllib.parse import quote
@@ -1790,6 +1800,7 @@ def admin_page(token, count_me=None):
     {ADMIN_NAV}
     {count_me_html}
     {online_admin_html()}
+    {memory_admin_html()}
     <p style="color:#5a7a96;font-size:0.8rem">Visit = one device opening a DZ per local day (from Oct 19, 2026; earlier = every data load at hour 0)</p>
 
     <div style="margin:16px 0">
@@ -2844,6 +2855,75 @@ def _rec_loop():
         except Exception as e:
             print(f"Recorder error: {e}")
         time.sleep(5)
+
+
+# =====================================================
+# 🧠 MEMORY WATCH — prod climbed in steps to Render's 512 MB limit during the day (Oct 27) and was
+# force-restarted; nothing reproduced it offline. Every MEM_CHECK_S: hand freed memory back to the OS
+# (malloc_trim undoes glibc fragmentation from the many short-lived fetch threads), log one line with
+# memory, cache sizes and the object types that grew most, and if memory is still over MEM_RESTART_MB,
+# restart the worker cleanly (gunicorn starts a new one in seconds) before Render kills it at 512 MB.
+# =====================================================
+MEM_CHECK_S = int(os.environ.get("MEM_CHECK_S", "600"))
+MEM_RESTART_MB = int(os.environ.get("MEM_RESTART_MB", "430"))
+_mem_last_types = {}
+
+
+def _rss_mb():
+    try:
+        with open("/proc/self/status") as f:
+            return int(f.read().split("VmRSS:")[1].split()[0]) // 1024
+    except Exception:
+        return None
+
+
+def _malloc_trim():
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+        return True
+    except Exception:
+        return False
+
+
+def memory_report(top=8, track=True):
+    """One-line summary for the logs and /admin: memory, caches, threads, fastest-growing object types
+    (growth since the previous tracked report; the /admin view doesn't move that baseline)."""
+    import gc, collections
+    global _mem_last_types
+    counts = collections.Counter(type(o).__name__ for o in gc.get_objects())
+    grew = sorted(((n, c - _mem_last_types.get(n, 0)) for n, c in counts.items()), key=lambda x: -x[1])[:top]
+    if track:
+        _mem_last_types = dict(counts)
+    with _rec_lock:
+        rec_pts = sum(len(v) for v in _rec_current.values())
+    return {"rss_mb": _rss_mb(), "cache_entries": len(_forecast_cache), "model_locks": len(_model_locks),
+            "metar_cache": len(_metar_cache), "adsb_trails": len(_adsb_trails), "rec_points": rec_pts,
+            "online": len(_online), "threads": _threading.active_count(), "gc_objects": sum(counts.values()),
+            "grew": [f"{n} +{d}" for n, d in grew if d > 0]}
+
+
+def _mem_loop():
+    import time, signal
+    while True:
+        time.sleep(MEM_CHECK_S)
+        try:
+            before = _rss_mb()
+            _malloc_trim()
+            r = memory_report()
+            print(f"Memory: {before} MB -> {r['rss_mb']} MB after trim | cache {r['cache_entries']} | locks {r['model_locks']} "
+                  f"| trails {r['adsb_trails']} | rec pts {r['rec_points']} | threads {r['threads']} | objects {r['gc_objects']} "
+                  f"| grew: {', '.join(r['grew']) or '-'}")
+            if r["rss_mb"] and r["rss_mb"] > MEM_RESTART_MB and "gunicorn" in sys.modules:
+                print(f"Memory: {r['rss_mb']} MB is over {MEM_RESTART_MB} MB — restarting this worker cleanly before Render's 512 MB kill")
+                os.kill(os.getpid(), signal.SIGTERM)   # gunicorn: graceful worker exit, the master starts a fresh one
+                return
+        except Exception as e:
+            print(f"Memory check error: {e}")
+
+
+if MEM_CHECK_S > 0:
+    _threading.Thread(target=_mem_loop, daemon=True, name="memory-watch").start()
 
 
 if os.environ.get("TRACK_RECORDER", "1") != "0":

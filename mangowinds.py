@@ -2329,8 +2329,18 @@ def clearcache():
     if _t.time() - _last_clear[0] < 60:
         return jsonify({"status": "recently cleared"})
     _last_clear[0] = _t.time()
-    _forecast_cache.clear()
-    return jsonify({"status": "cache cleared"})
+    # Expire instead of delete: the next load refetches, but the old forecast stays as the fallback if
+    # Open-Meteo rate-limits (deleting it turned a refresh at a bad moment into "Could not fetch forecast").
+    # Anything fetched in the last 10 min is left alone: models update hourly at most, so refetching it
+    # only spends ~17 calls.
+    now = datetime.now(timezone.utc)
+    n = 0
+    for v in list(_forecast_cache.values()):
+        fetched = v["expires"] - CACHE_TTL
+        if fetched < now - timedelta(minutes=10) and v["expires"] > now:
+            v["expires"] = now - timedelta(seconds=1)
+            n += 1
+    return jsonify({"status": "cache cleared", "expired": n})
 
 
 def fetch_cloud_data(lat, lon):

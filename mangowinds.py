@@ -20,6 +20,9 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 _forecast_cache = {}
 _model_locks = {}
 CACHE_TTL = timedelta(minutes=120)  # 2 hour cache to reduce API calls
+# Expired forecasts are kept this long (memory + disk, so they survive restarts) as the fallback when
+# Open-Meteo rate-limits or fails: an old forecast beats "Could not fetch forecast".
+STALE_KEEP = timedelta(hours=24)
 CACHE_FILE  = os.environ.get("CACHE_FILE", os.path.join(os.path.dirname(__file__), "winds_cache.json"))
 USER_DZ_FILE    = os.environ.get("USER_DZ_FILE",    os.path.join(os.path.dirname(CACHE_FILE), "user_dropzones.txt"))
 PENDING_DZ_FILE = os.environ.get("PENDING_DZ_FILE", os.path.join(os.path.dirname(CACHE_FILE), "pending_dropzones.txt"))
@@ -301,8 +304,8 @@ def load_cache_from_disk():
             for k, v in raw.items():
                 try:
                     expires = datetime.fromisoformat(v["expires"])
-                    if expires <= now:
-                        continue
+                    if expires <= now - STALE_KEEP:
+                        continue        # too old even as a fallback (expired ones within STALE_KEEP load as stale)
                     parts = k.split(",")
                     if len(parts) == 3 and parts[0] == "cloud":
                         key = ("cloud", float(parts[1]), float(parts[2]))
@@ -331,7 +334,7 @@ def save_cache_to_disk():
             now = datetime.now(timezone.utc)
             serializable = {}
             for k, v in list(_forecast_cache.items()):
-                if v["expires"] <= now or not isinstance(k, tuple):
+                if v["expires"] <= now - STALE_KEEP or not isinstance(k, tuple):
                     continue
                 if len(k) == 3 and k[0] == "cloud":
                     str_key = f"cloud,{k[1]},{k[2]}"
@@ -590,7 +593,7 @@ def align_to_today(mdata, now=None):
     return {**mdata, "hourly": {k: (v[i:] if isinstance(v, list) else v) for k, v in h.items()}}
 
 
-CACHE_PURGE_AFTER = timedelta(hours=6)   # expired this long ago: too old even as a rate-limit fallback
+CACHE_PURGE_AFTER = STALE_KEEP   # expired this long ago: too old even as a rate-limit fallback
 _last_purge = [0.0]
 
 
@@ -715,7 +718,13 @@ def fetch_forecast(lat, lon, hour_offset=0):
                 cached_model = _aligned_cache_entry(model_key, now)
                 if cached_model and cached_model["expires"] > datetime.now(timezone.utc) and covers(cached_model["data"]):
                     return model, cached_model["data"]
-                return _fetch_one_model_locked(model, model_key, cached_model)
+                model, mdata = _fetch_one_model_locked(model, model_key, cached_model)
+                if mdata is None and cached_model and covers(cached_model["data"]):
+                    # fetch failed (timeout, 5xx, ...): the last good forecast beats none
+                    print(f"Open-Meteo {model} failed: serving stale data")
+                    served_stale.append(model)
+                    return model, cached_model["data"]
+                return model, mdata
 
         def _fetch_one_model_locked(model, model_key, cached_model):
             endpoint = model_endpoint(model)

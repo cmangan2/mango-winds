@@ -14,10 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
-<meta name="app-version" content="4.6.38">
+<meta name="app-version" content="4.6.39">
 <script>
 try {
-    const CURRENT_VERSION = "4.6.38";
+    const CURRENT_VERSION = "4.6.39";
     const cached = localStorage.getItem("mwh-version");
     if (cached && cached !== CURRENT_VERSION) {
         localStorage.setItem("mwh-version", CURRENT_VERSION);
@@ -350,7 +350,7 @@ select:focus { border-color: var(--accent); }
             <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F4CD;</div><div><div class="wc-title">Getting Started</div><div class="wc-text">Pick your <b>dropzone</b> (or choose <b>Add my dropzone&hellip;</b> to add yours with an optional METAR station). Or type in the <b>&#x1F50D; search</b> box (a name, part of one, a city or a state; results appear 2 seconds after you stop typing, or press Enter). Tap <b>&#x2606; Favorite</b> to star a dropzone: favorites are listed first in the dropdown and in search, saved on this device and synced when you&rsquo;re signed in. On a phone the panel is a <b>drawer</b> at the bottom: tap or drag the handle to open and close it.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--canopy)">&#9675;</div><div><div class="wc-title">Canopy Circle</div><div class="wc-text">The <b>dashed white circle</b> is a <b>1,200 ft pattern-start circle</b> at the DZ center. The <b>green circle</b> is how far out you can open (3,000 ft by default) and still fly back to reach the edge of that circle at <b>1,000 ft</b> to start your pattern. Wind stretches it toward the upwind side and squeezes it on the downwind side; in strong wind the downwind end is cut flat along a line tangent to the white circle. <b>Hover</b> (desktop) or <b>tap</b> (phone) the green edge to see the canopy settings and wind behind it. The <b>dashed green polygon</b> inside it is your <b>reserve range</b>: opening at 2,000 ft and reaching the same circle at 500 ft. It starts with a PD Optimum 143 at a 2.2:1 glide (change the reserve size/type in Canopy Settings, or hide it); the other reserve flight numbers are estimates. Tap its edge for the reserve details.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--muted)">&#x2699;&#xFE0F;</div><div><div class="wc-title">Canopy Settings</div><div class="wc-text">Tap <b>Canopy Settings</b> and enter <b>canopy size, exit weight, type</b>, opening altitude and (optionally) a known glide ratio. Add your <b>reserve</b> size and type too. The circle, flight time and descent rate update to match your gear. Your settings are <b>saved on this device</b> and kept through app updates; <b>Reset to defaults</b> clears them.</div></div></div>
-            <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F4CA;</div><div><div class="wc-title">Winds by Altitude</div><div class="wc-text">Each row blends <b>GFS, ICON, HRRR, HRDPS and ECMWF</b>, weighted toward the models that agree. The <b>Agree</b> column shows how closely they match. <b>Surface</b> uses the live <b>METAR</b> for the current hour when your DZ has a station. Every altitude always shows a direction. When the wind is light and uncertain (a calm or variable METAR, or models that disagree, under 8 kt) the direction is still the weighted model average, marked <b>≈</b> (about) as an estimate. All directions and headings in the app (winds, METAR, jump run, plane heading, landing pattern) are <b>magnetic</b>, corrected for the DZ&rsquo;s magnetic variation (shown under Model Agreement), and headings you type are read as magnetic. Tap <b>Hide</b> to collapse the table.</div></div></div>
+            <div class="wc-section"><div class="wc-icon" style="color:var(--accent)">&#x1F4CA;</div><div><div class="wc-title">Winds by Altitude</div><div class="wc-text">Each row blends <b>GFS, ICON, HRRR, HRDPS and ECMWF</b>, weighted toward the models that agree. The <b>Agree</b> column shows how closely they match. <b>Surface</b> uses the live <b>METAR</b> for the current hour when your DZ has a station. Every altitude always shows a direction. When the wind is light and uncertain (a calm or variable METAR, or models that disagree, under 8 kt) the direction is still the weighted model average, marked <b>≈</b> (about) as an estimate. All directions and headings in the app (winds, METAR, jump run, plane heading, landing pattern) are <b>magnetic</b>, corrected for the DZ&rsquo;s magnetic variation (shown under Model Agreement), and headings you type are read as magnetic. Tap <b>Hide</b> to collapse the table. If the winds can&rsquo;t be loaded (the weather service is busy or you&rsquo;re offline), a red banner over the map says so and retries automatically after about a minute; tap it to retry right away.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--freefall)">&#x1F4A8;</div><div><div class="wc-title">Wind Widget</div><div class="wc-text">The <b>Freefall / Canopy / Surface</b> widget shows drift and wind at a glance. <b>Freefall</b> gives drift for a <b>freefly</b> skydive (45 s of freefall) and a <b>belly</b> skydive (60 s). Tap an item for live <b>wind particles</b> on the map. Press and drag anywhere on the widget to move it out of the way. Reopen the widget with the &#x1F4A8; button in the header.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:#fff">&#x270F;&#xFE0F;</div><div><div class="wc-title">Jump Run</div><div class="wc-text"><b>Draw</b> a jump run by dragging on the map, <b>Suggest</b> one (the heading starts into the <b>average wind from the ground to 6,000 ft</b>, so the run lines up with where canopies can fly, high openings included; free-fall drift still comes from the 4,000&ndash;14,000 ft winds, and the run is shifted sideways if needed so the landings stay centered; enter a heading and it finds the longest run that keeps every landing inside the green circle with a margin of 10% upwind, 15% crosswind and 45% on the downwind side; its Prior/Past and Offset are snapped to the nearest 0.1 mi so they&rsquo;re easy to call out), or <b>Define</b> one: enter heading, <b>Prior/Past</b> (distance from the DZ center along that heading) and <b>Offset</b> (N/S/E/W &mdash; pick the direction closest to perpendicular to the run), plus length. A box at the start (tap and drag it to move it out of the way) shows heading, prior/past, offset, estimated ground speed and recommended jumper separation (1,500 ft of ground distance between groups, converted to seconds). The shaded <b>orange box</b> beside the run is where jumpers open: its near edge is <b>40 s</b> of freefall drift, its far edge <b>65 s</b>, and the dashed line down the middle (52.5 s) is where the numbered jumper boxes land. <b>Replay</b> animates the exits and freefall drift; <b>Clear</b> removes it. Jump runs are not saved.</div></div></div>
             <div class="wc-section"><div class="wc-icon" style="color:var(--red)">&#x1F3AF;</div><div><div class="wc-title">Landing Pattern</div><div class="wc-text">Tap <b>Place Landing Spot</b> and tap the map. A <b>Landing Pattern</b> popup opens: choose final heading (into wind or custom), right or left hand, and your <b>checkpoint altitudes</b> for downwind, base and final (default 1,000 / 600 / 300 ft; saved on this device and synced to your account when you&rsquo;re signed in). Legs are wind-adjusted for your canopy. Drag the popup by its title bar to move it out of the way. Reopen it with the <b>&#x1F3AF; Landing Pattern</b> button or by tapping the landing spot.</div></div></div>
@@ -1429,7 +1429,43 @@ function agreementLabel(spreadDeg){
 
 function colorClass(s){ if (s<10) return 'dot-green'; if (s<25) return 'dot-orange'; return 'dot-red'; }
 
+// ── Forecast failed (e.g. Open-Meteo rate limit with no cached copy): clear banner over the map + automatic
+//    retry. The server pauses Open-Meteo for 60 s after a rate limit, so the retry comes just after that.
+const LOAD_RETRY_S = 65, LOAD_RETRY_MAX = 5;
+let _loadRetry = { timer: null, tick: null, count: 0, key: null };
+function clearLoadRetry(){
+    clearTimeout(_loadRetry.timer); clearInterval(_loadRetry.tick); _loadRetry.timer = _loadRetry.tick = null;
+    const b = document.getElementById("loadFailBanner"); if (b) b.remove();
+}
+function clearWindLayers(){
+    // the previous DZ's/hour's circles must not stay on the map when this load failed
+    [canopyCircle, canopyCircleShifted, reserveCircle, reserveEdge, highLine].forEach(l => { try { if (l) l.remove(); } catch(e){} });
+    canopyCircle = canopyCircleShifted = reserveCircle = reserveEdge = highLine = null;
+    window._canopyPolyM = null;   // Suggested Jump Run must not use the previous DZ's shape
+}
+function loadFailed(reason){
+    const key = `${lat},${lon},${document.getElementById("hour").value}`;
+    if (_loadRetry.key !== key){ _loadRetry.key = key; _loadRetry.count = 0; }
+    clearLoadRetry();
+    _loadRetry.count++;
+    const b = document.createElement("div");
+    b.id = "loadFailBanner";
+    b.style.cssText = "position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9000;max-width:92vw;background:rgba(40,12,12,0.95);border:1px solid var(--red);border-radius:10px;padding:9px 14px;color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,0.5);cursor:pointer";
+    b.onclick = () => { clearLoadRetry(); load(); };
+    document.body.appendChild(b);
+    if (_loadRetry.count > LOAD_RETRY_MAX){
+        b.innerHTML = `⚠️ Couldn&rsquo;t load the winds. <b>Tap here or ↺ to try again.</b>`;
+        return;
+    }
+    let left = LOAD_RETRY_S;
+    const paint = () => { b.innerHTML = `⚠️ Couldn&rsquo;t load the winds${reason ? " (" + reason + ")" : ""}. Retrying in <b>${left} s</b> &middot; tap to retry now`; };
+    paint();
+    _loadRetry.tick = setInterval(() => { left = Math.max(0, left - 1); paint(); }, 1000);
+    _loadRetry.timer = setTimeout(() => { clearLoadRetry(); load(); }, LOAD_RETRY_S * 1000);
+}
+
 async function load(){
+    clearLoadRetry();   // a new load (retry, DZ change, slider) replaces any pending retry
     document.getElementById("loader").classList.remove("hidden");
     try { updateFavStar(); } catch(e){}   // whatever changed the DZ, the ☆ follows it
     const hour = document.getElementById("hour").value;
@@ -1459,13 +1495,16 @@ async function load(){
             } else {
                 document.getElementById("utcLabel").innerText = "⚠️ " + d.error;
                 document.getElementById("utcLabel").style.color = "var(--red)";
+                loadFailed("weather service busy");
             }
+            clearWindLayers();
             if (marker) marker.remove();
             marker = L.marker([lat, lon]).addTo(map);
             if (firstLoad) { map.setView([lat,lon],12); firstLoad=false; }
             return;
         }
         document.getElementById("utcLabel").style.color = "";
+        _loadRetry.count = 0;
         if (marker) marker.remove();
         if (canopyCircle) canopyCircle.remove();
         if (canopyCircleShifted) canopyCircleShifted.remove();
@@ -1700,6 +1739,8 @@ async function load(){
         document.getElementById("cards").innerHTML=html;
     } catch(e) {
         console.error("Load error:", e);
+        clearWindLayers();
+        loadFailed("no connection");
         if (marker) marker.remove();
         marker=L.marker([lat,lon]).addTo(map);
         if (firstLoad){ map.setView([lat,lon],12); firstLoad=false; }

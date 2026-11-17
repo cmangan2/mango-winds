@@ -9,6 +9,14 @@ import os
 import sys
 from datetime import datetime, timezone, timedelta
 
+# Under gunicorn stdout isn't a terminal, so Python block-buffers print(): Render got log lines in clumps,
+# often only when the worker exited (the 10-min memory reports never showed while it ran). Flush every line.
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+    sys.stderr.reconfigure(line_buffering=True)
+except Exception:
+    pass
+
 app = Flask(__name__)
 # Render terminates HTTPS at its proxy: trust X-Forwarded-Proto/Host so request.is_secure and host_url are right
 from werkzeug.middleware.proxy_fix import ProxyFix

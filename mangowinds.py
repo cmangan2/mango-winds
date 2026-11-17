@@ -2883,7 +2883,8 @@ def _rec_loop():
 # memory, cache sizes and the object types that grew most, and if memory is still over MEM_RESTART_MB,
 # restart the worker cleanly (gunicorn starts a new one in seconds) before Render kills it at 512 MB.
 # =====================================================
-MEM_CHECK_S = int(os.environ.get("MEM_CHECK_S", "600"))
+MEM_CHECK_S = int(os.environ.get("MEM_CHECK_S", "120"))     # memory/restart check (Nov 11: +300 MB within an hour)
+MEM_REPORT_EVERY = 5                                          # full object census + leak report every 5th check (10 min)
 MEM_RESTART_MB = int(os.environ.get("MEM_RESTART_MB", "430"))
 _mem_last_types = {}
 
@@ -2922,19 +2923,59 @@ def memory_report(top=8, track=True):
             "grew": [f"{n} +{d}" for n, d in grew if d > 0]}
 
 
+def leaked_traceback_report(top=6):
+    """Prod logs showed tracebacks/frames (+ urllib3 pool parts: OrderedDict, deque, RLock) growing ~400 per
+    10 min: exceptions kept alive somewhere. Name where they come from (innermost frame in our code, and where
+    raised) and what holds the exception objects, so the next log says what to fix."""
+    import gc, collections, types
+    gc.collect()
+    tbs = [o for o in gc.get_objects() if isinstance(o, types.TracebackType)]
+    origin, holders = collections.Counter(), collections.Counter()
+    for tb in tbs[:2000]:
+        ours, last = None, None
+        t = tb
+        while t is not None:
+            co = t.tb_frame.f_code
+            last = f"{os.path.basename(co.co_filename)}:{t.tb_lineno} {co.co_name}"
+            if co.co_filename.endswith("mangowinds.py"):
+                ours = f"{co.co_name}:{t.tb_lineno}"
+            t = t.tb_next
+        origin[f"{ours or '?'} <- {last}"] += 1
+    for tb in tbs[:20]:
+        for ref in gc.get_referrers(tb):
+            if isinstance(ref, BaseException):
+                for h in gc.get_referrers(ref):
+                    if h is not tbs:
+                        holders[type(h).__name__ + (f" {getattr(h, 'f_code', None).co_name}" if hasattr(h, "f_code") else "")] += 1
+    del tbs
+    return (f"{sum(origin.values())} tracebacks alive | from: "
+            + "; ".join(f"{k} x{n}" for k, n in origin.most_common(top))
+            + " | held by: " + (", ".join(f"{k} x{n}" for k, n in holders.most_common(top)) or "-"))
+
+
 def _mem_loop():
     import time, signal
+    n = 0
     while True:
         time.sleep(MEM_CHECK_S)
+        n += 1
         try:
             before = _rss_mb()
             _malloc_trim()
-            r = memory_report()
-            print(f"Memory: {before} MB -> {r['rss_mb']} MB after trim | cache {r['cache_entries']} | locks {r['model_locks']} "
-                  f"| trails {r['adsb_trails']} | rec pts {r['rec_points']} | threads {r['threads']} | objects {r['gc_objects']} "
-                  f"| grew: {', '.join(r['grew']) or '-'}")
+            if n % MEM_REPORT_EVERY == 0:
+                r = memory_report()
+                print(f"Memory: {before} MB -> {r['rss_mb']} MB after trim | cache {r['cache_entries']} | locks {r['model_locks']} "
+                      f"| trails {r['adsb_trails']} | rec pts {r['rec_points']} | threads {r['threads']} | objects {r['gc_objects']} "
+                      f"| grew: {', '.join(r['grew']) or '-'}")
+                print("Memory leak check: " + leaked_traceback_report())
+            else:
+                r = {"rss_mb": _rss_mb()}
             if r["rss_mb"] and r["rss_mb"] > MEM_RESTART_MB and "gunicorn" in sys.modules:
                 print(f"Memory: {r['rss_mb']} MB is over {MEM_RESTART_MB} MB — restarting this worker cleanly before Render's 512 MB kill")
+                try:
+                    print("Memory leak check (before restart): " + leaked_traceback_report())
+                except Exception as e:
+                    print(f"Memory leak check error: {e}")
                 os.kill(os.getpid(), signal.SIGTERM)   # gunicorn: graceful worker exit, the master starts a fresh one
                 return
         except Exception as e:
